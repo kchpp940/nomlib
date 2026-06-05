@@ -95,37 +95,29 @@ class Sprite: public Transformable
     /// \brief Get the alpha value of the sprite.
     uint8 alpha() const;
 
-    /// \brief Construct a sprite from an existing texture source.
+    /// \brief Set the sprite's texture, taking ownership of the raw pointer.
     ///
-    /// \params tex An existing, valid nom::Texture reference.
-    ///
-    /// \returns Boolean TRUE on successful construction, or boolean FALSE when
-    /// construction has failed, such as when the texture is invalid, or a
-    /// failure to allocate the necessary memory.
-    ///
-    /// \remarks The passed in nom::Texture instance **must** outlive the
-    /// destruction of this sprite!
-    bool set_texture(Texture& tex);
-
-    /// \brief Construct a sprite from an existing texture source.
-    ///
-    /// \params tex An existing, valid nom::Texture pointer.
+    /// \param tex An existing, valid nom::Texture raw pointer.
     ///
     /// \returns Boolean TRUE on successful construction, or boolean FALSE when
-    /// construction has failed, such as when the texture is invalid, or a
-    /// failure to allocate the necessary memory.
+    /// construction has failed, such as when the texture is invalid.
     ///
-    /// \remarks The ownership of the pointer is transferred to this sprite.
+    /// \remarks The sprite takes ownership of the pointer and will manage its
+    /// lifetime via reference counting. The caller should NOT delete the pointer
+    /// after passing it to this method.
     bool set_texture(Texture* tex);
 
-    /// \brief Construct a sprite from an existing texture source.
+    /// \brief Set the sprite's texture using shared ownership.
     ///
-    /// \params tex An existing, valid nom::Texture pointer.
+    /// \param tex An existing, valid nom::Texture shared pointer.
     ///
     /// \returns Boolean TRUE on successful construction, or boolean FALSE when
-    /// construction has failed, such as when the texture is invalid, or a
-    /// failure to allocate the necessary memory.
-    bool set_texture(std::shared_ptr<Texture>& tex);
+    /// construction has failed, such as when the texture is invalid.
+    ///
+    /// \remarks The sprite shares ownership of the texture via reference
+    /// counting. The texture will be freed only when all shared_ptr references
+    /// are destroyed.
+    bool set_texture(std::shared_ptr<Texture> tex);
 
     bool set_alpha(uint8 opacity);
 
@@ -167,41 +159,29 @@ class Sprite: public Transformable
     // real32 z_depth_;
 };
 
-/// \brief Construct a sprite from an existing texture source.
-///
-/// \relates ::set_texture
-std::unique_ptr<Sprite>
-make_unique_sprite(Texture& tex);
-
-/// \brief Construct a sprite from an existing texture source.
+/// \brief Construct a sprite, taking ownership of the raw texture pointer.
 ///
 /// \relates ::set_texture
 std::unique_ptr<Sprite>
 make_unique_sprite(Texture* tex);
 
-/// \brief Construct a sprite from an existing texture source.
+/// \brief Construct a sprite with shared ownership of a texture.
 ///
 /// \relates ::set_texture
 std::unique_ptr<Sprite>
-make_unique_sprite(std::shared_ptr<Texture>& tex);
+make_unique_sprite(std::shared_ptr<Texture> tex);
 
-/// \brief Construct a sprite from an existing texture source.
-///
-/// \relates ::set_texture
-std::shared_ptr<Sprite>
-make_shared_sprite(Texture& tex);
-
-/// \brief Construct a sprite from an existing texture source.
+/// \brief Construct a sprite, taking ownership of the raw texture pointer.
 ///
 /// \relates ::set_texture
 std::shared_ptr<Sprite>
 make_shared_sprite(Texture* tex);
 
-/// \brief Construct a sprite from an existing texture source.
+/// \brief Construct a sprite with shared ownership of a texture.
 ///
 /// \relates ::set_texture
 std::shared_ptr<Sprite>
-make_shared_sprite(std::shared_ptr<Texture>& tex);
+make_shared_sprite(std::shared_ptr<Texture> tex);
 
 } // namespace nom
 

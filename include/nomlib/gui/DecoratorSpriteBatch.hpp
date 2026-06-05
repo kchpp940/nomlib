@@ -84,7 +84,7 @@ class DecoratorSpriteBatch: public Rocket::Core::Decorator
   private:
     /// \brief The sprite object used to render the decorator.
     std::unique_ptr<SpriteBatch> sprite_;
-    std::unique_ptr<Texture> texture_;
+    std::shared_ptr<Texture> texture_;
 };
 
 } // namespace nom

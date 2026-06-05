@@ -100,7 +100,8 @@ class Gradient: public Transformable
     /// \remarks This uniquely identifies the object's type.
     ObjectTypeInfo type( void ) const;
 
-    /// \brief Get the underlying texture of the rendered gradient.
+    /// \brief Get a deep-copy instance of the underlying texture of the
+    /// rendered gradient.
     ///
     /// \returns A pointer to a new nom::Texture instance of the stored texture
     /// used for rendering the gradient. The returned pointer is owned by the

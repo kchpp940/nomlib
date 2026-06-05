@@ -38,13 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
-inline static
-void TextureReferenceDeleter(Texture* tex)
-{
-  // Memory management is free for us here; the sprite does not own the
-  // texture!
-}
-
 Sprite::Sprite() :
   Transformable(Point2i::zero, Size2i::zero)
 {
@@ -65,7 +58,7 @@ bool Sprite::init_with_color(const Color4i& color, const Size2i& dims)
   Rectangle rect(rect_bounds, color);
   auto tex = rect.texture();
 
-  return this->set_texture(tex);
+  return this->set_texture(std::move(tex));
 }
 
 ObjectTypeInfo Sprite::type() const
@@ -153,22 +146,6 @@ BlendMode Sprite::color_blend_mode() const
   return mode;
 }
 
-bool Sprite::set_texture(Texture& tex)
-{
-  this->texture_.reset(&tex, TextureReferenceDeleter);
-
-  if( this->texture_ != nullptr ) {
-    this->set_position( this->texture_->position() );
-    this->set_size( this->texture_->size() );
-    return true;
-  } else {
-    // Err; out of memory???
-    NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not allocate a texture for the sprite." );
-    return false;
-  }
-}
-
 bool Sprite::set_texture(Texture* tex)
 {
   this->texture_.reset(tex);
@@ -178,25 +155,23 @@ bool Sprite::set_texture(Texture* tex)
     this->set_size( this->texture_->size() );
     return true;
   } else {
-    // Err; out of memory???
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not allocate a texture for the sprite." );
+                  "Could not set texture for sprite: invalid texture." );
     return false;
   }
 }
 
-bool Sprite::set_texture(std::shared_ptr<Texture>& tex)
+bool Sprite::set_texture(std::shared_ptr<Texture> tex)
 {
-  this->texture_ = tex;
+  this->texture_ = std::move(tex);
 
   if( this->texture_ != nullptr ) {
     this->set_position( this->texture_->position() );
     this->set_size( this->texture_->size() );
     return true;
   } else {
-    // Err; out of memory???
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not allocate texture for sprite." );
+                  "Could not set texture for sprite: invalid texture." );
     return false;
   }
 }
@@ -265,17 +240,6 @@ void Sprite::update()
 // Non-member factory functions
 
 std::unique_ptr<Sprite>
-make_unique_sprite(Texture& tex)
-{
-  auto sprite = nom::make_unique<Sprite>();
-  if( sprite != nullptr ) {
-    sprite->set_texture(tex);
-  }
-
-  return std::move(sprite);
-}
-
-std::unique_ptr<Sprite>
 make_unique_sprite(Texture* tex)
 {
   auto sprite = nom::make_unique<Sprite>();
@@ -283,26 +247,15 @@ make_unique_sprite(Texture* tex)
     sprite->set_texture(tex);
   }
 
-  return std::move(sprite);
+  return sprite;
 }
 
 std::unique_ptr<Sprite>
-make_unique_sprite(std::shared_ptr<Texture>& tex)
+make_unique_sprite(std::shared_ptr<Texture> tex)
 {
   auto sprite = nom::make_unique<Sprite>();
   if( sprite != nullptr ) {
-    sprite->set_texture(tex);
-  }
-
-  return std::move(sprite);
-}
-
-std::shared_ptr<Sprite>
-make_shared_sprite(Texture& tex)
-{
-  auto sprite = std::make_shared<Sprite>();
-  if( sprite != nullptr ) {
-    sprite->set_texture(tex);
+    sprite->set_texture(std::move(tex));
   }
 
   return sprite;
@@ -320,11 +273,11 @@ make_shared_sprite(Texture* tex)
 }
 
 std::shared_ptr<Sprite>
-make_shared_sprite(std::shared_ptr<Texture>& tex)
+make_shared_sprite(std::shared_ptr<Texture> tex)
 {
   auto sprite = std::make_shared<Sprite>();
   if( sprite != nullptr ) {
-    sprite->set_texture(tex);
+    sprite->set_texture(std::move(tex));
   }
 
   return sprite;

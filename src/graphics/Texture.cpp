@@ -65,9 +65,9 @@ Texture::~Texture( void )
 }
 
 Texture::Texture ( const Texture& copy ) :
-  texture_ { copy.texture(), priv::FreeTexture },
-  pixels_ { copy.pixels() },
-  pitch_ { copy.pitch() },
+  texture_ { copy.texture_ },
+  pixels_ { nullptr },
+  pitch_ { 0 },
   position_ { copy.position() },
   size_( copy.size() ),
   bounds_( copy.bounds() ),
@@ -79,13 +79,61 @@ Texture::Texture ( const Texture& copy ) :
 
 Texture& Texture::operator = ( const Texture& other )
 {
-  this->texture_ = other.texture_;
-  this->pixels_ = other.pixels();
-  this->pitch_ = other.pitch();
-  this->position_ = other.position();
-  this->size_ = other.size();
-  this->bounds_ = other.bounds();
-  this->set_scale_factor( other.scale_factor() );
+  if( this != &other )
+  {
+    this->texture_ = other.texture_;
+    this->pixels_ = nullptr;
+    this->pitch_ = 0;
+    this->position_ = other.position();
+    this->size_ = other.size();
+    this->bounds_ = other.bounds();
+    this->colorkey_ = other.colorkey();
+    this->set_scale_factor( other.scale_factor() );
+  }
+
+  return *this;
+}
+
+Texture::Texture( Texture&& other ) noexcept :
+  texture_( std::move( other.texture_ ) ),
+  pixels_( other.pixels_ ),
+  pitch_( other.pitch_ ),
+  position_( other.position_ ),
+  size_( other.size_ ),
+  bounds_( other.bounds_ ),
+  colorkey_( other.colorkey_ ),
+  scale_factor_( other.scale_factor_ )
+{
+  other.pixels_ = nullptr;
+  other.pitch_ = 0;
+  other.position_ = Point2i::zero;
+  other.size_ = Size2i::zero;
+  other.bounds_ = IntRect( 0, 0, -1, -1 );
+  other.colorkey_ = Color4i::Black;
+  other.scale_factor_ = 1;
+}
+
+Texture& Texture::operator = ( Texture&& other ) noexcept
+{
+  if( this != &other )
+  {
+    this->texture_ = std::move( other.texture_ );
+    this->pixels_ = other.pixels_;
+    this->pitch_ = other.pitch_;
+    this->position_ = other.position_;
+    this->size_ = other.size_;
+    this->bounds_ = other.bounds_;
+    this->colorkey_ = other.colorkey_;
+    this->scale_factor_ = other.scale_factor_;
+
+    other.pixels_ = nullptr;
+    other.pitch_ = 0;
+    other.position_ = Point2i::zero;
+    other.size_ = Size2i::zero;
+    other.bounds_ = IntRect( 0, 0, -1, -1 );
+    other.colorkey_ = Color4i::Black;
+    other.scale_factor_ = 1;
+  }
 
   return *this;
 }
