@@ -57,24 +57,6 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
   {
     default: break;
 
-    case nom::Event::WINDOW_EVENT:
-    {
-      switch(ev.window.event)
-      {
-        case nom::WindowEvent::SIZE_CHANGED:
-        {
-          this->ctx_->set_size( Size2i( ev.window.data1, ev.window.data2 ) );
-        } break;
-
-        default: break;
-      }
-    } break;
-
-    case nom::Event::RENDER_TARGETS_RESET:
-    {
-      this->ctx_->on_render_targets_reset();
-    } break;
-
     case nom::Event::MOUSE_MOTION:
     {
       this->ctx_->context()->ProcessMouseMove(  ev.motion.x,

@@ -581,6 +581,27 @@ int RenderWindow::num_video_displays()
   return SDL_GetNumVideoDisplays();
 }
 
+void RenderWindow::on_window_size_changed(int width, int height)
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE );
+
+  NOM_ASSERT( this->window_ != nullptr );
+  if( this->window_ == nullptr ) {
+    return;
+  }
+
+  SDL_SetWindowSize( this->window_.get(), width, height );
+}
+
+void RenderWindow::on_render_targets_reset()
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE );
+
+  NOM_LOG_WARN( NOM_LOG_CATEGORY_RENDER,
+                "Render targets have been reset. All textures and render targets "
+                "created with this renderer are now invalid and must be recreated." );
+}
+
 namespace priv {
 
 // Static initializations

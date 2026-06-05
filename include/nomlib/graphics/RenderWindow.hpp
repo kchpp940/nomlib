@@ -368,6 +368,19 @@ class RenderWindow: public Renderer
     /// to one (1) on success, or a negative number on failure.
     static int num_video_displays();
 
+    /// \brief Handler for when the window size has changed.
+    ///
+    /// \remarks Updates internal window state and synchronizes the renderer's
+    /// viewport to match the new dimensions.
+    void on_window_size_changed(int width, int height);
+
+    /// \brief Handler for when the render targets have been reset.
+    ///
+    /// \remarks This is applicable only to Direct3D renderers. When called,
+    /// any cached render targets or textures created by this window should be
+    /// considered invalid and will need to be recreated.
+    void on_render_targets_reset();
+
   private:
     /// \brief  Set a new nom::RenderWindow as the active rendering context; we must
     ///         always have a context active at any given time for generating
