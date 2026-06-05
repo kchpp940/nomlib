@@ -61,10 +61,12 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
   if(this->fp_ != nullptr) {
 
     if(this->fp_->open(filename, metadata) == false) {
+      this->release();
       return;
     }
 
     if(this->fp_->valid() == false) {
+      this->release();
       return;
     }
 
@@ -72,21 +74,23 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
     auto num_channels = metadata.channel_count;
     auto channel_format = metadata.channel_format;
 
-    buffer =
-      audio::create_buffer_memory(samples_per_second, num_channels,
-                                  channel_format);
-
     // NOTE(jeff): Create a queue of buffers to stream out in chunks
     for(auto buffer_idx = 0;
         buffer_idx != audio::TOTAL_NUM_BUFFERS;
         ++buffer_idx)
     {
+      buffer =
+        audio::create_buffer_memory(samples_per_second, num_channels,
+                                    channel_format);
+
       if(buffer == nullptr) {
-        break;
+        this->release();
+        return;
       }
 
-      // TODO(jeff): Validity check..?
       if(audio::write_info(buffer, metadata) == false) {
+        audio::free_buffer(buffer, this->impl_);
+        this->release();
         return;
       }
 
@@ -123,6 +127,8 @@ PlayAudioSource::~PlayAudioSource()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
+
+  this->release();
 }
 
 std::unique_ptr<IActionObject> PlayAudioSource::clone() const
@@ -231,68 +237,79 @@ IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 
 void PlayAudioSource::pause(real32 delta_time)
 {
-  auto itr = this->current_buffer_;
-
   this->timer_.pause();
-#if 0
-  audio::pause((*itr), this->impl_);
 
-  if(this->audible_) {
-    this->audible_->elapsed_seconds = this->timer_.ticks();
+  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
+    auto itr = this->current_buffer_;
+    if(*itr != nullptr) {
+      audio::pause((*itr), this->impl_);
+    }
   }
-#endif
 }
 
 void PlayAudioSource::resume(real32 delta_time)
 {
-  auto itr = this->current_buffer_;
-
   this->timer_.unpause();
-#if 0
-  if(this->audible_) {
-    this->audible_->elapsed_seconds = this->timer_.ticks();
+
+  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
+    auto itr = this->current_buffer_;
+    if(*itr != nullptr) {
+      audio::resume((*itr), this->impl_);
+    }
   }
-#endif
-  audio::resume((*itr), this->impl_);
 }
 
 void PlayAudioSource::rewind(real32 delta_time)
 {
-  auto itr = this->current_buffer_;
-
-  // ...Reset the animation...
   this->elapsed_frames_ = 0.0f;
   this->timer_.stop();
   this->set_status(FrameState::PLAYING);
+  this->input_pos_ = 0;
 
-  if((*itr) != nullptr) {
-    audio::stop((*itr), this->impl_);
-    (*itr)->samples_read = 0;
+  if(this->fp_ != nullptr) {
+    this->fp_->seek(0, audio::SOUND_SEEK_SET);
   }
+
+  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
+    auto itr = this->current_buffer_;
+    if(*itr != nullptr) {
+      audio::stop((*itr), this->impl_);
+    }
+  }
+
+  for(auto buffer : this->audible_) {
+    if(buffer != nullptr) {
+      buffer->samples_read = 0;
+    }
+  }
+
+  this->current_buffer_ = this->audible_.begin();
 }
 
 void PlayAudioSource::release()
 {
-  auto itr = this->current_buffer_;
+  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
+    auto itr = this->current_buffer_;
 
-  if(*itr != nullptr) {
-    // audio::stop((*itr), this->impl_);
-
-    auto num_buffers = this->audible_.size();
-
-    NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
-
-    auto audible_end = this->audible_.end();
-    for(auto itr = this->audible_.begin();
-        itr != audible_end; ++itr)
-    {
-      audio::free_buffer((*itr), this->impl_);
+    if(*itr != nullptr) {
+      audio::stop((*itr), this->impl_);
     }
-  #if 0
-    audio::free_buffer(this->audible_, this->impl_);
-    this->audible_ = nullptr;
-  #endif
   }
+
+  auto num_buffers = this->audible_.size();
+
+  NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
+
+  auto audible_end = this->audible_.end();
+  for(auto itr = this->audible_.begin();
+      itr != audible_end; ++itr)
+  {
+    audio::free_buffer((*itr), this->impl_);
+  }
+
+  this->audible_.clear();
+
+  NOM_DELETE_PTR(this->fp_);
 }
 
 // Private scope
@@ -314,14 +331,16 @@ void PlayAudioSource::last_frame(real32 delta_time)
 {
   NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                "END at", delta_time);
-  auto itr = this->current_buffer_;
 
   this->timer_.stop();
-
-  // TODO(jeff): ?
-  // audio::stop((*itr), this->impl_);
-  // (*itr)->samples_read = 0;
   this->input_pos_ = 0;
+
+  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
+    auto itr = this->current_buffer_;
+    if(*itr != nullptr) {
+      audio::stop((*itr), this->impl_);
+    }
+  }
 }
 
 } // namespace nom

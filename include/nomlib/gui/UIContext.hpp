@@ -52,7 +52,6 @@ namespace nom {
 struct Event;
 class EventHandler;
 class IUIEventHandler;
-class SDLApp;
 
 /// \brief libRocket context abstraction
 ///
@@ -207,17 +206,6 @@ class UIContext
     /// currently ignored.
     void draw();
 
-    /// \brief Set the SDLApp that manages this UI context.
-    ///
-    /// \remarks Called automatically by SDLApp::attach_ui_context.
-    void set_app(SDLApp* app, uint32 window_id);
-
-    /// \brief Get the SDLApp that manages this UI context.
-    SDLApp* app() const;
-
-    /// \brief Get the window ID this UI context is attached to.
-    uint32 window_id() const;
-
   private:
     /// \brief Initialize libRocket's visual debugger tool.
     ///
@@ -252,12 +240,6 @@ class UIContext
 
     /// \brief The dimensions of the context.
     Size2i res_;
-
-    /// \brief Non-owning pointer to the managing SDLApp
-    SDLApp* app_ = nullptr;
-
-    /// \brief The window ID this UI context is attached to
-    uint32 window_id_ = 0;
 };
 
 } // namespace nom

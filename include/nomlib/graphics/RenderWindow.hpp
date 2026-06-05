@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <vector>
 #include <memory>
-#include <functional>
 
 #include <SDL.h>
 
@@ -47,9 +46,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/system/File.hpp"
 
 namespace nom {
-
-// Forward declarations
-class SDLApp;
 
 /// \brief Custom deleter for void* return of Renderer::pixels()
 struct PixelsDeleter
@@ -372,50 +368,6 @@ class RenderWindow: public Renderer
     /// to one (1) on success, or a negative number on failure.
     static int num_video_displays();
 
-    /// \brief Handler for when the window size has changed.
-    ///
-    /// \remarks Updates internal window state and synchronizes the renderer's
-    /// viewport to match the new dimensions.
-    void on_window_size_changed(int width, int height);
-
-    /// \brief Handler for when the render targets have been reset.
-    ///
-    /// \remarks This is applicable only to Direct3D renderers. When called,
-    /// any cached render targets or textures created by this window should be
-    /// considered invalid and will need to be recreated.
-    void on_render_targets_reset();
-
-    /// \brief Callback type for render target reset callbacks.
-    typedef std::function<void()> render_target_reset_callback;
-
-    /// \brief Register a callback to be called when render targets are reset.
-    ///
-    /// \return A unique identifier for the callback registration, which can be used to
-    /// unregister the callback.
-    uint32 add_render_target_reset_callback(render_target_reset_callback callback);
-
-    /// \brief Unregister a render target reset callback.
-    ///
-    /// \param callback_id The ID returned by add_render_target_reset_callback.
-    void remove_render_target_reset_callback(uint32 callback_id);
-
-    /// \brief Check if render targets are valid.
-    ///
-    /// \return True if all render targets and valid, false if they have been reset
-    /// and need to be recreated.
-    bool render_targets_valid() const;
-
-    /// \brief Set the SDLApp that manages this window.
-    ///
-    /// \remarks Called automatically by SDLApp::add_render_window.
-    void set_app(SDLApp* app);
-
-    /// \brief Get the SDLApp that manages this window.
-    SDLApp* app() const;
-
-    /// \brief Get the underlying SDL window.
-    SDL_Window* window() const;
-
   private:
     /// \brief  Set a new nom::RenderWindow as the active rendering context; we must
     ///         always have a context active at any given time for generating
@@ -425,9 +377,6 @@ class RenderWindow: public Renderer
     static SDL_Renderer* context_;
 
     SDL_WINDOW::UniquePtr window_;
-
-    /// \brief Non-owning pointer to the managing SDLApp
-    SDLApp* app_ = nullptr;
 
     /// \brief The unique identifier as recognized internally by SDL.
     uint32 window_id_;
@@ -440,15 +389,6 @@ class RenderWindow: public Renderer
 
     /// Toggle window & full-screen states
     bool fullscreen_;
-
-    /// \brief Validity state of render targets
-    bool render_targets_valid_ = true;
-
-    /// \brief Next callback ID for render target reset callbacks
-    uint32 next_render_target_reset_callback_id_ = 1;
-
-    /// \brief Registered render target reset callbacks
-    std::vector<std::pair<uint32, render_target_reset_callback>> render_target_reset_callbacks_;
 };
 
 namespace priv {

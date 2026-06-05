@@ -54,10 +54,6 @@ UIContext::UIContext() :
 UIContext::~UIContext()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE, nom::LogPriority::NOM_LOG_PRIORITY_INFO );
-
-  if( this->app_ != nullptr ) {
-    this->app_->detach_ui_context(*this);
-  }
 }
 
 void UIContext::shutdown()
@@ -550,22 +546,6 @@ void UIContext::process_event(const nom::Event& evt)
   if( this->evt_ != nullptr ) {
     this->evt_->process_event(evt);
   }
-}
-
-void UIContext::set_app(SDLApp* app, uint32 window_id)
-{
-  this->app_ = app;
-  this->window_id_ = window_id;
-}
-
-SDLApp* UIContext::app() const
-{
-  return this->app_;
-}
-
-uint32 UIContext::window_id() const
-{
-  return this->window_id_;
 }
 
 } // namespace nom

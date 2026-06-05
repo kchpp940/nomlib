@@ -38,8 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/system/Event.hpp"
 #include "nomlib/system/EventHandler.hpp"
 #include "nomlib/graphics/IDrawable.hpp"
-#include "nomlib/graphics/RenderWindow.hpp"
-#include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/StateMachine.hpp"
 
 namespace nom {
@@ -174,83 +172,6 @@ void SDLApp::set_event_handler(EventHandler& evt_handler)
   this->event_handler_->append_event_watch(event_watch, nullptr);
 }
 
-void SDLApp::add_render_window(RenderWindow& window)
-{
-  uint32 window_id = SDL_GetWindowID(window.window());
-  this->render_windows_[window_id] = &window;
-  window.set_app(this);
-}
-
-void SDLApp::remove_render_window(uint32 window_id)
-{
-  auto it = this->render_windows_.find(window_id);
-  if( it != this->render_windows_.end() ) {
-    if( it->second != nullptr ) {
-      it->second->set_app(nullptr);
-    }
-    this->render_windows_.erase(it);
-  }
-  this->ui_contexts_.erase(window_id);
-}
-
-void SDLApp::attach_ui_context(UIContext& context, uint32 window_id)
-{
-  this->ui_contexts_[window_id].push_back(&context);
-  context.set_app(this, window_id);
-}
-
-void SDLApp::detach_ui_context(UIContext& context)
-{
-  for( auto& entry : this->ui_contexts_ ) {
-    auto& contexts = entry.second;
-    for( auto it = contexts.begin(); it != contexts.end(); ++it ) {
-      if( *it == &context ) {
-        context.set_app(nullptr, 0);
-        contexts.erase(it);
-        return;
-      }
-    }
-  }
-}
-
-RenderWindow* SDLApp::render_window(uint32 window_id) const
-{
-  auto it = this->render_windows_.find(window_id);
-  if( it != this->render_windows_.end() ) {
-    return it->second;
-  }
-  return nullptr;
-}
-
-std::vector<RenderWindow*> SDLApp::render_windows() const
-{
-  std::vector<RenderWindow*> result;
-  for( const auto& entry : this->render_windows_ ) {
-    result.push_back(entry.second);
-  }
-  return result;
-}
-
-std::vector<UIContext*> SDLApp::ui_contexts_for_window(uint32 window_id) const
-{
-  auto it = this->ui_contexts_.find(window_id);
-  if( it != this->ui_contexts_.end() ) {
-    return it->second;
-  }
-  return {};
-}
-
-void SDLApp::on_app_event(const Event& ev)
-{
-  // Handle our events
-  this->process_event(ev);
-
-  // Handle the state's events
-  if( this->state_ != nullptr ) {
-    this->state()->on_event(ev);
-  }
-}
-
 // Protected scope
 
 void SDLApp::on_app_quit(const Event& ev)
@@ -287,25 +208,7 @@ void SDLApp::on_window_resized(const Event& ev)
 
 void SDLApp::on_window_size_changed(const Event& ev)
 {
-  uint32 window_id = ev.window.window_id;
-  int width = ev.window.data1;
-  int height = ev.window.data2;
-
-  auto win_it = this->render_windows_.find(window_id);
-  if( win_it != this->render_windows_.end() ) {
-    if( win_it->second != nullptr ) {
-      win_it->second->on_window_size_changed(width, height);
-    }
-  }
-
-  auto ui_it = this->ui_contexts_.find(window_id);
-  if( ui_it != this->ui_contexts_.end() ) {
-    for( auto* context : ui_it->second ) {
-      if( context != nullptr ) {
-        context->set_size(Size2i(width, height));
-      }
-    }
-  }
+  // Default implementation
 }
 
 void SDLApp::on_window_minimized(const Event& ev)
@@ -367,13 +270,7 @@ void SDLApp::on_user_event(const Event& ev)
 
 void SDLApp::on_render_targets_reset(const Event& ev)
 {
-  uint32 window_id = ev.render_target.window_id;
-  auto win_it = this->render_windows_.find(window_id);
-  if( win_it != this->render_windows_.end() ) {
-    if( win_it->second != nullptr ) {
-      win_it->second->on_render_targets_reset();
-    }
-  }
+  // Default implementation
 }
 
 // NOTE: Not available until the release of SDL 2.0.4
@@ -385,6 +282,17 @@ void SDLApp::on_render_device_reset(const Event& ev)
 #endif
 
 // Private scope
+
+void SDLApp::on_app_event(const Event& ev)
+{
+  // Handle our events
+  this->process_event(ev);
+
+  // Handle the state's events
+  if( this->state_ != nullptr ) {
+    this->state()->on_event(ev);
+  }
+}
 
 void SDLApp::process_event(const Event& ev)
 {
