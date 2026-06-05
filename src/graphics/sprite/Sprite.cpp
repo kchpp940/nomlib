@@ -56,9 +56,8 @@ bool Sprite::init_with_color(const Color4i& color, const Size2i& dims)
   IntRect rect_bounds(rect_pos, rect_dims);
 
   Rectangle rect(rect_bounds, color);
-  auto tex = rect.texture();
 
-  return this->adopt_texture(std::unique_ptr<Texture>(tex));
+  return this->adopt_texture( rect.texture() );
 }
 
 ObjectTypeInfo Sprite::type() const

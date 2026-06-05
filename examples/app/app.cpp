@@ -282,7 +282,7 @@ class App: public nom::SDLApp
         return false;
       }
 
-      this->sprite.adopt_texture( std::unique_ptr<Texture>( this->sprite_tex.clone() ) );
+      this->sprite.adopt_texture( this->sprite_tex.clone() );
       this->sprite.set_sprite_sheet(sprite_frames);
       this->sprite_tex.resize(nom::Texture::ResizeAlgorithm::scale2x);
       this->sprite.set_frame(1); // Left-pointing cursor hand

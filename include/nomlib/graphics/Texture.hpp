@@ -111,15 +111,16 @@ class Texture
 
     /// \brief Get a shallow-copy of the underlying stored texture.
     ///
-    /// \returns A pointer to a new nom::Texture instance from the stored
-    /// data of this object's instance. The returned pointer is owned by the
-    /// caller.
+    /// \returns A unique pointer to a new nom::Texture instance from the stored
+    /// data of this object's instance.
     ///
     /// \remarks The cloned instance shares the same internal texture memory
-    /// via reference counting. The underlying SDL_Texture will be freed only
+    /// via reference counting. The returned unique_ptr represents exclusive
+    /// ownership of the new Texture wrapper. Use std::move to transfer ownership
+    /// to Sprite::adopt_texture. The underlying SDL_Texture will be freed only
     /// when all referencing instances are destroyed. For a true deep copy,
     /// keep the original nom::Image source and create a new texture from it.
-    Texture* clone() const;
+    std::unique_ptr<Texture> clone() const;
 
     /// Initialize an object with specified parameters
     ///

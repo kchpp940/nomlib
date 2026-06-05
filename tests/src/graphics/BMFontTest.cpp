@@ -361,7 +361,7 @@ TEST_F(BMFontTest, ClonedTexture)
   auto tex = std::make_shared<Sprite>();
   ASSERT_TRUE(tex != nullptr);
 
-  EXPECT_EQ(true, tex->adopt_texture( std::unique_ptr<Texture>( rendered_text.clone_texture() ) ) );
+  EXPECT_EQ(true, tex->adopt_texture( rendered_text.clone_texture() ) );
   nom::set_alignment( tex.get(), rendered_text.position(),
                       this->resolution(), Anchor::MiddleCenter );
 

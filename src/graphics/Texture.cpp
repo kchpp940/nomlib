@@ -138,9 +138,9 @@ Texture& Texture::operator = ( Texture&& other ) noexcept
   return *this;
 }
 
-Texture* Texture::clone() const
+std::unique_ptr<Texture> Texture::clone() const
 {
-  return( new self_type(*this) );
+  return std::make_unique<self_type>(*this);
 }
 
 bool Texture::initialize ( uint32 format, uint32 flags, int32 width, int32 height )

@@ -61,15 +61,14 @@ Shape* Rectangle::clone() const
   return( new self_type(*this) );
 }
 
-Texture* Rectangle::texture() const
+std::unique_ptr<Texture> Rectangle::texture() const
 {
-  Texture* texture = new Texture();
+  std::unique_ptr<Texture> texture = std::make_unique<Texture>();
 
   NOM_ASSERT(texture != nullptr);
   if( texture == nullptr ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_RENDER, "Could not update cache:",
                   "failed to allocate texture memory." );
-    NOM_DELETE_PTR(texture);
     return nullptr;
   }
 
@@ -79,7 +78,6 @@ Texture* Rectangle::texture() const
   if( context == nullptr ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_RENDER, "Could not update cache",
                   "invalid renderer." );
-    NOM_DELETE_PTR(texture);
     return nullptr;
   }
 
@@ -91,23 +89,20 @@ Texture* Rectangle::texture() const
   {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION, "Could not update cache:",
                   "failed texture creation." );
-    NOM_DELETE_PTR(texture);
     return nullptr;
   }
 
   texture->set_position( this->position() );
 
-  if( context->set_render_target(texture) == false ) {
+  if( context->set_render_target(texture.get()) == false ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION, "Could not update cache:",
                   "could not set rendering target." );
-    NOM_DELETE_PTR(texture);
     return nullptr;
   }
 
   if( context->fill( this->fill_color() ) == false ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION, "Could not update cache:",
                   "failed to set texture color." );
-    NOM_DELETE_PTR(texture);
     return nullptr;
   }
 
@@ -116,7 +111,6 @@ Texture* Rectangle::texture() const
   if( context->reset_render_target() == false ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION, "Could not update cache:",
                   "failed to reset the rendering target." );
-    NOM_DELETE_PTR(texture);
     return nullptr;
   }
 

@@ -157,9 +157,9 @@ const Font& Text::font() const
 // NOTE: It is necessary to always return a new Texture instance because the
 // stored texture may be reallocated at any time, i.e.: glyph rebuild from
 // point size modification -- leaving the end-user with an invalid texture!
-Texture* Text::clone_texture() const
+std::unique_ptr<Texture> Text::clone_texture() const
 {
-  Texture* texture = new Texture();
+  auto texture = std::make_unique<Texture>();
   NOM_ASSERT(texture != nullptr);
 
   // Our cached texture dimensions should always be the same as the rendered
@@ -175,8 +175,7 @@ Texture* Text::clone_texture() const
   if( context == nullptr ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION, "Could not update cache",
                   "invalid renderer." );
-    NOM_DELETE_PTR(texture);
-    return texture;
+    return nullptr;
   }
 
   // Obtain the optimal pixel format for the platform
@@ -187,8 +186,7 @@ Texture* Text::clone_texture() const
   {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                   "Could not update cache: failed texture creation." );
-    NOM_DELETE_PTR(texture);
-    return texture;
+    return nullptr;
   }
 
   // Use an alpha channel; otherwise the text is rendered on a black
@@ -198,11 +196,10 @@ Texture* Text::clone_texture() const
   // Set the destination (screen) positioning of the rendered text
   texture->set_position( this->position() );
 
-  if( context->set_render_target(texture) == false ) {
+  if( context->set_render_target(texture.get()) == false ) {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                   "Could not update cache: failed to set the rendering target." );
-    NOM_DELETE_PTR(texture);
-    return texture;
+    return nullptr;
   }
 
   // Clear the rendering backdrop color to be fully transparent; this preserves
@@ -211,8 +208,7 @@ Texture* Text::clone_texture() const
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                   "Could not update cache:",
                   "failed to set the render target's color." );
-    NOM_DELETE_PTR(texture);
-    return texture;
+    return nullptr;
   }
 
   this->render_text(*context);
@@ -221,8 +217,7 @@ Texture* Text::clone_texture() const
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                   "Could not update cache:",
                   "failed to reset the rendering target." );
-    NOM_DELETE_PTR(texture);
-    return texture;
+    return nullptr;
   }
 
   return texture;

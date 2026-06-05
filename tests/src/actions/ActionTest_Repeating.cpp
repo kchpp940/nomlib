@@ -193,7 +193,7 @@ TEST_F(ActionTest, RepeatForAction)
     Rectangle( IntRect(RECT_POS, RECT_SIZE), Color4i::Red) );
   ASSERT_TRUE(rect != nullptr);
 
-  auto sprite = nom::make_shared_sprite( std::unique_ptr<Texture>( rect->texture() ) );
+  auto sprite = nom::make_shared_sprite( rect->texture() );
   ASSERT_TRUE(sprite != nullptr);
 
   auto translate =
@@ -263,7 +263,7 @@ TEST_F(ActionTest, RepeatForeverAction)
     std::make_shared<Rectangle>(IntRect(RECT_POS, RECT_SIZE), Color4i::Red);
   ASSERT_TRUE(rect != nullptr);
 
-  auto sprite = nom::make_shared_sprite( std::unique_ptr<Texture>( rect->texture() ) );
+  auto sprite = nom::make_shared_sprite( rect->texture() );
   ASSERT_TRUE(sprite != nullptr);
 
   auto translate =
