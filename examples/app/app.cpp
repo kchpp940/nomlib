@@ -282,7 +282,7 @@ class App: public nom::SDLApp
         return false;
       }
 
-      this->sprite.adopt_texture( this->sprite_tex.clone() );
+      this->sprite.set_texture(sprite_tex);
       this->sprite.set_sprite_sheet(sprite_frames);
       this->sprite_tex.resize(nom::Texture::ResizeAlgorithm::scale2x);
       this->sprite.set_frame(1); // Left-pointing cursor hand
@@ -294,7 +294,7 @@ class App: public nom::SDLApp
       // Sharing the same texture for the animated sprite instead of loading
       // another texture source would be OK, too, if we didn't care about
       // preserving the original scale of the sprite here for testing purposes.
-      // this->ani_sprite.adopt_texture( std::unique_ptr<Texture>( this->sprite_tex.clone() ) );
+      // this->ani_sprite.set_texture( *this->sprite_tex.clone() );
       if( ani_sprite_tex->load( res.path() + sprite_frames.sheet_filename() ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,

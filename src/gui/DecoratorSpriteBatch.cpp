@@ -87,7 +87,7 @@ bool DecoratorSpriteBatch::initialize(  const std::string& sheet_src,
     return false;
   }
 
-  this->texture_ = std::make_shared<Texture>();
+  this->texture_.reset( new Texture() );
   this->sprite_.reset( new SpriteBatch() );
 
   if( this->texture_->load(image_source_path) == false )
@@ -97,7 +97,7 @@ bool DecoratorSpriteBatch::initialize(  const std::string& sheet_src,
                   image_source_path );
     return false;
   }
-  this->sprite_->set_texture( this->texture_ );
+  this->sprite_->set_texture( *this->texture_.get() );
   this->sprite_->set_sprite_sheet(frames);
 
   this->sprite_->set_frame(sheet_frame);

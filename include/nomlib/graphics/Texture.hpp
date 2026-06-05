@@ -91,36 +91,23 @@ class Texture
     ~Texture( void );
 
     /// Copy constructor
-    ///
-    /// \remarks Shares the underlying SDL_Texture with the copied instance
-    /// using reference counting. Both instances will point to the same GPU
-    /// texture memory.
     Texture ( const Texture& copy );
 
     /// Copy assignment operator
-    ///
-    /// \remarks Shares the underlying SDL_Texture with the copied instance
-    /// using reference counting.
     Texture& operator = ( const Texture& other );
-
-    /// Move constructor
-    Texture( Texture&& other ) noexcept;
-
-    /// Move assignment operator
-    Texture& operator = ( Texture&& other ) noexcept;
 
     /// \brief Get a shallow-copy of the underlying stored texture.
     ///
-    /// \returns A unique pointer to a new nom::Texture instance from the stored
-    /// data of this object's instance.
+    /// \returns A pointer to a new nom::Texture instance from the stored
+    /// data of this object's instance. The returned pointer is owned by the
+    /// caller.
     ///
-    /// \remarks The cloned instance shares the same internal texture memory
-    /// via reference counting. The returned unique_ptr represents exclusive
-    /// ownership of the new Texture wrapper. Use std::move to transfer ownership
-    /// to Sprite::adopt_texture. The underlying SDL_Texture will be freed only
-    /// when all referencing instances are destroyed. For a true deep copy,
-    /// keep the original nom::Image source and create a new texture from it.
-    std::unique_ptr<Texture> clone() const;
+    /// \remarks The cloned instance shares the same internal texture memory.
+    /// If a deep-copy clone is required, you should either keep the nom::Image
+    /// source used to create the texture's pixel buffer and clone from it
+    /// instead. Alternatives may include using a Render To Texture target or
+    /// nom::Renderer::pixels.
+    Texture* clone() const;
 
     /// Initialize an object with specified parameters
     ///

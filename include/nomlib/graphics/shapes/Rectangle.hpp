@@ -73,13 +73,12 @@ class Rectangle: public Shape
 
     /// \brief Get a texture representation of the rectangle.
     ///
-    /// \returns A unique pointer to a new nom::Texture instance containing the
-    /// rendering of the rectangle.
+    /// \returns A pointer to a new nom::Texture instance containing the
+    /// rendering of the rectangle. The returned pointer is owned by the
+    /// caller.
     ///
-    /// \remarks This is an expensive function call. The returned unique_ptr
-    /// represents exclusive ownership of the new texture. Use std::move to
-    /// transfer ownership to Sprite::adopt_texture.
-    std::unique_ptr<Texture> texture() const;
+    /// \remarks This is an expensive function call.
+    Texture* texture() const;
 
     /// \note Implements the required IDrawable::update method.
     void update() override;

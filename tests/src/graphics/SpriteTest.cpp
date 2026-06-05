@@ -121,7 +121,7 @@ class SpriteTest: public nom::VisualUnitTest
       Texture::Access tex_type;
 
       // output
-      std::shared_ptr<Texture> tex;
+      Texture tex;
       Sprite sprite;
     };
 
@@ -129,8 +129,7 @@ class SpriteTest: public nom::VisualUnitTest
     {
       if( params.sprite_tex_path != "" ) {
 
-        params.tex = std::make_shared<Texture>();
-        if( params.tex->load(params.sprite_tex_path, false,
+        if( params.tex.load(params.sprite_tex_path, false,
             params.tex_type) == false )
         {
           FAIL()  << "Could not load the sprite texture from: "
@@ -160,16 +159,29 @@ class SpriteTest: public nom::VisualUnitTest
     SearchPath resources[2];
 };
 
-TEST_F(SpriteTest, SpriteInterfaceWithTextureUniquePointer)
+TEST_F(SpriteTest, SpriteInterfaceWithTextureReference)
+{
+  sprite_test params;
+  params.sprite_tex_path =
+    this->resources[0].path() + "card.png";
+  params.tex_type = Texture::Access::Streaming;
+
+  this->init_sprite_test(params);
+
+  EXPECT_EQ( NOM_EXIT_SUCCESS, this->on_run() );
+  EXPECT_TRUE( this->compare() );
+}
+
+TEST_F(SpriteTest, SpriteInterfaceWithTextureRawPointer)
 {
   const std::string TEX_FILE_PATH =
     this->resources[0].path() + "card.png";
   const Point2i SPRITE_POS(Point2i::zero);
 
-  auto tex = std::make_unique<Texture>();
-  Sprite sprite;
-
+  Texture* tex = new Texture();
+  nom::Sprite* sprite = new Sprite();
   ASSERT_TRUE(tex != nullptr);
+  ASSERT_TRUE(sprite != nullptr);
 
   if( tex->load(TEX_FILE_PATH, false,
       nom::Texture::Access::Streaming) == false )
@@ -178,14 +190,89 @@ TEST_F(SpriteTest, SpriteInterfaceWithTextureUniquePointer)
   }
   ASSERT_TRUE(tex->valid() == true);
 
-  EXPECT_EQ(true, sprite.adopt_texture(std::move(tex)) );
-  ASSERT_TRUE(sprite.valid() == true);
+  EXPECT_EQ(true, sprite->set_texture(tex) );
+  ASSERT_TRUE(sprite->valid() == true);
 
-  nom::set_alignment(&sprite, SPRITE_POS, WINDOW_DIMS, Anchor::MiddleCenter);
+  nom::set_alignment(sprite, SPRITE_POS, WINDOW_DIMS, Anchor::MiddleCenter);
 
-  this->append_render_callback( [&](const RenderWindow& win) {
-    if( sprite.valid() ) {
-      sprite.draw( this->render_window() );
+  this->append_render_callback( [=, &sprite](const RenderWindow& win) {
+    if( sprite->valid() ) {
+      sprite->draw( this->render_window() );
+    }
+  });
+
+  EXPECT_EQ( NOM_EXIT_SUCCESS, this->on_run() );
+  EXPECT_TRUE( this->compare() );
+
+  NOM_DELETE_PTR(sprite);
+}
+
+TEST_F(SpriteTest, SpriteInterfaceWithTextureRawPointerAsReference)
+{
+  const std::string TEX_FILE_PATH =
+    this->resources[0].path() + "card.png";
+  const Point2i SPRITE_POS(Point2i::zero);
+
+  Texture* tex = new Texture();
+  nom::Sprite* sprite = new Sprite();
+  ASSERT_TRUE(tex != nullptr);
+  ASSERT_TRUE(sprite != nullptr);
+
+  if( tex->load(TEX_FILE_PATH, false,
+      nom::Texture::Access::Streaming) == false )
+  {
+    FAIL() << "Could not load the sprite texture from: " << TEX_FILE_PATH;
+  }
+  ASSERT_TRUE(tex->valid() == true);
+
+  EXPECT_EQ(true, sprite->set_texture(*tex) );
+  ASSERT_TRUE(sprite->valid() == true);
+
+  nom::set_alignment(sprite, SPRITE_POS, WINDOW_DIMS, Anchor::MiddleCenter);
+
+  this->append_render_callback( [=, &sprite](const RenderWindow& win) {
+    if( sprite->valid() ) {
+      sprite->draw( this->render_window() );
+    }
+  });
+
+  EXPECT_EQ( NOM_EXIT_SUCCESS, this->on_run() );
+  EXPECT_TRUE( this->compare() );
+
+  NOM_DELETE_PTR(sprite);
+  NOM_DELETE_PTR(tex);
+}
+
+TEST_F(SpriteTest, SpriteInterfaceWithTextureUniquePointer)
+{
+  const std::string TEX_FILE_PATH =
+    this->resources[0].path() + "card.png";
+  const Point2i SPRITE_POS(Point2i::zero);
+
+  std::unique_ptr<Texture> tex;
+  tex.reset( new Texture() );
+  ASSERT_TRUE(tex != nullptr);
+
+  std::unique_ptr<Sprite> sprite;
+  sprite.reset( new Sprite() );
+  ASSERT_TRUE(sprite != nullptr);
+
+  if( tex->load(TEX_FILE_PATH, false,
+      nom::Texture::Access::Streaming) == false )
+  {
+    FAIL() << "Could not load the sprite texture from: " << TEX_FILE_PATH;
+  }
+  ASSERT_TRUE(tex->valid() == true);
+
+  EXPECT_EQ(true, sprite->set_texture( *tex.get()) );
+  ASSERT_TRUE(sprite->valid() == true);
+
+  nom::set_alignment( sprite.get(), SPRITE_POS, WINDOW_DIMS,
+                      Anchor::MiddleCenter );
+
+  this->append_render_callback( [=, &sprite](const RenderWindow& win) {
+    if( sprite->valid() ) {
+      sprite->draw( this->render_window() );
     }
   });
 
@@ -199,10 +286,14 @@ TEST_F(SpriteTest, SpriteInterfaceWithTextureSharedPointer)
     this->resources[0].path() + "card.png";
   const Point2i SPRITE_POS(Point2i::zero);
 
-  auto tex = std::make_shared<Texture>();
-  Sprite sprite;
+  std::shared_ptr<Texture> tex;
+  tex.reset( new Texture() );
+
+  std::shared_ptr<Sprite> sprite;
+  sprite.reset( new Sprite() );
 
   ASSERT_TRUE(tex != nullptr);
+  ASSERT_TRUE(sprite != nullptr);
 
   if( tex->load(TEX_FILE_PATH, false,
       nom::Texture::Access::Streaming) == false )
@@ -211,14 +302,14 @@ TEST_F(SpriteTest, SpriteInterfaceWithTextureSharedPointer)
   }
   ASSERT_TRUE(tex->valid() == true);
 
-  EXPECT_EQ(true, sprite.set_texture(tex) );
-  ASSERT_TRUE(sprite.valid() == true);
+  EXPECT_EQ(true, sprite->set_texture(tex) );
+  ASSERT_TRUE(sprite->valid() == true);
 
-  nom::set_alignment(&sprite, SPRITE_POS, WINDOW_DIMS, Anchor::MiddleCenter);
+  nom::set_alignment(sprite.get(), SPRITE_POS, WINDOW_DIMS, Anchor::MiddleCenter);
 
-  this->append_render_callback( [&](const RenderWindow& win) {
-    if( sprite.valid() ) {
-      sprite.draw( this->render_window() );
+  this->append_render_callback( [=, &sprite](const RenderWindow& win) {
+    if( sprite->valid() ) {
+      sprite->draw( this->render_window() );
     }
   });
 
@@ -283,19 +374,19 @@ TEST_F(SpriteTest, SpriteBatchInterface)
   const Point2i SPRITE_POS(Point2i::zero);
 
   SpriteSheet sprite_frames;
-  auto tex = std::make_shared<Texture>();
+  Texture tex;
   SpriteBatch sprite;
 
   if( sprite_frames.load_file(SHEET_FILE_PATH) == false ) {
     FAIL() << "Could not load the sprite sheet from: " << SHEET_FILE_PATH;
   }
 
-  if( tex->load(TEX_FILE_PATH, false,
+  if( tex.load(TEX_FILE_PATH, false,
       nom::Texture::Access::Streaming) == false )
   {
     FAIL() << "Could not load the sprite texture from: " << TEX_FILE_PATH;
   }
-  ASSERT_TRUE(tex->valid() == true);
+  ASSERT_TRUE(tex.valid() == true);
 
   EXPECT_EQ(true, sprite.set_texture(tex) );
   ASSERT_TRUE(sprite.valid() == true);

@@ -541,6 +541,15 @@ void UIContext::initialize_debugger()
   // }
 }
 
+void UIContext::on_render_targets_reset()
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_GUI, NOM_LOG_PRIORITY_VERBOSE );
+
+  if( this->valid() ) {
+    this->set_size(this->res_);
+  }
+}
+
 void UIContext::process_event(const nom::Event& evt)
 {
   if( this->evt_ != nullptr ) {

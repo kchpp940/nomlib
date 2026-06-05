@@ -95,31 +95,37 @@ class Sprite: public Transformable
     /// \brief Get the alpha value of the sprite.
     uint8 alpha() const;
 
-    /// \brief Set the sprite's texture, taking ownership of a unique_ptr.
+    /// \brief Construct a sprite from an existing texture source.
     ///
-    /// \param tex An existing, valid nom::Texture unique pointer.
+    /// \params tex An existing, valid nom::Texture reference.
     ///
     /// \returns Boolean TRUE on successful construction, or boolean FALSE when
-    /// construction has failed, such as when the texture is invalid.
+    /// construction has failed, such as when the texture is invalid, or a
+    /// failure to allocate the necessary memory.
     ///
-    /// \remarks The sprite takes ownership of the texture and will manage its
-    /// lifetime via reference counting. This is the recommended way to pass
-    /// ownership of a newly created texture (e.g., from Rectangle::texture()).
-    ///
-    /// \see ::set_texture for shared ownership semantics
-    bool adopt_texture(std::unique_ptr<Texture> tex);
+    /// \remarks The passed in nom::Texture instance **must** outlive the
+    /// destruction of this sprite!
+    bool set_texture(Texture& tex);
 
-    /// \brief Set the sprite's texture using shared ownership.
+    /// \brief Construct a sprite from an existing texture source.
     ///
-    /// \param tex An existing, valid nom::Texture shared pointer.
+    /// \params tex An existing, valid nom::Texture pointer.
     ///
     /// \returns Boolean TRUE on successful construction, or boolean FALSE when
-    /// construction has failed, such as when the texture is invalid.
+    /// construction has failed, such as when the texture is invalid, or a
+    /// failure to allocate the necessary memory.
     ///
-    /// \remarks The sprite shares ownership of the texture via reference
-    /// counting. The texture will be freed only when all shared_ptr references
-    /// are destroyed. This is the preferred API for most use cases.
-    bool set_texture(std::shared_ptr<Texture> tex);
+    /// \remarks The ownership of the pointer is transferred to this sprite.
+    bool set_texture(Texture* tex);
+
+    /// \brief Construct a sprite from an existing texture source.
+    ///
+    /// \params tex An existing, valid nom::Texture pointer.
+    ///
+    /// \returns Boolean TRUE on successful construction, or boolean FALSE when
+    /// construction has failed, such as when the texture is invalid, or a
+    /// failure to allocate the necessary memory.
+    bool set_texture(std::shared_ptr<Texture>& tex);
 
     bool set_alpha(uint8 opacity);
 
@@ -161,29 +167,41 @@ class Sprite: public Transformable
     // real32 z_depth_;
 };
 
-/// \brief Construct a sprite, taking ownership of a unique_ptr texture.
-///
-/// \relates ::adopt_texture
-std::unique_ptr<Sprite>
-make_unique_sprite(std::unique_ptr<Texture> tex);
-
-/// \brief Construct a sprite with shared ownership of a texture.
+/// \brief Construct a sprite from an existing texture source.
 ///
 /// \relates ::set_texture
 std::unique_ptr<Sprite>
-make_unique_sprite(std::shared_ptr<Texture> tex);
+make_unique_sprite(Texture& tex);
 
-/// \brief Construct a sprite, taking ownership of a unique_ptr texture.
+/// \brief Construct a sprite from an existing texture source.
 ///
-/// \relates ::adopt_texture
-std::shared_ptr<Sprite>
-make_shared_sprite(std::unique_ptr<Texture> tex);
+/// \relates ::set_texture
+std::unique_ptr<Sprite>
+make_unique_sprite(Texture* tex);
 
-/// \brief Construct a sprite with shared ownership of a texture.
+/// \brief Construct a sprite from an existing texture source.
+///
+/// \relates ::set_texture
+std::unique_ptr<Sprite>
+make_unique_sprite(std::shared_ptr<Texture>& tex);
+
+/// \brief Construct a sprite from an existing texture source.
 ///
 /// \relates ::set_texture
 std::shared_ptr<Sprite>
-make_shared_sprite(std::shared_ptr<Texture> tex);
+make_shared_sprite(Texture& tex);
+
+/// \brief Construct a sprite from an existing texture source.
+///
+/// \relates ::set_texture
+std::shared_ptr<Sprite>
+make_shared_sprite(Texture* tex);
+
+/// \brief Construct a sprite from an existing texture source.
+///
+/// \relates ::set_texture
+std::shared_ptr<Sprite>
+make_shared_sprite(std::shared_ptr<Texture>& tex);
 
 } // namespace nom
 

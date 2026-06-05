@@ -100,15 +100,14 @@ class Gradient: public Transformable
     /// \remarks This uniquely identifies the object's type.
     ObjectTypeInfo type( void ) const;
 
-    /// \brief Get a deep-copy instance of the underlying texture of the
-    /// rendered gradient.
+    /// \brief Get the underlying texture of the rendered gradient.
     ///
-    /// \returns A unique pointer to a new nom::Texture instance of the stored
-    /// texture used for rendering the gradient.
+    /// \returns A pointer to a new nom::Texture instance of the stored texture
+    /// used for rendering the gradient. The returned pointer is owned by the
+    /// caller.
     ///
-    /// \remarks The returned unique_ptr represents exclusive ownership of the
-    /// new texture. Use std::move to transfer ownership to Sprite::adopt_texture.
-    std::unique_ptr<Texture> texture() const;
+    /// \remarks This is **not** a deep-copy of the texture.
+    Texture* texture() const;
 
     /// \brief Query the validity of the object
     ///

@@ -63,14 +63,16 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
       {
         case nom::WindowEvent::SIZE_CHANGED:
         {
-          // Update desktop dimensions; this should not be used with SDL2's
-          // independent resolution scale feature (logical view-port),
-          // as it breaks the absolute positioning coordinates. This is due to
-          // the internally calculated aspect ratio that SDL2 does when using
-          // the feature upon a size change.
-          // this->ctx_->set_size( Size2i( ev.window.data1, ev.window.data2 ) );
+          this->ctx_->set_size( Size2i( ev.window.data1, ev.window.data2 ) );
         } break;
+
+        default: break;
       }
+    } break;
+
+    case nom::Event::RENDER_TARGETS_RESET:
+    {
+      this->ctx_->on_render_targets_reset();
     } break;
 
     case nom::Event::MOUSE_MOTION:

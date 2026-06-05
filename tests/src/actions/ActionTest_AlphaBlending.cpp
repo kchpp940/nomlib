@@ -554,14 +554,14 @@ TEST_F(ActionTest, AlphaBlendingDemo)
   auto magenta_sprite =
     std::make_shared<Sprite>();
   ASSERT_TRUE(magenta_sprite != nullptr);
-  EXPECT_EQ(true, magenta_sprite->adopt_texture( magenta_rect->texture() ) );
+  EXPECT_EQ(true, magenta_sprite->set_texture( magenta_rect->texture() ) );
   magenta_sprite->set_alpha(Color4i::ALPHA_TRANSPARENT);
   magenta_sprite->set_color_blend_mode(BLEND_MODE_BLEND);
 
   auto blue_sprite =
     std::make_shared<Sprite>();
   ASSERT_TRUE(blue_sprite != nullptr);
-  EXPECT_EQ(true, blue_sprite->adopt_texture( blue_rect->texture() ) );
+  EXPECT_EQ(true, blue_sprite->set_texture( blue_rect->texture() ) );
   blue_sprite->set_alpha(Color4i::ALPHA_OPAQUE);
   blue_sprite->set_color_blend_mode(BLEND_MODE_BLEND);
 

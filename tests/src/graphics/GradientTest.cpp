@@ -286,13 +286,24 @@ TEST_F(GradientTest, SharedTextureForSprite)
   this->grad1.set_fill_direction(Gradient::FillDirection::Right);
   this->grad2.set_fill_direction(Gradient::FillDirection::Right);
 
+#if 1
+  auto grad1_tex =
+    std::shared_ptr<Texture>( this->grad1.texture() );
+  auto grad2_tex =
+    std::shared_ptr<Texture>( this->grad2.texture() );
+#else
+  // ...Broken...
+  auto grad1_tex = std::shared_ptr<Texture>( this->grad1.clone_texture() );
+  auto grad2_tex = std::shared_ptr<Texture>( this->grad2.clone_texture() );
+#endif
+
   auto sprite_grad1 =
-    nom::make_shared_sprite( this->grad1.texture() );
+    nom::make_shared_sprite(grad1_tex);
   ASSERT_TRUE(sprite_grad1 != nullptr);
   ASSERT_TRUE(sprite_grad1->valid() != false);
 
   auto sprite_grad2 =
-    nom::make_shared_sprite( this->grad2.texture() );
+    nom::make_shared_sprite(grad2_tex);
   ASSERT_TRUE(sprite_grad2 != nullptr);
   ASSERT_TRUE(sprite_grad2->valid() != false);
 

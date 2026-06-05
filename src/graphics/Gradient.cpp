@@ -84,10 +84,10 @@ ObjectTypeInfo Gradient::type( void ) const
   return NOM_OBJECT_TYPE_INFO( self_type );
 }
 
-std::unique_ptr<Texture> Gradient::texture() const
+Texture* Gradient::texture() const
 {
   if( this->texture_ != nullptr ) {
-    return std::make_unique<Texture>(*this->texture_);
+    return( new Texture(*this->texture_) );
   } else {
     return nullptr;
   }

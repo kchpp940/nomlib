@@ -122,12 +122,9 @@ class Text: public Transformable
     /// \brief Get a deep-copy instance of the underlying texture used for the
     /// text rendering.
     ///
-    /// \returns A unique pointer to a new nom::Texture instance of the rendered
-    /// text.
-    ///
-    /// \remarks The returned unique_ptr represents exclusive ownership of the
-    /// new texture. Use std::move to transfer ownership to Sprite::adopt_texture.
-    std::unique_ptr<Texture> clone_texture() const;
+    /// \returns A raw pointer to a new nom::Texture instance of the rendered
+    /// text. The returned pointer is owned by the caller.
+    Texture* clone_texture() const;
 
     /// Obtain validity of the Text object
     bool valid ( void ) const;

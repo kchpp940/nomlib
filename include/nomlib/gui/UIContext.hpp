@@ -206,6 +206,12 @@ class UIContext
     /// currently ignored.
     void draw();
 
+    /// \brief Handler for when the render targets have been reset.
+    ///
+    /// \remarks This is applicable only to Direct3D renderers. This method
+    /// will attempt to reload any loaded fonts and documents.
+    void on_render_targets_reset();
+
   private:
     /// \brief Initialize libRocket's visual debugger tool.
     ///

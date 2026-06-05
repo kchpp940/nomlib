@@ -849,7 +849,9 @@ void EventHandler::process_event(const SDL_Event* ev)
       Event event;
       event.type = Event::DROP_FILE;
       event.timestamp = nom::ticks();
-      event.drop.file_path = ev->drop.file;
+      nom::copy_string(ev->drop.file, event.drop.file_path);
+      event.drop.window_id = ev->drop.windowID;
+      SDL_free(ev->drop.file);
       this->push_event(event);
       break;
     }
@@ -883,6 +885,7 @@ void EventHandler::process_event(const SDL_Event* ev)
       Event event;
       event.type = Event::RENDER_TARGETS_RESET;
       event.timestamp = nom::ticks();
+      this->push_event(event);
     } break;
 
 // NOTE: Not available until the release of SDL 2.0.4

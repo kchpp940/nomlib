@@ -32,12 +32,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <functional>
 
 #include "nomlib/config.hpp"
+#include "nomlib/platforms.hpp"
 #include "nomlib/system/Joystick.hpp"
 
 namespace nom {
 
 const uint8 MAX_TEXT_INPUT_LENGTH = 32;
 const uint8 MAX_TEXT_EDITING_LENGTH = 32;
+const uint16 MAX_FILE_PATH_LENGTH = PATH_MAX;
 
 /// \brief General hardware device state definitions.
 enum InputState: uint8
@@ -405,7 +407,10 @@ struct GestureEvent
 struct DragDropEvent
 {
   /// \brief The path of the file dropped onto the nom::Window.
-  const char* file_path;
+  char file_path[MAX_FILE_PATH_LENGTH];
+
+  /// \brief The identifier of the window at the moment of the event.
+  uint32 window_id;
 };
 
 /// \brief A structure containing information on a text input event.
