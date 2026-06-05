@@ -885,6 +885,7 @@ void EventHandler::process_event(const SDL_Event* ev)
       Event event;
       event.type = Event::RENDER_TARGETS_RESET;
       event.timestamp = nom::ticks();
+      event.render_target.window_id = ev->window.windowID;
       this->push_event(event);
     } break;
 

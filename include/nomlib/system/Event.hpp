@@ -454,7 +454,14 @@ struct UserEvent
   void* data2;
 
   /// \brief The identifier of the window at the moment of the event.
-  uint32 window_id;
+    uint32 window_id;
+};
+
+/// \brief A structure containing information on a render targets reset event.
+struct RenderTargetEvent
+{
+    /// \brief The identifier of the window whose render targets have been reset.
+    uint32 window_id;
 };
 
 /// \brief Event handling types.
@@ -546,6 +553,7 @@ struct Event
     TextInputEvent text;
     TextEditingEvent edit;
     UserEvent user;
+    RenderTargetEvent render_target;
   };
 };
 

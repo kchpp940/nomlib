@@ -31,6 +31,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <string>
 #include <memory>
+#include <unordered_map>
+#include <vector>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Timer.hpp"
@@ -142,23 +144,35 @@ class SDLApp
     /// this interface!
     void set_event_handler(EventHandler& evt_handler);
 
-    /// \brief Bind a render window to the application.
+    /// \brief Add a render window to be managed by the application.
     ///
-    /// \remarks When bound, the application will automatically handle
+    /// \remarks When added, the application will automatically handle
     /// window size changes and render target resets for this window.
-    void set_render_window(RenderWindow& window);
+    /// The window's back-reference to this app will be set automatically.
+    void add_render_window(RenderWindow& window);
 
-    /// \brief Bind a UI context to the application.
+    /// \brief Remove a render window from application management.
     ///
-    /// \remarks When bound, the application will automatically update
-    /// the UI context size when the window size changes.
-    void set_ui_context(UIContext& context);
+    /// \remarks The window's back-reference will be cleared automatically.
+    void remove_render_window(uint32 window_id);
 
-    /// \brief Get the bound render window.
-    RenderWindow* render_window() const;
+    /// \brief Attach a UI context to a specific render window.
+    ///
+    /// \remarks When attached, the UI context will be automatically
+    /// resized when the associated window size changes.
+    void attach_ui_context(UIContext& context, uint32 window_id);
 
-    /// \brief Get the bound UI context.
-    UIContext* ui_context() const;
+    /// \brief Detach a UI context from the application.
+    void detach_ui_context(UIContext& context);
+
+    /// \brief Get a render window by its ID.
+    RenderWindow* render_window(uint32 window_id) const;
+
+    /// \brief Get all registered render windows.
+    std::vector<RenderWindow*> render_windows() const;
+
+    /// \brief Get UI contexts associated with a window.
+    std::vector<UIContext*> ui_contexts_for_window(uint32 window_id) const;
 
   protected:
     /// \brief Default event handler for input events.
@@ -255,10 +269,14 @@ class SDLApp
 
     void process_event(const Event& ev);
 
-    // Non-owned pointers
+    // Non-owned pointer
     EventHandler* event_handler_ = nullptr;
-    RenderWindow* render_window_ = nullptr;
-    UIContext* ui_context_ = nullptr;
+
+    /// \brief Registered render windows, keyed by window ID
+    std::unordered_map<uint32, RenderWindow*> render_windows_;
+
+    /// \brief Registered UI contexts, keyed by window ID
+    std::unordered_map<uint32, std::vector<UIContext*>> ui_contexts_;
 
     /// \brief State machine manager.
     ///

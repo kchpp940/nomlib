@@ -48,6 +48,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
+// Forward declarations
+class SDLApp;
+
 /// \brief Custom deleter for void* return of Renderer::pixels()
 struct PixelsDeleter
 {
@@ -402,6 +405,17 @@ class RenderWindow: public Renderer
     /// and need to be recreated.
     bool render_targets_valid() const;
 
+    /// \brief Set the SDLApp that manages this window.
+    ///
+    /// \remarks Called automatically by SDLApp::add_render_window.
+    void set_app(SDLApp* app);
+
+    /// \brief Get the SDLApp that manages this window.
+    SDLApp* app() const;
+
+    /// \brief Get the underlying SDL window.
+    SDL_Window* window() const;
+
   private:
     /// \brief  Set a new nom::RenderWindow as the active rendering context; we must
     ///         always have a context active at any given time for generating
@@ -411,6 +425,9 @@ class RenderWindow: public Renderer
     static SDL_Renderer* context_;
 
     SDL_WINDOW::UniquePtr window_;
+
+    /// \brief Non-owning pointer to the managing SDLApp
+    SDLApp* app_ = nullptr;
 
     /// \brief The unique identifier as recognized internally by SDL.
     uint32 window_id_;

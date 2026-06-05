@@ -59,6 +59,10 @@ RenderWindow::~RenderWindow( void )
 {
   // NOM_LOG_TRACE( NOM );
 
+  if( this->app_ != nullptr ) {
+    this->app_->remove_render_window(this->window_id_);
+  }
+
   priv::FreeRenderTarget( context_ );
 }
 
@@ -639,6 +643,21 @@ void RenderWindow::remove_render_target_reset_callback(uint32 callback_id)
 bool RenderWindow::render_targets_valid() const
 {
   return this->render_targets_valid_;
+}
+
+void RenderWindow::set_app(SDLApp* app)
+{
+  this->app_ = app;
+}
+
+SDLApp* RenderWindow::app() const
+{
+  return this->app_;
+}
+
+SDL_Window* RenderWindow::window() const
+{
+  return this->window_.get();
 }
 
 namespace priv {
