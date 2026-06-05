@@ -160,13 +160,13 @@ class SpriteTest: public nom::VisualUnitTest
     SearchPath resources[2];
 };
 
-TEST_F(SpriteTest, SpriteInterfaceWithTextureRawPointer)
+TEST_F(SpriteTest, SpriteInterfaceWithTextureUniquePointer)
 {
   const std::string TEX_FILE_PATH =
     this->resources[0].path() + "card.png";
   const Point2i SPRITE_POS(Point2i::zero);
 
-  Texture* tex = new Texture();
+  auto tex = std::make_unique<Texture>();
   Sprite sprite;
 
   ASSERT_TRUE(tex != nullptr);
@@ -178,7 +178,7 @@ TEST_F(SpriteTest, SpriteInterfaceWithTextureRawPointer)
   }
   ASSERT_TRUE(tex->valid() == true);
 
-  EXPECT_EQ(true, sprite.set_texture(tex) );
+  EXPECT_EQ(true, sprite.adopt_texture(std::move(tex)) );
   ASSERT_TRUE(sprite.valid() == true);
 
   nom::set_alignment(&sprite, SPRITE_POS, WINDOW_DIMS, Anchor::MiddleCenter);

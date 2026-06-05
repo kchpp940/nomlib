@@ -95,17 +95,19 @@ class Sprite: public Transformable
     /// \brief Get the alpha value of the sprite.
     uint8 alpha() const;
 
-    /// \brief Set the sprite's texture, taking ownership of the raw pointer.
+    /// \brief Set the sprite's texture, taking ownership of a unique_ptr.
     ///
-    /// \param tex An existing, valid nom::Texture raw pointer.
+    /// \param tex An existing, valid nom::Texture unique pointer.
     ///
     /// \returns Boolean TRUE on successful construction, or boolean FALSE when
     /// construction has failed, such as when the texture is invalid.
     ///
-    /// \remarks The sprite takes ownership of the pointer and will manage its
-    /// lifetime via reference counting. The caller should NOT delete the pointer
-    /// after passing it to this method.
-    bool set_texture(Texture* tex);
+    /// \remarks The sprite takes ownership of the texture and will manage its
+    /// lifetime via reference counting. This is the recommended way to pass
+    /// ownership of a newly created texture (e.g., from Rectangle::texture()).
+    ///
+    /// \see ::set_texture for shared ownership semantics
+    bool adopt_texture(std::unique_ptr<Texture> tex);
 
     /// \brief Set the sprite's texture using shared ownership.
     ///
@@ -116,7 +118,7 @@ class Sprite: public Transformable
     ///
     /// \remarks The sprite shares ownership of the texture via reference
     /// counting. The texture will be freed only when all shared_ptr references
-    /// are destroyed.
+    /// are destroyed. This is the preferred API for most use cases.
     bool set_texture(std::shared_ptr<Texture> tex);
 
     bool set_alpha(uint8 opacity);
@@ -159,11 +161,11 @@ class Sprite: public Transformable
     // real32 z_depth_;
 };
 
-/// \brief Construct a sprite, taking ownership of the raw texture pointer.
+/// \brief Construct a sprite, taking ownership of a unique_ptr texture.
 ///
-/// \relates ::set_texture
+/// \relates ::adopt_texture
 std::unique_ptr<Sprite>
-make_unique_sprite(Texture* tex);
+make_unique_sprite(std::unique_ptr<Texture> tex);
 
 /// \brief Construct a sprite with shared ownership of a texture.
 ///
@@ -171,11 +173,11 @@ make_unique_sprite(Texture* tex);
 std::unique_ptr<Sprite>
 make_unique_sprite(std::shared_ptr<Texture> tex);
 
-/// \brief Construct a sprite, taking ownership of the raw texture pointer.
+/// \brief Construct a sprite, taking ownership of a unique_ptr texture.
 ///
-/// \relates ::set_texture
+/// \relates ::adopt_texture
 std::shared_ptr<Sprite>
-make_shared_sprite(Texture* tex);
+make_shared_sprite(std::unique_ptr<Texture> tex);
 
 /// \brief Construct a sprite with shared ownership of a texture.
 ///

@@ -255,7 +255,7 @@ TEST_F(ActionTest, MoveByActionReversed)
     std::make_shared<Rectangle>(IntRect(RECT_POS, RECT_SIZE), Color4i::Green);
   ASSERT_TRUE(rect != nullptr);
 
-  auto sprite = nom::make_shared_sprite( rect->texture() );
+  auto sprite = nom::make_shared_sprite( std::unique_ptr<Texture>( rect->texture() ) );
   ASSERT_TRUE(sprite != nullptr);
 
   auto translate =
@@ -396,7 +396,7 @@ TEST_F(ActionTest, MoveByActionRepeatForReversed)
     std::make_shared<Rectangle>(IntRect(RECT_POS, RECT_SIZE), Color4i::Red);
   ASSERT_TRUE(rect != nullptr);
 
-  auto sprite = nom::make_shared_sprite( rect->texture() );
+  auto sprite = nom::make_shared_sprite( std::unique_ptr<Texture>( rect->texture() ) );
   ASSERT_TRUE(sprite != nullptr);
 
   auto translate =
@@ -471,7 +471,7 @@ TEST_F(ActionTest, RepeatForeverActionReversed)
     std::make_shared<Rectangle>(IntRect(RECT_POS, RECT_SIZE), Color4i::Red);
   ASSERT_TRUE(rect != nullptr);
 
-  auto sprite = nom::make_shared_sprite( rect->texture() );
+  auto sprite = nom::make_shared_sprite( std::unique_ptr<Texture>( rect->texture() ) );
   ASSERT_TRUE(sprite != nullptr);
 
   auto translate =

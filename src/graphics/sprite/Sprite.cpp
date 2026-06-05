@@ -58,7 +58,7 @@ bool Sprite::init_with_color(const Color4i& color, const Size2i& dims)
   Rectangle rect(rect_bounds, color);
   auto tex = rect.texture();
 
-  return this->set_texture(std::move(tex));
+  return this->adopt_texture(std::unique_ptr<Texture>(tex));
 }
 
 ObjectTypeInfo Sprite::type() const
@@ -146,9 +146,9 @@ BlendMode Sprite::color_blend_mode() const
   return mode;
 }
 
-bool Sprite::set_texture(Texture* tex)
+bool Sprite::adopt_texture(std::unique_ptr<Texture> tex)
 {
-  this->texture_.reset(tex);
+  this->texture_ = std::move(tex);
 
   if( this->texture_ != nullptr ) {
     this->set_position( this->texture_->position() );
@@ -156,7 +156,7 @@ bool Sprite::set_texture(Texture* tex)
     return true;
   } else {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not set texture for sprite: invalid texture." );
+                  "Could not adopt texture for sprite: invalid texture." );
     return false;
   }
 }
@@ -240,11 +240,11 @@ void Sprite::update()
 // Non-member factory functions
 
 std::unique_ptr<Sprite>
-make_unique_sprite(Texture* tex)
+make_unique_sprite(std::unique_ptr<Texture> tex)
 {
   auto sprite = nom::make_unique<Sprite>();
   if( sprite != nullptr ) {
-    sprite->set_texture(tex);
+    sprite->adopt_texture(std::move(tex));
   }
 
   return sprite;
@@ -262,11 +262,11 @@ make_unique_sprite(std::shared_ptr<Texture> tex)
 }
 
 std::shared_ptr<Sprite>
-make_shared_sprite(Texture* tex)
+make_shared_sprite(std::unique_ptr<Texture> tex)
 {
   auto sprite = std::make_shared<Sprite>();
   if( sprite != nullptr ) {
-    sprite->set_texture(tex);
+    sprite->adopt_texture(std::move(tex));
   }
 
   return sprite;
