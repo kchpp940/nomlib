@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <vector>
 #include <memory>
+#include <functional>
 
 #include <SDL.h>
 
@@ -381,6 +382,26 @@ class RenderWindow: public Renderer
     /// considered invalid and will need to be recreated.
     void on_render_targets_reset();
 
+    /// \brief Callback type for render target reset callbacks.
+    typedef std::function<void()> render_target_reset_callback;
+
+    /// \brief Register a callback to be called when render targets are reset.
+    ///
+    /// \return A unique identifier for the callback registration, which can be used to
+    /// unregister the callback.
+    uint32 add_render_target_reset_callback(render_target_reset_callback callback);
+
+    /// \brief Unregister a render target reset callback.
+    ///
+    /// \param callback_id The ID returned by add_render_target_reset_callback.
+    void remove_render_target_reset_callback(uint32 callback_id);
+
+    /// \brief Check if render targets are valid.
+    ///
+    /// \return True if all render targets and valid, false if they have been reset
+    /// and need to be recreated.
+    bool render_targets_valid() const;
+
   private:
     /// \brief  Set a new nom::RenderWindow as the active rendering context; we must
     ///         always have a context active at any given time for generating
@@ -402,6 +423,15 @@ class RenderWindow: public Renderer
 
     /// Toggle window & full-screen states
     bool fullscreen_;
+
+    /// \brief Validity state of render targets
+    bool render_targets_valid_ = true;
+
+    /// \brief Next callback ID for render target reset callbacks
+    uint32 next_render_target_reset_callback_id_ = 1;
+
+    /// \brief Registered render target reset callbacks
+    std::vector<std::pair<uint32, render_target_reset_callback>> render_target_reset_callbacks_;
 };
 
 namespace priv {

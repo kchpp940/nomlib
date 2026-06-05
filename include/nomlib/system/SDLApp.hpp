@@ -41,6 +41,7 @@ namespace nom {
 struct Event;
 class EventHandler;
 class RenderWindow;
+class UIContext;
 class IState;
 class StateMachine;
 
@@ -141,6 +142,24 @@ class SDLApp
     /// this interface!
     void set_event_handler(EventHandler& evt_handler);
 
+    /// \brief Bind a render window to the application.
+    ///
+    /// \remarks When bound, the application will automatically handle
+    /// window size changes and render target resets for this window.
+    void set_render_window(RenderWindow& window);
+
+    /// \brief Bind a UI context to the application.
+    ///
+    /// \remarks When bound, the application will automatically update
+    /// the UI context size when the window size changes.
+    void set_ui_context(UIContext& context);
+
+    /// \brief Get the bound render window.
+    RenderWindow* render_window() const;
+
+    /// \brief Get the bound UI context.
+    UIContext* ui_context() const;
+
   protected:
     /// \brief Default event handler for input events.
     virtual void on_input_event(const Event& ev);
@@ -236,8 +255,10 @@ class SDLApp
 
     void process_event(const Event& ev);
 
-    // Non-owned pointer
+    // Non-owned pointers
     EventHandler* event_handler_ = nullptr;
+    RenderWindow* render_window_ = nullptr;
+    UIContext* ui_context_ = nullptr;
 
     /// \brief State machine manager.
     ///

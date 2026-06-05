@@ -597,9 +597,48 @@ void RenderWindow::on_render_targets_reset()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE );
 
+  this->render_targets_valid_ = false;
+
   NOM_LOG_WARN( NOM_LOG_CATEGORY_RENDER,
                 "Render targets have been reset. All textures and render targets "
                 "created with this renderer are now invalid and must be recreated." );
+
+  for( auto& entry : this->render_target_reset_callbacks_ ) {
+    if( entry.second != nullptr ) {
+      entry.second();
+    }
+  }
+}
+
+uint32 RenderWindow::add_render_target_reset_callback(render_target_reset_callback callback)
+{
+  if( callback == nullptr ) {
+    return 0;
+  }
+
+  uint32 callback_id = this->next_render_target_reset_callback_id_++;
+  this->render_target_reset_callbacks_.emplace_back(callback_id, std::move(callback));
+  return callback_id;
+}
+
+void RenderWindow::remove_render_target_reset_callback(uint32 callback_id)
+{
+  if( callback_id == 0 ) {
+    return;
+  }
+
+  auto& callbacks = this->render_target_reset_callbacks_;
+  for( auto it = callbacks.begin(); it != callbacks.end(); ++it ) {
+    if( it->first == callback_id ) {
+      callbacks.erase(it);
+      break;
+    }
+  }
+}
+
+bool RenderWindow::render_targets_valid() const
+{
+  return this->render_targets_valid_;
 }
 
 namespace priv {

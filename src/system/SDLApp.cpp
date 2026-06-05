@@ -38,6 +38,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/system/Event.hpp"
 #include "nomlib/system/EventHandler.hpp"
 #include "nomlib/graphics/IDrawable.hpp"
+#include "nomlib/graphics/RenderWindow.hpp"
+#include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/StateMachine.hpp"
 
 namespace nom {
@@ -172,6 +174,37 @@ void SDLApp::set_event_handler(EventHandler& evt_handler)
   this->event_handler_->append_event_watch(event_watch, nullptr);
 }
 
+void SDLApp::set_render_window(RenderWindow& window)
+{
+  this->render_window_ = &window;
+}
+
+void SDLApp::set_ui_context(UIContext& context)
+{
+  this->ui_context_ = &context;
+}
+
+RenderWindow* SDLApp::render_window() const
+{
+  return this->render_window_;
+}
+
+UIContext* SDLApp::ui_context() const
+{
+  return this->ui_context_;
+}
+
+void SDLApp::on_app_event(const Event& ev)
+{
+  // Handle our events
+  this->process_event(ev);
+
+  // Handle the state's events
+  if( this->state_ != nullptr ) {
+    this->state()->on_event(ev);
+  }
+}
+
 // Protected scope
 
 void SDLApp::on_app_quit(const Event& ev)
@@ -208,7 +241,16 @@ void SDLApp::on_window_resized(const Event& ev)
 
 void SDLApp::on_window_size_changed(const Event& ev)
 {
-  // Default implementation
+  int width = ev.window.data1;
+  int height = ev.window.data2;
+
+  if( this->render_window_ != nullptr ) {
+    this->render_window_->on_window_size_changed(width, height);
+  }
+
+  if( this->ui_context_ != nullptr ) {
+    this->ui_context_->set_size(Size2i(width, height));
+  }
 }
 
 void SDLApp::on_window_minimized(const Event& ev)
@@ -270,7 +312,9 @@ void SDLApp::on_user_event(const Event& ev)
 
 void SDLApp::on_render_targets_reset(const Event& ev)
 {
-  // Default implementation
+  if( this->render_window_ != nullptr ) {
+    this->render_window_->on_render_targets_reset();
+  }
 }
 
 // NOTE: Not available until the release of SDL 2.0.4
@@ -282,17 +326,6 @@ void SDLApp::on_render_device_reset(const Event& ev)
 #endif
 
 // Private scope
-
-void SDLApp::on_app_event(const Event& ev)
-{
-  // Handle our events
-  this->process_event(ev);
-
-  // Handle the state's events
-  if( this->state_ != nullptr ) {
-    this->state()->on_event(ev);
-  }
-}
 
 void SDLApp::process_event(const Event& ev)
 {
