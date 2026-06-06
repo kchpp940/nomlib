@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/math/Point3.hpp"
 #include "nomlib/audio/SoundBuffer.hpp"
 #include "nomlib/audio/IOAudioEngine.hpp"
+#include "nomlib/audio/AL/OpenAL.hpp"
 
 namespace nom {
 namespace audio {
@@ -323,12 +324,40 @@ void free_buffer(SoundBuffer* buffer, IOAudioEngine* target)
 {
   NOM_LOG_TRACE(NOM_LOG_CATEGORY_TRACE_AUDIO);
 
-  // Goodbye buffer!
   if(buffer != nullptr && target != nullptr && target->valid() == true) {
     target->free_buffer(buffer);
   }
 
   NOM_DELETE_PTR(buffer);
+}
+
+void reset_stream_queue(SoundBuffer* buffer, IOAudioEngine* target)
+{
+  if(buffer == nullptr || target == nullptr || target->valid() == false) {
+    return;
+  }
+
+  if(target->valid_source(buffer) == false) {
+    return;
+  }
+
+  target->stop(buffer);
+
+  ALint queued = 0;
+  AL_CLEAR_ERR();
+  alGetSourcei(buffer->source_id, AL_BUFFERS_QUEUED, &queued);
+  AL_CHECK_ERR_VOID();
+
+  while(queued > 0) {
+    ALuint unqueued_buf = 0;
+    AL_CLEAR_ERR();
+    alSourceUnqueueBuffers(buffer->source_id, 1, &unqueued_buf);
+    ALenum err = alGetError();
+    if(err != AL_NO_ERROR) {
+      break;
+    }
+    --queued;
+  }
 }
 
 // audio control

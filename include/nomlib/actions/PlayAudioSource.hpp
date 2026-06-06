@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_ACTIONS_PLAY_AUDIO_SOURCE_HPP
 
 #include <memory>
+#include <string>
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
@@ -41,6 +42,7 @@ namespace audio {
 class IOAudioEngine;
 struct SoundBuffer;
 class ISoundFileReader;
+struct SoundInfo;
 
 } // namespace audio
 
@@ -90,23 +92,25 @@ class PlayAudioSource: public virtual IActionObject
     void first_frame(real32 delta_time);
     void last_frame(real32 delta_time);
 
-    /// \brief The initial alpha blending value.
-    // real32 initial_volume_;
-
-    /// \brief The total change in the alpha blending value.
-    // const real32 total_displacement_;
-
     nom::size_type curr_frame_ = 0;
 
     audio::IOAudioEngine* impl_ = nullptr;
 
     audio::ISoundFileReader* fp_ = nullptr;
 
+    /// \brief Cached audio metadata (sample rate, channel format, etc) for
+    /// rewind operations that need to rebuild the stream.
+    audio::SoundInfo metadata_ = {};
+
     typedef std::vector<audio::SoundBuffer*> audio_buffers;
     audio_buffers::iterator current_buffer_;
     audio_buffers audible_;
 
     uint32 input_pos_ = 0;
+
+    /// \brief Idempotency guard for release(); once true, release() becomes
+    /// a no-op and audio access is prohibited.
+    bool released_ = false;
 };
 
 } // namespace nom

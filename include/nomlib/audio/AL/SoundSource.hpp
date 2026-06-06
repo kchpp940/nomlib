@@ -100,6 +100,12 @@ SoundInfo info(SoundBuffer* buffer);
 
 void free_buffer(SoundBuffer* buffer, IOAudioEngine* target);
 
+/// \brief Stop the source and unqueue all queued buffers from it.
+///
+/// \remarks This resets the streaming queue for a sound source. After this
+/// call, no buffers remain queued on the source and its state is STOPPED.
+void reset_stream_queue(SoundBuffer* buffer, IOAudioEngine* target);
+
 // audio control
 
 // void queue(SoundBuffer* buffer, IOAudioEngine* target);
