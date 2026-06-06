@@ -52,6 +52,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/system/InputMapper/InputAction.hpp>
 #include <nomlib/system/InputMapper/InputStateMapper.hpp>
 #include <nomlib/system/InputMapper/InputActionMapper.hpp>
+#include <nomlib/system/InputMapper/InputActionProfile.hpp>
+#include <nomlib/system/InputMapper/InputActionProfileManager.hpp>
 
 // Resource management
 #include <nomlib/system/resource_types.hpp>

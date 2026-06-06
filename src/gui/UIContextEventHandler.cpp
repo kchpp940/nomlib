@@ -36,10 +36,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/Event.hpp"
 
-// Private headers
-#include "nomlib/graphics/RenderWindow.hpp"
-#include "nomlib/gui/RocketSDL2RenderInterface.hpp"
-
 namespace nom {
 
 UIContextEventHandler::UIContextEventHandler( UIContext* ctx ) :
@@ -79,34 +75,19 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
 
     case nom::Event::MOUSE_MOTION:
     {
-      Point2f scale = this->render_scale();
-      IntRect viewport = this->render_viewport();
-      int mx = static_cast<int>( ( ev.motion.x - viewport.x * scale.x ) / scale.x );
-      int my = static_cast<int>( ( ev.motion.y - viewport.y * scale.y ) / scale.y );
-      this->ctx_->context()->ProcessMouseMove(  mx, my,
+      this->ctx_->context()->ProcessMouseMove(  ev.motion.x,
+                                                ev.motion.y,
                                                 this->translate_key_modifiers(ev) );
     } break;
 
     case nom::Event::MOUSE_BUTTON_CLICK:
     {
-      Point2f scale = this->render_scale();
-      IntRect viewport = this->render_viewport();
-      int mx = static_cast<int>( ( ev.mouse.x - viewport.x * scale.x ) / scale.x );
-      int my = static_cast<int>( ( ev.mouse.y - viewport.y * scale.y ) / scale.y );
-      this->ctx_->context()->ProcessMouseMove( mx, my,
-                                            this->translate_key_modifiers(ev) );
       this->ctx_->context()->ProcessMouseButtonDown(  this->translate_mouse_button(ev),
                                                       this->translate_key_modifiers(ev) );
     } break;
 
     case nom::Event::MOUSE_BUTTON_RELEASE:
     {
-      Point2f scale = this->render_scale();
-      IntRect viewport = this->render_viewport();
-      int mx = static_cast<int>( ( ev.mouse.x - viewport.x * scale.x ) / scale.x );
-      int my = static_cast<int>( ( ev.mouse.y - viewport.y * scale.y ) / scale.y );
-      this->ctx_->context()->ProcessMouseMove( mx, my,
-                                            this->translate_key_modifiers(ev) );
       this->ctx_->context()->ProcessMouseButtonUp(  this->translate_mouse_button(ev),
                                                     this->translate_key_modifiers(ev) );
     } break;
@@ -570,38 +551,6 @@ int UIContextEventHandler::translate_key_modifiers( const Event& ev )
   }
 
   return retval;
-}
-
-Point2f UIContextEventHandler::render_scale() const
-{
-  Point2f scale( 1.0f, 1.0f );
-
-  auto target =
-    dynamic_cast< nom::RocketSDL2RenderInterface* >(
-      this->ctx_->render_interface() );
-
-  if( target != nullptr && target->window_ != nullptr )
-  {
-    SDL_RenderGetScale( target->window_->renderer(), &scale.x, &scale.y );
-  }
-
-  return scale;
-}
-
-IntRect UIContextEventHandler::render_viewport() const
-{
-  IntRect viewport( IntRect::zero );
-
-  auto target =
-    dynamic_cast< nom::RocketSDL2RenderInterface* >(
-      this->ctx_->render_interface() );
-
-  if( target != nullptr && target->window_ != nullptr )
-  {
-    viewport = target->window_->viewport();
-  }
-
-  return viewport;
 }
 
 } // namespace nom

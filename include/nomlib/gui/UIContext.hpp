@@ -147,16 +147,6 @@ class UIContext
     /// \see UIContext::create_context.
     Rocket::Core::Context* context() const;
 
-    /// \brief Get the render interface bound to this context.
-    ///
-    /// \remarks The returned pointer is owned by the application and must not
-    /// be freed by the caller. May be NULL if no custom interface was
-    /// provided at creation time (i.e. the default global render interface is
-    /// in use).
-    ///
-    /// \see UIContext::create_context.
-    Rocket::Core::RenderInterface* render_interface() const;
-
     /// \brief Get the dimensions (width and height) of this context instance.
     ///
     /// \returns A nom::Size2i with a non-zero width and height in pixel units
