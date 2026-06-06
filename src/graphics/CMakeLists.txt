@@ -89,6 +89,12 @@ if( NOM_BUILD_GRAPHICS_UNIT )
         ${SRC_DIR}/graphics/sprite/SpriteSheet.cpp
         ${INC_DIR}/graphics/sprite/SpriteSheet.hpp
 
+        ${SRC_DIR}/graphics/sprite/SpriteAnimationClip.cpp
+        ${INC_DIR}/graphics/sprite/SpriteAnimationClip.hpp
+
+        ${SRC_DIR}/graphics/sprite/SpriteAnimator.cpp
+        ${INC_DIR}/graphics/sprite/SpriteAnimator.hpp
+
         # TODO: Relocate to graphics
         ${SRC_DIR}/math/Transformable.cpp
         ${INC_DIR}/math/Transformable.hpp

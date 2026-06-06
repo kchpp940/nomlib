@@ -72,12 +72,6 @@ set(  NOM_SYSTEM_SOURCE
 
       ${SRC_DIR}/system/InputMapper/InputStateMapper.cpp
       ${INC_DIR}/system/InputMapper/InputStateMapper.hpp
-
-      ${SRC_DIR}/system/InputMapper/InputActionProfile.cpp
-      ${INC_DIR}/system/InputMapper/InputActionProfile.hpp
-
-      ${SRC_DIR}/system/InputMapper/InputActionProfileManager.cpp
-      ${INC_DIR}/system/InputMapper/InputActionProfileManager.hpp
 )
 
 # Platform-specific implementations & dependencies
@@ -95,7 +89,7 @@ if( SDL2_TTF_FOUND )
 endif( SDL2_TTF_FOUND )
 
 # Common on all platforms
-set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math nomlib-ptree
+set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math
       # FIXME: Needed only by nom::init and nom::quit
       ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY} )
 

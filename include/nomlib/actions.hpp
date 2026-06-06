@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/actions/IActionObject.hpp>
 #include <nomlib/actions/AnimateTexturesAction.hpp>
 #include <nomlib/actions/SpriteBatchAction.hpp>
+#include <nomlib/actions/SpriteAnimatorAction.hpp>
 #include <nomlib/actions/FadeInAction.hpp>
 #include <nomlib/actions/FadeOutAction.hpp>
 #include <nomlib/actions/FadeAlphaByAction.hpp>

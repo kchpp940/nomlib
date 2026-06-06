@@ -52,7 +52,9 @@ if(NOM_BUILD_ACTIONS_UNIT)
          ${SRC_DIR}/actions/ScaleByAction.cpp
          ${INC_DIR}/actions/ScaleByAction.hpp
          ${SRC_DIR}/actions/SpriteBatchAction.cpp
-         ${INC_DIR}/actions/SpriteBatchAction.hpp)
+         ${INC_DIR}/actions/SpriteBatchAction.hpp
+         ${SRC_DIR}/actions/SpriteAnimatorAction.cpp
+         ${INC_DIR}/actions/SpriteAnimatorAction.hpp)
 
       # Internal dependencies for this action subgroup
       list(APPEND NOM_ACTIONS_DEPS nomlib-graphics)
