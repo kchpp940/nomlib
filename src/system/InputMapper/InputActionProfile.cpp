@@ -156,9 +156,23 @@ bool InputActionProfile::load_from_value(const Value& root)
     }
   }
 
-  std::vector<std::string> dupes = this->find_duplicate_bindings();
-  for( auto it = dupes.begin(); it != dupes.end(); ++it ) {
-    NOM_LOG_WARN( NOM, "Duplicate bindings found in action: " + *it );
+  this->clamp_axis_thresholds();
+
+  size_type dupes_removed = this->deduplicate_bindings();
+  if( dupes_removed > 0 ) {
+    std::ostringstream oss;
+    oss << "Removed " << dupes_removed << " duplicate binding(s) from profile '"
+        << this->name_ << "'";
+    NOM_LOG_WARN( NOM, oss.str() );
+  }
+
+  size_type conflicts_resolved = this->resolve_action_conflicts();
+  if( conflicts_resolved > 0 ) {
+    std::ostringstream oss;
+    oss << "Removed " << conflicts_resolved
+        << " lower-priority binding(s) in favor of exclusive bindings in profile '"
+        << this->name_ << "'";
+    NOM_LOG_WARN( NOM, oss.str() );
   }
 
   return true;
@@ -236,20 +250,12 @@ bool InputActionProfile::validate_binding(const InputActionBinding& binding) con
       if( binding.gc_axis == GameController::AXIS_INVALID ) {
         return false;
       }
-      if( binding.axis_threshold < 0.0f || binding.axis_threshold > 1.0f ) {
-        NOM_LOG_WARN( NOM, "Axis threshold out of [0, 1] range, clamping" );
-        return true;
-      }
       return true;
 
     case InputBindingType::JoystickButton:
       return true;
 
     case InputBindingType::JoystickAxis:
-      if( binding.axis_threshold < 0.0f || binding.axis_threshold > 1.0f ) {
-        NOM_LOG_WARN( NOM, "Axis threshold out of [0, 1] range, clamping" );
-        return true;
-      }
       return true;
 
     case InputBindingType::JoystickHat:
@@ -257,6 +263,21 @@ bool InputActionProfile::validate_binding(const InputActionBinding& binding) con
   }
 
   return false;
+}
+
+void InputActionProfile::clamp_axis_thresholds()
+{
+  for( auto act_it = this->actions_.begin(); act_it != this->actions_.end(); ++act_it ) {
+    BindingList& blist = act_it->second;
+    for( auto b_it = blist.begin(); b_it != blist.end(); ++b_it ) {
+      if( b_it->type == InputBindingType::GameControllerAxis ||
+          b_it->type == InputBindingType::JoystickAxis ) {
+        if( b_it->axis_threshold < 0.0f ) b_it->axis_threshold = 0.0f;
+        if( b_it->axis_threshold > 1.0f ) b_it->axis_threshold = 1.0f;
+        if( b_it->axis_threshold == 0.0f ) b_it->axis_threshold = 0.2f;
+      }
+    }
+  }
 }
 
 std::vector<std::string> InputActionProfile::find_duplicate_bindings() const
@@ -279,6 +300,70 @@ std::vector<std::string> InputActionProfile::find_duplicate_bindings() const
   }
 
   return result;
+}
+
+size_type InputActionProfile::deduplicate_bindings()
+{
+  size_type removed = 0;
+
+  for( auto act_it = this->actions_.begin(); act_it != this->actions_.end(); ++act_it ) {
+    BindingList& blist = act_it->second;
+    BindingList unique;
+    unique.reserve(blist.size());
+
+    for( size_type i = 0; i < blist.size(); ++i ) {
+      bool is_duplicate = false;
+      for( size_type j = 0; j < unique.size(); ++j ) {
+        if( this->bindings_equal(blist[i], unique[j]) ) {
+          is_duplicate = true;
+          break;
+        }
+      }
+      if( is_duplicate ) {
+        ++removed;
+      } else {
+        unique.push_back(blist[i]);
+      }
+    }
+
+    blist.swap(unique);
+  }
+
+  return removed;
+}
+
+size_type InputActionProfile::resolve_action_conflicts()
+{
+  size_type removed = 0;
+
+  for( auto act_it = this->actions_.begin(); act_it != this->actions_.end(); ++act_it ) {
+    BindingList& blist = act_it->second;
+
+    bool has_exclusive = false;
+    for( auto b_it = blist.begin(); b_it != blist.end(); ++b_it ) {
+      if( b_it->conflict_allow == false ) {
+        has_exclusive = true;
+        break;
+      }
+    }
+
+    if( has_exclusive == false ) {
+      continue;
+    }
+
+    BindingList filtered;
+    filtered.reserve(blist.size());
+    for( auto b_it = blist.begin(); b_it != blist.end(); ++b_it ) {
+      if( b_it->conflict_allow == false ) {
+        filtered.push_back(*b_it);
+      } else {
+        ++removed;
+      }
+    }
+    blist.swap(filtered);
+  }
+
+  return removed;
 }
 
 bool InputActionProfile::bindings_equal(const InputActionBinding& a,
@@ -488,11 +573,8 @@ bool InputActionProfile::parse_game_controller_bindings(const Value& node, Bindi
       if( threshold_val.double_type() || threshold_val.int_type() ) {
         binding.axis_threshold = threshold_val.get_float();
       } else {
-        binding.axis_threshold = 0.2f;
+        binding.axis_threshold = 0.0f;
       }
-
-      if( binding.axis_threshold < 0.0f ) binding.axis_threshold = 0.0f;
-      if( binding.axis_threshold > 1.0f ) binding.axis_threshold = 1.0f;
 
       const Value& dir_val = entry["direction"];
       if( dir_val.string_type() ) {
@@ -569,11 +651,8 @@ bool InputActionProfile::parse_joystick_axis_bindings(const Value& node, Binding
     if( threshold_val.double_type() || threshold_val.int_type() ) {
       binding.axis_threshold = threshold_val.get_float();
     } else {
-      binding.axis_threshold = 0.2f;
+      binding.axis_threshold = 0.0f;
     }
-
-    if( binding.axis_threshold < 0.0f ) binding.axis_threshold = 0.0f;
-    if( binding.axis_threshold > 1.0f ) binding.axis_threshold = 1.0f;
 
     const Value& dir_val = entry["direction"];
     if( dir_val.string_type() ) {

@@ -89,7 +89,12 @@ struct InputActionRuntimeState
   bool held = false;
   real32 value = 0.0f;
   real32 prev_value = 0.0f;
-  bool conflict_blocked = false;
+};
+
+struct InputActionBindingContribution
+{
+  bool held = false;
+  real32 value = 0.0f;
 };
 
 class InputActionProfile
@@ -124,7 +129,13 @@ class InputActionProfile
 
     bool validate_binding(const InputActionBinding& binding) const;
 
+    void clamp_axis_thresholds();
+
     std::vector<std::string> find_duplicate_bindings() const;
+
+    size_type deduplicate_bindings();
+
+    size_type resolve_action_conflicts();
 
     bool bindings_equal(const InputActionBinding& a,
                         const InputActionBinding& b) const;

@@ -33,7 +33,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/core/err.hpp"
 #include "nomlib/ptree.hpp"
-#include "nomlib/system/EventHandler.hpp"
 #include "nomlib/system/InputMapper/InputAction.hpp"
 #include "nomlib/system/InputMapper/InputActionMapper.hpp"
 
@@ -62,30 +61,13 @@ real32 axis_magnitude(real32 normalized, AxisDirection direction)
 
 } // anonymous namespace
 
-struct RawBindingState
-{
-  bool raw_held = false;
-  real32 raw_value = 0.0f;
-  const InputActionBinding* binding = nullptr;
-};
-
-typedef std::map<std::string, std::vector<RawBindingState>> RawActionStateMap;
-typedef std::map<int, RawActionStateMap> RawPlayerStateMap;
-
-// Private implementation data
-struct InputActionProfileManager::Impl
-{
-  RawPlayerStateMap raw_states;
-};
-
 InputActionProfileManager::InputActionProfileManager()
-  : impl_(new Impl())
+  : state_mapper_(nullptr)
 {
 }
 
 InputActionProfileManager::~InputActionProfileManager()
 {
-  delete this->impl_;
 }
 
 std::string InputActionProfileManager::player_state_name(int player_index)
@@ -129,9 +111,9 @@ void InputActionProfileManager::remove_profile(const std::string& name)
   if( it != this->profiles_.end() ) {
     for( auto pit = this->player_profiles_.begin();
          pit != this->player_profiles_.end(); ++pit ) {
-      if( pit->second == name ) {
+      if( pit->second == name && this->state_mapper_ != nullptr ) {
         std::string sname = this->player_state_name(pit->first);
-        this->state_mapper_.disable(sname);
+        this->state_mapper_->disable(sname);
       }
     }
     this->profiles_.erase(it);
@@ -235,16 +217,80 @@ InputActionProfileManager::find_device_conflicts() const
   return result;
 }
 
-void InputActionProfileManager::set_event_handler(EventHandler& evt_handler)
+void InputActionProfileManager::set_state_mapper(InputStateMapper* mapper)
 {
-  this->state_mapper_.set_event_handler(evt_handler);
+  this->state_mapper_ = mapper;
+
+  for( auto pit = this->player_profiles_.begin();
+       pit != this->player_profiles_.end(); ++pit ) {
+    this->rebuild_player_state(pit->first);
+  }
+}
+
+InputStateMapper* InputActionProfileManager::state_mapper() const
+{
+  return this->state_mapper_;
+}
+
+void InputActionProfileManager::ensure_player_state(int player_index)
+{
+  if( this->player_states_.find(player_index) == this->player_states_.end() ) {
+    this->player_states_[player_index] = ActionStateMap();
+  }
+  if( this->player_contributions_.find(player_index) == this->player_contributions_.end() ) {
+    this->player_contributions_[player_index] = ActionContributionMap();
+  }
+}
+
+void InputActionProfileManager::aggregate_action_state(int player_index,
+                                                       const std::string& action_name)
+{
+  auto pit = this->player_states_.find(player_index);
+  if( pit == this->player_states_.end() ) return;
+
+  auto cit = this->player_contributions_.find(player_index);
+  if( cit == this->player_contributions_.end() ) return;
+
+  auto aeit = cit->second.find(action_name);
+  if( aeit == cit->second.end() ) return;
+
+  std::vector<InputActionBindingContribution>& contributions = aeit->second;
+
+  bool any_held = false;
+  real32 max_value = 0.0f;
+
+  for( auto it = contributions.begin(); it != contributions.end(); ++it ) {
+    if( it->held ) {
+      any_held = true;
+      if( it->value > max_value ) {
+        max_value = it->value;
+      }
+    }
+  }
+
+  InputActionRuntimeState& state = pit->second[action_name];
+  bool prev_held = state.held;
+  state.prev_value = state.value;
+  state.held = any_held;
+  state.value = max_value;
+
+  if( any_held && !prev_held ) {
+    state.pressed = true;
+  }
+  if( !any_held && prev_held ) {
+    state.released = true;
+  }
 }
 
 void InputActionProfileManager::rebuild_player_state(int player_index)
 {
+  if( this->state_mapper_ == nullptr ) {
+    return;
+  }
+
   std::string sname = this->player_state_name(player_index);
-  this->state_mapper_.disable(sname);
-  this->state_mapper_.erase(sname);
+  this->state_mapper_->disable(sname);
+  this->state_mapper_->erase(sname);
 
   auto profile_it = this->player_profiles_.find(player_index);
   if( profile_it == this->player_profiles_.end() ) {
@@ -258,8 +304,8 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
   JoystickID device_id = this->player_device(player_index);
 
   this->ensure_player_state(player_index);
-  RawActionStateMap& raw_map = this->impl_->raw_states[player_index];
-  raw_map.clear();
+  ActionContributionMap& contrib_map = this->player_contributions_[player_index];
+  contrib_map.clear();
 
   InputActionMapper mapper;
   std::vector<std::string> actions = profile->action_names();
@@ -268,11 +314,9 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
     const std::string& action_name = *ait;
     const InputActionProfile::BindingList& bindings = profile->bindings(action_name);
 
-    raw_map[action_name].reserve(bindings.size());
+    contrib_map[action_name].resize(bindings.size());
     for( size_type bidx = 0; bidx < bindings.size(); ++bidx ) {
-      RawBindingState rbs;
-      rbs.binding = &bindings[bidx];
-      raw_map[action_name].push_back(rbs);
+      contrib_map[action_name][bidx] = InputActionBindingContribution();
     }
 
     InputActionProfile::InputActionPtrList input_actions =
@@ -286,7 +330,8 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
       if( binding_idx >= blist.size() ) break;
       const InputActionBinding& binding = blist[binding_idx];
 
-      RawBindingState* rbs_ptr = &raw_map[action_name][binding_idx];
+      InputActionBindingContribution* contrib_ptr =
+          &contrib_map[action_name][binding_idx];
 
       switch( binding.type ) {
         case InputBindingType::Keyboard:
@@ -303,7 +348,8 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
             is_press_action = true;
           }
 
-          event_callback cb = [rbs_ptr, is_press_action, &binding](const Event& ev) {
+          event_callback cb = [this, player_index, action_name,
+                               contrib_ptr, is_press_action, &binding](const Event& ev) {
             bool pressed_state = is_press_action;
 
             if( binding.type == InputBindingType::JoystickHat ) {
@@ -317,9 +363,10 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
               }
             }
 
-            rbs_ptr->raw_held = pressed_state;
-            rbs_ptr->raw_value = pressed_state ? 1.0f : 0.0f;
-            rbs_ptr->binding = &binding;
+            contrib_ptr->held = pressed_state;
+            contrib_ptr->value = pressed_state ? 1.0f : 0.0f;
+
+            this->aggregate_action_state(player_index, action_name);
           };
           mapper.insert(action_name, *(*iait), cb);
 
@@ -339,7 +386,8 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
         case InputBindingType::GameControllerAxis:
         case InputBindingType::JoystickAxis:
         {
-          event_callback cb = [rbs_ptr, &binding](const Event& ev) {
+          event_callback cb = [this, player_index, action_name,
+                               contrib_ptr, &binding](const Event& ev) {
             int16 raw_val = 0;
             if( binding.type == InputBindingType::GameControllerAxis ) {
               raw_val = ev.caxis.value;
@@ -352,13 +400,14 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
             if( threshold <= 0.0f ) threshold = 0.2f;
 
             if( mag >= threshold ) {
-              rbs_ptr->raw_held = true;
-              rbs_ptr->raw_value = std::min(1.0f, mag);
+              contrib_ptr->held = true;
+              contrib_ptr->value = std::min(1.0f, mag);
             } else {
-              rbs_ptr->raw_held = false;
-              rbs_ptr->raw_value = 0.0f;
+              contrib_ptr->held = false;
+              contrib_ptr->value = 0.0f;
             }
-            rbs_ptr->binding = &binding;
+
+            this->aggregate_action_state(player_index, action_name);
           };
           mapper.insert(action_name, *(*iait), cb);
           ++binding_idx;
@@ -371,96 +420,18 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
     }
   }
 
-  this->state_mapper_.insert(sname, mapper, true);
+  this->state_mapper_->insert(sname, mapper, true);
   this->player_state_names_[player_index] = sname;
-}
-
-void InputActionProfileManager::ensure_player_state(int player_index)
-{
-  if( this->player_states_.find(player_index) == this->player_states_.end() ) {
-    this->player_states_[player_index] = ActionStateMap();
-    this->active_bindings_[player_index].clear();
-  }
-  if( this->impl_->raw_states.find(player_index) == this->impl_->raw_states.end() ) {
-    this->impl_->raw_states[player_index] = RawActionStateMap();
-  }
-}
-
-void InputActionProfileManager::resolve_conflicts(int player_index)
-{
-  auto pit = this->player_states_.find(player_index);
-  if( pit == this->player_states_.end() ) return;
-
-  ActionStateMap& final_states = pit->second;
-  RawActionStateMap& raw_map = this->impl_->raw_states[player_index];
-
-  for( auto ait = raw_map.begin(); ait != raw_map.end(); ++ait ) {
-    const std::string& action_name = ait->first;
-    std::vector<RawBindingState>& raw_bindings = ait->second;
-
-    if( raw_bindings.empty() ) {
-      continue;
-    }
-
-    bool has_non_conflict = false;
-    for( auto rit = raw_bindings.begin(); rit != raw_bindings.end(); ++rit ) {
-      if( rit->raw_held && rit->binding && !rit->binding->conflict_allow ) {
-        has_non_conflict = true;
-        break;
-      }
-    }
-
-    bool any_held = false;
-    real32 max_value = 0.0f;
-    bool any_blocked = false;
-
-    for( auto rit = raw_bindings.begin(); rit != raw_bindings.end(); ++rit ) {
-      if( !rit->raw_held || !rit->binding ) continue;
-
-      if( has_non_conflict && rit->binding->conflict_allow ) {
-        any_blocked = true;
-        continue;
-      }
-
-      any_held = true;
-      if( rit->raw_value > max_value ) {
-        max_value = rit->raw_value;
-      }
-    }
-
-    InputActionRuntimeState& state = final_states[action_name];
-    bool prev_held = state.held;
-    state.held = any_held;
-    state.prev_value = state.value;
-    state.value = max_value;
-    state.conflict_blocked = any_blocked;
-
-    if( any_held && !prev_held ) {
-      state.pressed = true;
-    }
-    if( !any_held && prev_held ) {
-      state.released = true;
-    }
-  }
-}
-
-void InputActionProfileManager::reset_frame_states(int player_index)
-{
-  auto pit = this->player_states_.find(player_index);
-  if( pit == this->player_states_.end() ) return;
-
-  for( auto ait = pit->second.begin(); ait != pit->second.end(); ++ait ) {
-    ait->second.pressed = false;
-    ait->second.released = false;
-  }
 }
 
 void InputActionProfileManager::update()
 {
   for( auto pit = this->player_states_.begin();
        pit != this->player_states_.end(); ++pit ) {
-    this->reset_frame_states(pit->first);
-    this->resolve_conflicts(pit->first);
+    for( auto ait = pit->second.begin(); ait != pit->second.end(); ++ait ) {
+      ait->second.pressed = false;
+      ait->second.released = false;
+    }
   }
 }
 
@@ -528,18 +499,7 @@ real32 InputActionProfileManager::action_value(const std::string& action) const
 void InputActionProfileManager::clear_states()
 {
   this->player_states_.clear();
-  this->impl_->raw_states.clear();
-  this->active_bindings_.clear();
-}
-
-InputStateMapper& InputActionProfileManager::state_mapper()
-{
-  return this->state_mapper_;
-}
-
-const InputStateMapper& InputActionProfileManager::state_mapper() const
-{
-  return this->state_mapper_;
+  this->player_contributions_.clear();
 }
 
 std::unique_ptr<InputActionProfileManager> make_unique_input_action_profile_manager()

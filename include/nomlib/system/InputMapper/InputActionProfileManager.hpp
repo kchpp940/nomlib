@@ -33,7 +33,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <map>
 #include <memory>
-#include <set>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Event.hpp"
@@ -42,11 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
-class EventHandler;
 class Value;
-struct InputActionBinding;
-
-struct RawBindingState;
 
 class InputActionProfileManager
 {
@@ -58,6 +53,8 @@ class InputActionProfileManager
     typedef std::map<int, JoystickID> PlayerDeviceMap;
     typedef std::map<std::string, std::shared_ptr<InputActionProfile>> ProfileMap;
     typedef std::map<int, std::string> PlayerStateNameMap;
+    typedef std::map<std::string, std::vector<InputActionBindingContribution>> ActionContributionMap;
+    typedef std::map<int, ActionContributionMap> PlayerContributionMap;
 
     static const int DEFAULT_PLAYER = 0;
 
@@ -87,7 +84,9 @@ class InputActionProfileManager
 
     std::vector<std::pair<int, JoystickID>> find_device_conflicts() const;
 
-    void set_event_handler(EventHandler& evt_handler);
+    void set_state_mapper(InputStateMapper* mapper);
+
+    InputStateMapper* state_mapper() const;
 
     void update();
 
@@ -111,32 +110,23 @@ class InputActionProfileManager
 
     void clear_states();
 
-    InputStateMapper& state_mapper();
-
-    const InputStateMapper& state_mapper() const;
-
   private:
-    struct Impl;
-
     static std::string player_state_name(int player_index);
 
     void rebuild_player_state(int player_index);
 
-    void resolve_conflicts(int player_index);
-
     void ensure_player_state(int player_index);
 
-    void reset_frame_states(int player_index);
+    void aggregate_action_state(int player_index, const std::string& action_name);
 
     ProfileMap profiles_;
     PlayerProfileMap player_profiles_;
     PlayerDeviceMap player_devices_;
     PlayerStateMap player_states_;
+    PlayerContributionMap player_contributions_;
     PlayerStateNameMap player_state_names_;
-    std::map<int, std::map<std::string, std::vector<const InputActionBinding*>>> active_bindings_;
 
-    Impl* impl_;
-    InputStateMapper state_mapper_;
+    InputStateMapper* state_mapper_;
 };
 
 std::unique_ptr<InputActionProfileManager> make_unique_input_action_profile_manager();
