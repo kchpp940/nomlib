@@ -113,12 +113,6 @@ class GameController
     /// success, and a negative error code on failure.
     JoystickID device_id() const;
 
-    /// \brief Get the device index that was used to open this game controller.
-    ///
-    /// \returns The device index originally passed to open(), or -1 if the
-    /// controller is not currently opened.
-    JoystickIndex device_index() const;
-
     /// \brief Get the implementation-dependent name of the joystick.
     ///
     /// \returns The name of the joystick on success, and a null-terminated
@@ -212,9 +206,6 @@ class GameController
     joystick_dev;
 
     joystick_dev device_;
-
-    /// \brief The device index originally used to open this controller.
-    JoystickIndex device_index_ = -1;
 
     /// \brief Per-instance flag to prevent double-free of the underlying
     /// SDL_GameController handle.

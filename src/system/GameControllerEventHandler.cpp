@@ -142,14 +142,29 @@ GameControllerEventHandler::remap_joystick(JoystickID dev_id)
     return result;
   }
 
-  JoystickIndex device_index = res->second->device_index();
-  if( device_index < 0 ) {
-    nom::set_error("Game controller has no valid device index");
-    return result;
+  JoystickIndex device_index = -1;
+  const int num_joysticks = SDL_NumJoysticks();
+  for( int i = 0; i < num_joysticks; ++i ) {
+    if( SDL_IsGameController(i) != SDL_TRUE ) {
+      continue;
+    }
+    const JoystickID inst_id = SDL_JoystickGetDeviceInstanceID(i);
+    if( inst_id == dev_id ) {
+      device_index = i;
+      break;
+    }
   }
 
   res->second->close();
   this->joysticks_.erase(res);
+
+  if( device_index < 0 ) {
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
+                  "Game controller instance ID", dev_id,
+                  "no longer present in device list; removing stale entry" );
+    nom::set_error("Game controller not present for remap");
+    return result;
+  }
 
   result = this->add_joystick(device_index);
   if( result != nullptr ) {

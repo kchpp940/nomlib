@@ -73,10 +73,15 @@ class GameControllerEventHandler
 
     /// \brief Re-open a game controller in response to a mapping update.
     ///
-    /// The controller is looked up by its current instance ID, closed cleanly,
-    /// then re-opened using the same device index so that the new button/axis
-    /// mapping from SDL takes effect. If the re-opened controller receives a
-    /// different instance ID, the internal pool entry is re-keyed accordingly.
+    /// The controller is looked up by its current instance ID. To find the
+    /// up-to-date device index reliably (SDL's device indices can be reassigned
+    /// after hot-plug events), the method scans SDL_NumJoysticks() and matches
+    /// against SDL_JoystickGetDeviceInstanceID(). If a matching device is
+    /// found, the old controller is closed cleanly and re-opened so the new
+    /// button/axis mapping from SDL takes effect; if the re-opened controller
+    /// receives a different instance ID, the internal pool entry is re-keyed
+    /// accordingly. If the instance ID is no longer present, the stale entry
+    /// is simply removed.
     ///
     /// \returns A non-owned pointer to the re-opened game controller on
     /// success, or NULL on failure.
