@@ -88,6 +88,8 @@ class NullAudioEngineCaps: public IOAudioEngine
     virtual bool fill_audio_buffer(SoundBuffer* buffer) override;
     virtual void free_buffer(SoundBuffer* buffer) override;
 
+    virtual void reset_stream_queue(SoundBuffer* buffer) override;
+
     virtual void suspend() override;
     virtual void resume() override;
 };

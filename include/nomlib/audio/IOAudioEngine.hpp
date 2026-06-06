@@ -119,6 +119,13 @@ class IOAudioEngine
     virtual bool push_buffer(SoundBuffer* buffer) = 0;
     virtual bool queue_buffer(SoundBuffer* buffer) = 0;
 
+    /// \brief Stop the source and unqueue all buffers queued on it.
+    ///
+    /// \remarks After this call the source is in STOPPED state with no
+    /// buffers attached to its queue. Safe to call on already-stopped or
+    /// non-streaming sources.
+    virtual void reset_stream_queue(SoundBuffer* buffer) = 0;
+
     virtual void suspend() = 0;
     virtual void resume() = 0;
     virtual void close() = 0;

@@ -213,5 +213,10 @@ void NullAudioEngineCaps::free_buffer(SoundBuffer* buffer)
 
 }
 
+void NullAudioEngineCaps::reset_stream_queue(SoundBuffer* buffer)
+{
+
+}
+
 } // namespace audio
 } // namespace nom
