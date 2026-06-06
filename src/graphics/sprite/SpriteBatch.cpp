@@ -56,6 +56,12 @@ void SpriteBatch::set_sprite_sheet(const SpriteSheet& sheet)
 
   this->set_frame(0);
 
+  this->animator_.set_target( *this );
+
+  if( !sheet.animations().null_type() ) {
+    this->animator_.load_clips( sheet.animations() );
+  }
+
   this->update();
 }
 
@@ -85,6 +91,55 @@ void SpriteBatch::set_frame(int32 id)
 
   this->update();
 }
+
+// -- Named animation support -----------------------------------------------
+
+bool SpriteBatch::play_animation( const std::string& name )
+{
+  return this->animator_.play( name );
+}
+
+void SpriteBatch::stop_animation()
+{
+  this->animator_.stop();
+}
+
+void SpriteBatch::pause_animation()
+{
+  this->animator_.pause();
+}
+
+void SpriteBatch::resume_animation()
+{
+  this->animator_.resume();
+}
+
+bool SpriteBatch::is_animation_playing() const
+{
+  return this->animator_.playing();
+}
+
+const std::string& SpriteBatch::current_animation() const
+{
+  return this->animator_.current_clip_name();
+}
+
+SpriteAnimator::State SpriteBatch::update_animation( real32 delta_time )
+{
+  return this->animator_.update( delta_time );
+}
+
+SpriteAnimator& SpriteBatch::animator()
+{
+  return this->animator_;
+}
+
+const SpriteAnimator& SpriteBatch::animator() const
+{
+  return this->animator_;
+}
+
+// -- Drawing --------------------------------------------------------------
 
 void SpriteBatch::draw(IDrawable::RenderTarget& target) const
 {

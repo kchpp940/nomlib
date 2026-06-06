@@ -38,29 +38,30 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace nom {
 
 // Forward declarations
-class SpriteAnimator;
+class SpriteBatch;
 
-/// \brief Drive a nom::SpriteAnimator through the actions update loop
+/// \brief Drive a nom::SpriteBatch's built-in animator through the actions update loop
 ///
 /// \remarks This action plays a single named animation clip on a
-/// nom::SpriteAnimator.  For looping clips the action will report
+/// nom::SpriteBatch via its object-level play_animation / update_animation
+/// entry points.  For looping clips the action will report
 /// FrameState::PLAYING indefinitely — wrap it with nom::RepeatForeverAction
 /// or nom::RepeatForAction as appropriate. For non-looping clips the action
 /// will report FrameState::COMPLETED once the clip finishes, and the
 /// SpriteAnimator's completion callback (if any) will fire naturally.
 ///
-/// \see nom::SpriteAnimator, nom::SpriteAnimationClip
+/// \see nom::SpriteBatch, nom::SpriteAnimator, nom::SpriteAnimationClip
 class SpriteAnimatorAction: public virtual IActionObject
 {
   public:
     typedef SpriteAnimatorAction self_type;
     typedef IActionObject derived_type;
 
-    /// \brief Play a named clip on a SpriteAnimator via the actions system.
+    /// \brief Play a named clip on a SpriteBatch via the actions system.
     ///
-    /// \param animator   The animator to drive. Must outlive this action.
-    /// \param clip_name  Name of a previously registered clip.
-    SpriteAnimatorAction( const std::shared_ptr<SpriteAnimator>& animator,
+    /// \param drawable   The target sprite. Must outlive this action.
+    /// \param clip_name  Name of a previously registered animation clip.
+    SpriteAnimatorAction( const std::shared_ptr<SpriteBatch>& drawable,
                           const std::string& clip_name );
 
     virtual ~SpriteAnimatorAction();
@@ -82,8 +83,8 @@ class SpriteAnimatorAction: public virtual IActionObject
   private:
     static const char* DEBUG_CLASS_NAME;
 
-    /// \brief The animator we are driving.
-    std::shared_ptr<SpriteAnimator> animator_;
+    /// \brief The sprite we are driving.
+    std::shared_ptr<SpriteBatch> drawable_;
 
     /// \brief Clip name requested at construction time.
     std::string clip_name_;
@@ -99,17 +100,17 @@ class SpriteAnimatorAction: public virtual IActionObject
 /// \class nom::SpriteAnimatorAction
 /// \ingroup actions
 ///
-/// \brief This action bridges nom::SpriteAnimator into the existing action
-/// system so that animations can be sequenced with other actions like
-/// nom::MoveByAction, nom::CallbackAction, etc.
+/// \brief This action bridges nom::SpriteBatch's built-in animator into the
+/// existing action system so that animations can be sequenced with other
+/// actions like nom::MoveByAction, nom::CallbackAction, etc.
 ///
 /// Typical usage:
 /// \code
-///   auto animator = std::make_shared<nom::SpriteAnimator>(sprite_batch);
-///   animator->add_clip(nom::SpriteAnimationClip("attack", 0, 5, 24.0f));
+///   auto sprite = std::make_shared<nom::SpriteBatch>();
+///   sprite->set_sprite_sheet(preloaded_sheet); // sheet has animations defined
 ///
 ///   auto attack_action = nom::create_action<nom::SpriteAnimatorAction>(
-///       animator, "attack");
+///       sprite, "attack");
 ///
 ///   actions.run_action(nom::create_action<nom::SequenceAction>(
 ///       nom::action_list{ attack_action, return_to_idle }));

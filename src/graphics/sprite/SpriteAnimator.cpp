@@ -96,10 +96,16 @@ bool SpriteAnimator::load_clips( const Value& object )
   }
 
   Value fp = object;
-  Value animations = fp["animations"];
+  Value animations = fp;
 
-  if( animations.null_type() || !animations.object_type() ) {
-    NOM_LOG_ERR( NOM, "Could not load clips: 'animations' node missing or invalid." );
+  // Accept either a full sprite-sheet JSON object (with an outer "animations"
+  // key wrapping the clips) or the bare animations map itself.
+  if( fp["animations"].object_type() ) {
+    animations = fp["animations"];
+  }
+
+  if( !animations.object_type() ) {
+    NOM_LOG_ERR( NOM, "Could not load clips: no animations object found." );
     return false;
   }
 

@@ -123,6 +123,19 @@ class SpriteSheet
     /// \param object An existing, de-serialized object to use.
     bool load_sheet_object(const Value& object);
 
+    /// \brief Access the raw "animations" node from the sprite sheet JSON.
+    ///
+    /// \remarks Returns a null Value if no "animations" node was present in
+    /// the source JSON.  The expected structure is a map of clip name to
+    /// clip definition, e.g.:
+    /// \code
+    ///   {
+    ///     "idle":   { "start": 0, "end": 3,  "fps": 10, "loop": true },
+    ///     "attack": { "start": 12, "end": 17, "fps": 24 }
+    ///   }
+    /// \endcode
+    const Value& animations() const;
+
     bool insert_frame(nom::size_type frame_num, const IntRect& frame_bounds);
     bool append_frame(const IntRect& frame_bounds);
 
@@ -160,6 +173,12 @@ class SpriteSheet
     /// \brief The total number of sprite frames; as per the number of objects
     /// in the frames object node.
     int total_frames_;
+
+    /// \brief Deserialized "animations" node from the sprite sheet JSON.
+    ///
+    /// \remarks May be null (Value::NullType) if the source file did not
+    /// define any named animations.
+    Value animations_;
 };
 
 } // namespace nom

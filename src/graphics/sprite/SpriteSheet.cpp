@@ -44,7 +44,8 @@ SpriteSheet::SpriteSheet() :
   sheet_padding_(0),
   sheet_width_(0),
   sheet_height_(0),
-  total_frames_(0)
+  total_frames_(0),
+  animations_()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER, nom::NOM_LOG_PRIORITY_VERBOSE );
 }
@@ -111,6 +112,11 @@ int SpriteSheet::sheet_spacing() const
 int SpriteSheet::total_frames() const
 {
   return this->total_frames_;
+}
+
+const Value& SpriteSheet::animations() const
+{
+  return this->animations_;
 }
 
 bool SpriteSheet::load_file(const std::string& filename)
@@ -192,6 +198,9 @@ bool SpriteSheet::load_sheet_object(const Value& object)
           this->total_frames_ = fp[key]["total_frames"].get_int();
         }
       } // end if key == metadata
+      else if( key == "animations" ) {
+        this->animations_ = fp[key];
+      }
       else {
         for( auto itr = obj.begin(); itr != obj.end(); ++itr ) {
 

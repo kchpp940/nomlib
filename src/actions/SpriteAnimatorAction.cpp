@@ -32,8 +32,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/core/unique_ptr.hpp"
 
 // Forward declarations
-#include "nomlib/graphics/sprite/SpriteAnimator.hpp"
+#include "nomlib/graphics/sprite/SpriteBatch.hpp"
 #include "nomlib/graphics/sprite/SpriteAnimationClip.hpp"
+#include "nomlib/graphics/sprite/SpriteAnimator.hpp"
 
 namespace nom {
 
@@ -41,9 +42,9 @@ namespace nom {
 const char* SpriteAnimatorAction::DEBUG_CLASS_NAME = "[SpriteAnimatorAction]:";
 
 SpriteAnimatorAction::SpriteAnimatorAction(
-  const std::shared_ptr<SpriteAnimator>& animator,
+  const std::shared_ptr<SpriteBatch>& drawable,
   const std::string& clip_name ) :
-  animator_(animator),
+  drawable_(drawable),
   clip_name_(clip_name),
   started_(false)
 {
@@ -53,8 +54,9 @@ SpriteAnimatorAction::SpriteAnimatorAction(
   this->elapsed_frames_ = 0.0f;
 
   // Derive an initial duration estimate from the clip (if registered already).
-  if( this->animator_ != nullptr ) {
-    const SpriteAnimationClip* clip = this->animator_->clip( clip_name );
+  if( this->drawable_ != nullptr ) {
+    const SpriteAnimationClip* clip =
+      this->drawable_->animator().clip( clip_name );
     if( clip != nullptr ) {
       this->set_duration( clip->duration() );
     }
@@ -75,13 +77,13 @@ std::unique_ptr<IActionObject> SpriteAnimatorAction::clone() const
 IActionObject::FrameState
 SpriteAnimatorAction::next_frame( real32 delta_time )
 {
-  if( this->animator_ == nullptr ) {
+  if( this->drawable_ == nullptr ) {
     this->set_status( FrameState::COMPLETED );
     return this->status();
   }
 
   if( !this->started_ ) {
-    if( this->animator_->play( this->clip_name_ ) == false ) {
+    if( this->drawable_->play_animation( this->clip_name_ ) == false ) {
       NOM_LOG_ERR( NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                    "Failed to start clip:", this->clip_name_ );
       this->set_status( FrameState::COMPLETED );
@@ -97,7 +99,8 @@ SpriteAnimatorAction::next_frame( real32 delta_time )
 
   real32 effective_delta = delta_time * speed;
 
-  SpriteAnimator::State anim_state = this->animator_->update( effective_delta );
+  SpriteAnimator::State anim_state =
+    this->drawable_->update_animation( effective_delta );
 
   ++this->elapsed_frames_;
 
@@ -108,7 +111,8 @@ SpriteAnimatorAction::next_frame( real32 delta_time )
 
   // If the clip is non-looping and the animator reports STOPPED, the action
   // is done.
-  const SpriteAnimationClip* clip = this->animator_->clip( this->clip_name_ );
+  const SpriteAnimationClip* clip =
+    this->drawable_->animator().clip( this->clip_name_ );
   bool non_looping_done = ( anim_state == SpriteAnimator::State::STOPPED &&
                             clip != nullptr && !clip->loop() );
 
@@ -137,16 +141,16 @@ SpriteAnimatorAction::prev_frame( real32 delta_time )
 void SpriteAnimatorAction::pause( real32 delta_time )
 {
   this->timer_.pause();
-  if( this->animator_ != nullptr ) {
-    this->animator_->pause();
+  if( this->drawable_ != nullptr ) {
+    this->drawable_->pause_animation();
   }
 }
 
 void SpriteAnimatorAction::resume( real32 delta_time )
 {
   this->timer_.unpause();
-  if( this->animator_ != nullptr ) {
-    this->animator_->resume();
+  if( this->drawable_ != nullptr ) {
+    this->drawable_->resume_animation();
   }
 }
 
@@ -156,8 +160,8 @@ void SpriteAnimatorAction::rewind( real32 delta_time )
   this->started_ = false;
   this->timer_.stop();
 
-  if( this->animator_ != nullptr ) {
-    this->animator_->stop();
+  if( this->drawable_ != nullptr ) {
+    this->drawable_->stop_animation();
   }
 
   this->set_status( FrameState::PLAYING );
@@ -165,7 +169,10 @@ void SpriteAnimatorAction::rewind( real32 delta_time )
 
 void SpriteAnimatorAction::release()
 {
-  this->animator_.reset();
+  if( this->drawable_ != nullptr ) {
+    this->drawable_->release_texture();
+  }
+  this->drawable_.reset();
 }
 
 } // namespace nom

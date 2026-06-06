@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/math/Rect.hpp"
 #include "nomlib/graphics/sprite/Sprite.hpp"
 #include "nomlib/graphics/sprite/SpriteSheet.hpp"
+#include "nomlib/graphics/sprite/SpriteAnimator.hpp"
 
 namespace nom {
 
@@ -92,6 +93,45 @@ class SpriteBatch: public Sprite
     /// \see ::update.
     void set_frame(int32 id);
 
+    // -- Named animation support (built-in SpriteAnimator) -----------------
+
+    /// \brief Play a named animation clip that was registered with the
+    /// attached SpriteSheet or manually via animator().
+    ///
+    /// \returns Boolean FALSE if no clip with that name exists.
+    bool play_animation( const std::string& name );
+
+    /// \brief Stop any currently playing animation.
+    void stop_animation();
+
+    /// \brief Pause a playing animation at its current frame.
+    void pause_animation();
+
+    /// \brief Resume a paused animation.
+    void resume_animation();
+
+    /// \brief Returns true if an animation clip is currently playing.
+    bool is_animation_playing() const;
+
+    /// \brief Returns the name of the currently playing animation clip, or an
+    /// empty string if no clip is playing.
+    const std::string& current_animation() const;
+
+    /// \brief Advance any currently playing animation by delta_time seconds.
+    ///
+    /// \remarks This is a no-op if no animation is playing.  It is called
+    /// automatically from the actions system when using SpriteAnimatorAction;
+    /// if you are driving animations manually you must call it yourself each
+    /// frame.
+    SpriteAnimator::State update_animation( real32 delta_time );
+
+    /// \brief Direct access to the embedded SpriteAnimator for advanced usage
+    /// (registering clips manually, setting completion callbacks, etc.).
+    SpriteAnimator& animator();
+    const SpriteAnimator& animator() const;
+
+    // -- Drawing -----------------------------------------------------------
+
     /// \brief Render the sprite frame.
     ///
     /// \remarks The sprite is not rendered when the frame number is negative
@@ -125,6 +165,9 @@ class SpriteBatch: public Sprite
     /// \remarks The sprite is not updated when the frame number is negative
     /// one (-1).
     virtual void update() override;
+
+    /// \brief Built-in animation controller.
+    SpriteAnimator animator_;
 };
 
 } // namespace nom
