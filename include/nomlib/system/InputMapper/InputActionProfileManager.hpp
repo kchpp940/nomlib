@@ -110,10 +110,16 @@ class InputActionProfileManager
 
     void clear_states();
 
+    void clear_player(int player_index);
+
+    void clear_all_players();
+
   private:
     static std::string player_state_name(int player_index);
 
     void rebuild_player_state(int player_index);
+
+    void unregister_player_state(int player_index);
 
     void ensure_player_state(int player_index);
 

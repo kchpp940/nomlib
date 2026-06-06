@@ -68,6 +68,7 @@ InputActionProfileManager::InputActionProfileManager()
 
 InputActionProfileManager::~InputActionProfileManager()
 {
+  this->clear_all_players();
 }
 
 std::string InputActionProfileManager::player_state_name(int player_index)
@@ -109,12 +110,16 @@ void InputActionProfileManager::remove_profile(const std::string& name)
 {
   auto it = this->profiles_.find(name);
   if( it != this->profiles_.end() ) {
+    std::vector<int> players_using;
     for( auto pit = this->player_profiles_.begin();
          pit != this->player_profiles_.end(); ++pit ) {
-      if( pit->second == name && this->state_mapper_ != nullptr ) {
-        std::string sname = this->player_state_name(pit->first);
-        this->state_mapper_->disable(sname);
+      if( pit->second == name ) {
+        players_using.push_back(pit->first);
       }
+    }
+    for( auto pit = players_using.begin(); pit != players_using.end(); ++pit ) {
+      this->unregister_player_state(*pit);
+      this->player_profiles_.erase(*pit);
     }
     this->profiles_.erase(it);
   }
@@ -219,11 +224,26 @@ InputActionProfileManager::find_device_conflicts() const
 
 void InputActionProfileManager::set_state_mapper(InputStateMapper* mapper)
 {
+  if( mapper == this->state_mapper_ ) {
+    return;
+  }
+
+  if( this->state_mapper_ != nullptr ) {
+    this->clear_all_players();
+  }
+
   this->state_mapper_ = mapper;
 
-  for( auto pit = this->player_profiles_.begin();
-       pit != this->player_profiles_.end(); ++pit ) {
-    this->rebuild_player_state(pit->first);
+  if( this->state_mapper_ != nullptr ) {
+    std::vector<int> players;
+    players.reserve(this->player_profiles_.size());
+    for( auto pit = this->player_profiles_.begin();
+         pit != this->player_profiles_.end(); ++pit ) {
+      players.push_back(pit->first);
+    }
+    for( auto pit = players.begin(); pit != players.end(); ++pit ) {
+      this->rebuild_player_state(*pit);
+    }
   }
 }
 
@@ -240,6 +260,27 @@ void InputActionProfileManager::ensure_player_state(int player_index)
   if( this->player_contributions_.find(player_index) == this->player_contributions_.end() ) {
     this->player_contributions_[player_index] = ActionContributionMap();
   }
+}
+
+void InputActionProfileManager::unregister_player_state(int player_index)
+{
+  if( this->state_mapper_ != nullptr ) {
+    auto sn_it = this->player_state_names_.find(player_index);
+    if( sn_it != this->player_state_names_.end() ) {
+      this->state_mapper_->disable(sn_it->second);
+      bool erased = this->state_mapper_->erase(sn_it->second);
+      if( erased == false ) {
+        std::ostringstream oss;
+        oss << "State '" << sn_it->second << "' for player " << player_index
+            << " was not found in external InputStateMapper during cleanup";
+        NOM_LOG_WARN( NOM, oss.str() );
+      }
+      this->player_state_names_.erase(sn_it);
+    }
+  }
+
+  this->player_states_.erase(player_index);
+  this->player_contributions_.erase(player_index);
 }
 
 void InputActionProfileManager::aggregate_action_state(int player_index,
@@ -288,9 +329,7 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
     return;
   }
 
-  std::string sname = this->player_state_name(player_index);
-  this->state_mapper_->disable(sname);
-  this->state_mapper_->erase(sname);
+  this->unregister_player_state(player_index);
 
   auto profile_it = this->player_profiles_.find(player_index);
   if( profile_it == this->player_profiles_.end() ) {
@@ -420,8 +459,16 @@ void InputActionProfileManager::rebuild_player_state(int player_index)
     }
   }
 
-  this->state_mapper_->insert(sname, mapper, true);
-  this->player_state_names_[player_index] = sname;
+  std::string sname = this->player_state_name(player_index);
+  bool inserted = this->state_mapper_->insert(sname, mapper, true);
+  if( inserted ) {
+    this->player_state_names_[player_index] = sname;
+  } else {
+    std::ostringstream oss;
+    oss << "Failed to register state '" << sname << "' for player " << player_index
+        << " into InputStateMapper (key collision after erase?)";
+    NOM_LOG_ERR( NOM, oss.str() );
+  }
 }
 
 void InputActionProfileManager::update()
@@ -498,8 +545,41 @@ real32 InputActionProfileManager::action_value(const std::string& action) const
 
 void InputActionProfileManager::clear_states()
 {
-  this->player_states_.clear();
-  this->player_contributions_.clear();
+  this->clear_all_players();
+}
+
+void InputActionProfileManager::clear_player(int player_index)
+{
+  this->unregister_player_state(player_index);
+  this->player_profiles_.erase(player_index);
+  this->player_devices_.erase(player_index);
+  this->player_state_names_.erase(player_index);
+}
+
+void InputActionProfileManager::clear_all_players()
+{
+  std::vector<int> players;
+  players.reserve(this->player_profiles_.size());
+  for( auto pit = this->player_profiles_.begin();
+       pit != this->player_profiles_.end(); ++pit ) {
+    players.push_back(pit->first);
+  }
+  for( auto pit = this->player_devices_.begin();
+       pit != this->player_devices_.end(); ++pit ) {
+    if( std::find(players.begin(), players.end(), pit->first) == players.end() ) {
+      players.push_back(pit->first);
+    }
+  }
+  for( auto pit = this->player_state_names_.begin();
+       pit != this->player_state_names_.end(); ++pit ) {
+    if( std::find(players.begin(), players.end(), pit->first) == players.end() ) {
+      players.push_back(pit->first);
+    }
+  }
+
+  for( auto pit = players.begin(); pit != players.end(); ++pit ) {
+    this->clear_player(*pit);
+  }
 }
 
 std::unique_ptr<InputActionProfileManager> make_unique_input_action_profile_manager()
