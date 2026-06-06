@@ -47,221 +47,170 @@ NullAudioEngineCaps::~NullAudioEngineCaps()
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 }
 
-void NullAudioEngineCaps::init(void* driver)
-{
-  (void)driver;
-}
-
-bool NullAudioEngineCaps::valid() const
-{
-  return false;
-}
-
-uint32 NullAudioEngineCaps::caps() const
-{
-  return 0;
-}
-
-void NullAudioEngineCaps::set_cap(uint32 format)
-{
-  (void)format;
-}
-
-bool NullAudioEngineCaps::connected() const
-{
-  return false;
-}
-
 uint32
 NullAudioEngineCaps::channel_format(uint32 num_channels, uint32 channel_format)
 {
-  (void)num_channels;
   channel_format = 0;
   return channel_format;
 }
 
-bool NullAudioEngineCaps::valid_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::valid_audio_buffer(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return false;
+  bool valid = false;
+  return valid;
 }
 
-bool NullAudioEngineCaps::valid_source(SoundBuffer* buffer)
+bool NullAudioEngineCaps::valid_sound_buffer(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return false;
+  bool valid = false;
+  return valid;
 }
 
 uint32 NullAudioEngineCaps::state(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return AUDIO_STATE_STOPPED;
+  uint32 result = AUDIO_STATE_STOPPED;
+  return result;
 }
-
 real32 NullAudioEngineCaps::pitch(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return 0.0f;
+  auto pitch = 0.0f;
+  return pitch;
 }
 
 real32 NullAudioEngineCaps::volume() const
 {
-  return nom::audio::MIN_VOLUME;
+  auto gain_level = nom::audio::MIN_VOLUME;
+  return gain_level;
 }
 
 Point3f NullAudioEngineCaps::position() const
 {
-  return Point3f(0.0f, 0.0f, 0.0f);
+  // Defaults as per /System/Library/Frameworks/OpenAL/Headers/al.h
+  Point3f p(0.0f, 0.0f, 0.0f);
+  return p;
 }
 
 real32 NullAudioEngineCaps::volume(SoundBuffer* buffer) const
 {
-  (void)buffer;
-  return nom::audio::MIN_VOLUME;
+  real32 gain_level = nom::audio::MIN_VOLUME;
+  return gain_level;
 }
 
 real32 NullAudioEngineCaps::min_volume(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return nom::audio::MIN_VOLUME;
+  real32 min_gain = nom::audio::MIN_VOLUME;
+  return min_gain;
 }
 
 real32 NullAudioEngineCaps::max_volume(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return nom::audio::MIN_VOLUME;
+  real32 max_gain = nom::audio::MIN_VOLUME;
+  return max_gain;
 }
 
 Point3f NullAudioEngineCaps::velocity(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return Point3f::zero;
+  Point3f v(Point3f::zero);
+  return v;
 }
 
 Point3f NullAudioEngineCaps::position(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return Point3f::zero;
+  Point3f p(Point3f::zero);
+  return p;
 }
 
 real32 NullAudioEngineCaps::playback_position(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return 0.0f;
+  real32 pos = 0.0f;
+  return pos;
 }
 
 real32 NullAudioEngineCaps::playback_samples(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return 0.0f;
+  real32 samples = 0.0f;
+  return samples;
+}
+
+void NullAudioEngineCaps::set_state(SoundBuffer* target, uint32 state)
+{
+
 }
 
 void NullAudioEngineCaps::set_volume(real32 gain)
 {
-  (void)gain;
+
 }
 
 void NullAudioEngineCaps::set_position(const Point3f& p)
 {
-  (void)p;
 }
 
 void NullAudioEngineCaps::set_volume(SoundBuffer* target, real32 gain)
 {
-  (void)target;
-  (void)gain;
+
 }
 
 void NullAudioEngineCaps::set_min_volume(SoundBuffer* target, real32 gain)
 {
-  (void)target;
-  (void)gain;
+
 }
 
 void NullAudioEngineCaps::set_max_volume(SoundBuffer* target, real32 gain)
 {
-  (void)target;
-  (void)gain;
+
 }
 
 void NullAudioEngineCaps::set_velocity(SoundBuffer* target, const Point3f& v)
 {
-  (void)target;
-  (void)v;
+
 }
 
 void NullAudioEngineCaps::set_position(SoundBuffer* target, const Point3f& p)
 {
-  (void)target;
-  (void)p;
+
 }
 
 void NullAudioEngineCaps::set_pitch(SoundBuffer* buffer, real32 pitch)
 {
-  (void)buffer;
-  (void)pitch;
+
 }
 
 void NullAudioEngineCaps::set_playback_position(SoundBuffer* target,
-                                                real32 offset_seconds)
+                                              real32 offset_seconds)
 {
-  (void)target;
-  (void)offset_seconds;
+
 }
 
 void NullAudioEngineCaps::play(SoundBuffer* buffer)
 {
-  (void)buffer;
+
 }
 
 void NullAudioEngineCaps::stop(SoundBuffer* buffer)
 {
-  (void)buffer;
+
 }
 
 void NullAudioEngineCaps::pause(SoundBuffer* buffer)
 {
-  (void)buffer;
+
 }
 
 void NullAudioEngineCaps::resume(SoundBuffer* buffer)
 {
-  (void)buffer;
+
 }
 
-bool NullAudioEngineCaps::push_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::fill_audio_buffer(SoundBuffer* buffer)
 {
-  (void)buffer;
-  return false;
-}
-
-bool NullAudioEngineCaps::queue_buffer(SoundBuffer* buffer)
-{
-  (void)buffer;
-  return false;
-}
-
-bool NullAudioEngineCaps::reset_stream_queue(SoundBuffer* buffer)
-{
-  (void)buffer;
-  return false;
-}
-
-void NullAudioEngineCaps::suspend()
-{
-}
-
-void NullAudioEngineCaps::resume()
-{
-}
-
-void NullAudioEngineCaps::close()
-{
+  bool result = false;
+  return result;
 }
 
 void NullAudioEngineCaps::free_buffer(SoundBuffer* buffer)
 {
-  (void)buffer;
+
 }
 
 } // namespace audio

@@ -60,17 +60,6 @@ DispatchQueue::DispatchQueue()
 DispatchQueue::~DispatchQueue()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION, NOM_LOG_PRIORITY_VERBOSE);
-
-  this->release_actions();
-}
-
-void DispatchQueue::release_actions()
-{
-  for(auto& enqueued : this->actions_) {
-    if(enqueued != nullptr && enqueued->action != nullptr) {
-      enqueued->action->release();
-    }
-  }
 }
 
 nom::size_type DispatchQueue::num_actions() const
@@ -156,8 +145,6 @@ DispatchQueue::update(uint32 player_state, real32 delta_time)
     action_callback_func completion_func =
       (*itr)->on_completion_callback;
 
-    action->release();
-
     --this->num_actions_;
     ++this->actions_iterator_;
 
@@ -167,6 +154,7 @@ DispatchQueue::update(uint32 player_state, real32 delta_time)
 
     NOM_ASSERT(this->num_actions_ >= 0);
 
+    // Holla back
     if( completion_func != nullptr ) {
       completion_func.operator()();
     }

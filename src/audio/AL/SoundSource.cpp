@@ -323,20 +323,12 @@ void free_buffer(SoundBuffer* buffer, IOAudioEngine* target)
 {
   NOM_LOG_TRACE(NOM_LOG_CATEGORY_TRACE_AUDIO);
 
+  // Goodbye buffer!
   if(buffer != nullptr && target != nullptr && target->valid() == true) {
     target->free_buffer(buffer);
   }
 
   NOM_DELETE_PTR(buffer);
-}
-
-bool reset_stream_queue(SoundBuffer* buffer, IOAudioEngine* target)
-{
-  if(buffer == nullptr || target == nullptr || target->valid() == false) {
-    return false;
-  }
-
-  return target->reset_stream_queue(buffer);
 }
 
 // audio control

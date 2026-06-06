@@ -156,6 +156,13 @@ class EventHandler
     void process_joystick_event(const SDL_Event* ev);
     void process_game_controller_event(const SDL_Event* ev);
 
+    /// \brief Unconditionally shut down the currently active joystick or game
+    /// controller event handler and its associated SDL subsystem.
+    ///
+    /// \remarks This is the single unified cleanup path for all handler types.
+    /// It is safe to call when no handler is active.
+    void shutdown_current_handler();
+
     /// \brief Enqueued events.
     ///
     /// \see nom::EventHandler::process_event

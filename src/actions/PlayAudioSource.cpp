@@ -52,6 +52,7 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
                      nom::NOM_LOG_PRIORITY_VERBOSE);
 
   audio::SoundBuffer* buffer = nullptr;
+  audio::SoundInfo metadata = {};
   this->impl_ = dev;
   this->elapsed_frames_ = 0.0f;
 
@@ -59,37 +60,33 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
   NOM_ASSERT(this->fp_ != nullptr);
   if(this->fp_ != nullptr) {
 
-    if(this->fp_->open(filename, this->metadata_) == false) {
-      this->release();
+    if(this->fp_->open(filename, metadata) == false) {
       return;
     }
 
     if(this->fp_->valid() == false) {
-      this->release();
       return;
     }
 
-    auto samples_per_second = this->metadata_.sample_rate;
-    auto num_channels = this->metadata_.channel_count;
-    auto channel_format = this->metadata_.channel_format;
+    auto samples_per_second = metadata.sample_rate;
+    auto num_channels = metadata.channel_count;
+    auto channel_format = metadata.channel_format;
+
+    buffer =
+      audio::create_buffer_memory(samples_per_second, num_channels,
+                                  channel_format);
 
     // NOTE(jeff): Create a queue of buffers to stream out in chunks
     for(auto buffer_idx = 0;
         buffer_idx != audio::TOTAL_NUM_BUFFERS;
         ++buffer_idx)
     {
-      buffer =
-        audio::create_buffer_memory(samples_per_second, num_channels,
-                                    channel_format);
-
       if(buffer == nullptr) {
-        this->release();
-        return;
+        break;
       }
 
-      if(audio::write_info(buffer, this->metadata_) == false) {
-        audio::free_buffer(buffer, this->impl_);
-        this->release();
+      // TODO(jeff): Validity check..?
+      if(audio::write_info(buffer, metadata) == false) {
         return;
       }
 
@@ -126,8 +123,6 @@ PlayAudioSource::~PlayAudioSource()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
-
-  this->release();
 }
 
 std::unique_ptr<IActionObject> PlayAudioSource::clone() const
@@ -138,19 +133,13 @@ std::unique_ptr<IActionObject> PlayAudioSource::clone() const
 IActionObject::FrameState
 PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
 {
-  if(this->released_ == true) {
-    auto status = FrameState::COMPLETED;
-    this->set_status(status);
-    return status;
-  }
-
   real32 delta_time = t;
   auto status = this->status();
   const real32 duration = d;
   const auto speed = this->speed();
 
   auto& itr = this->current_buffer_;
-  if(itr == this->audible_.end() || *itr == nullptr || (*itr)->samples == nullptr) {
+  if(*itr == nullptr || (*itr)->samples == nullptr) {
     status = FrameState::COMPLETED;
     this->set_status(status);
     return status;
@@ -216,12 +205,6 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
 
 IActionObject::FrameState PlayAudioSource::next_frame(real32 delta_time)
 {
-  if(this->released_ == true) {
-    auto status = FrameState::COMPLETED;
-    this->set_status(status);
-    return status;
-  }
-
   delta_time = this->timer_.to_seconds();
 #if 0
   if(this->audible_) {
@@ -235,12 +218,6 @@ IActionObject::FrameState PlayAudioSource::next_frame(real32 delta_time)
 
 IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 {
-  if(this->released_ == true) {
-    auto status = FrameState::COMPLETED;
-    this->set_status(status);
-    return status;
-  }
-
   delta_time = this->timer_.to_seconds();
 #if 0
   if(this->audible_) {
@@ -254,126 +231,74 @@ IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 
 void PlayAudioSource::pause(real32 delta_time)
 {
-  if(this->released_ == true) {
-    return;
-  }
+  auto itr = this->current_buffer_;
 
   this->timer_.pause();
+#if 0
+  audio::pause((*itr), this->impl_);
 
-  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
-    auto itr = this->current_buffer_;
-    if(*itr != nullptr) {
-      audio::pause((*itr), this->impl_);
-    }
+  if(this->audible_) {
+    this->audible_->elapsed_seconds = this->timer_.ticks();
   }
+#endif
 }
 
 void PlayAudioSource::resume(real32 delta_time)
 {
-  if(this->released_ == true) {
-    return;
-  }
+  auto itr = this->current_buffer_;
 
   this->timer_.unpause();
-
-  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
-    auto itr = this->current_buffer_;
-    if(*itr != nullptr) {
-      audio::resume((*itr), this->impl_);
-    }
+#if 0
+  if(this->audible_) {
+    this->audible_->elapsed_seconds = this->timer_.ticks();
   }
+#endif
+  audio::resume((*itr), this->impl_);
 }
 
 void PlayAudioSource::rewind(real32 delta_time)
 {
-  if(this->released_ == true) {
-    return;
-  }
+  auto itr = this->current_buffer_;
 
+  // ...Reset the animation...
   this->elapsed_frames_ = 0.0f;
   this->timer_.stop();
   this->set_status(FrameState::PLAYING);
-  this->input_pos_ = 0;
 
-  bool queue_cleared = true;
-
-  for(auto buffer : this->audible_) {
-    if(buffer != nullptr) {
-      bool ok = audio::reset_stream_queue(buffer, this->impl_);
-      if(ok == false) {
-        queue_cleared = false;
-        audio::stop(buffer, this->impl_);
-      }
-      buffer->samples_read = 0;
-    }
+  if((*itr) != nullptr) {
+    audio::stop((*itr), this->impl_);
+    (*itr)->samples_read = 0;
   }
-
-  if(queue_cleared == false) {
-    NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
-                 DEBUG_CLASS_NAME,
-                 "rewind(): audio backend does not support reset_stream_queue;",
-                 "falling back to stop(). Queued buffers may still be attached",
-                 "to the source.");
-  }
-
-  if(this->fp_ != nullptr) {
-    this->fp_->seek(0, audio::SOUND_SEEK_SET);
-  }
-
-  this->current_buffer_ = this->audible_.begin();
 }
 
 void PlayAudioSource::release()
 {
-  if(this->released_ == true) {
-    return;
-  }
+  auto itr = this->current_buffer_;
 
-  this->released_ = true;
+  if(*itr != nullptr) {
+    // audio::stop((*itr), this->impl_);
 
-  bool queue_cleared = true;
+    auto num_buffers = this->audible_.size();
 
-  for(auto buffer : this->audible_) {
-    if(buffer != nullptr) {
-      bool ok = audio::reset_stream_queue(buffer, this->impl_);
-      if(ok == false) {
-        queue_cleared = false;
-        audio::stop(buffer, this->impl_);
-      }
+    NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
+
+    auto audible_end = this->audible_.end();
+    for(auto itr = this->audible_.begin();
+        itr != audible_end; ++itr)
+    {
+      audio::free_buffer((*itr), this->impl_);
     }
+  #if 0
+    audio::free_buffer(this->audible_, this->impl_);
+    this->audible_ = nullptr;
+  #endif
   }
-
-  if(queue_cleared == false) {
-    NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
-                 DEBUG_CLASS_NAME,
-                 "release(): audio backend does not support reset_stream_queue;",
-                 "falling back to stop() before free_buffer().");
-  }
-
-  auto num_buffers = this->audible_.size();
-
-  NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
-
-  auto audible_end = this->audible_.end();
-  for(auto itr = this->audible_.begin();
-      itr != audible_end; ++itr)
-  {
-    audio::free_buffer((*itr), this->impl_);
-  }
-
-  this->audible_.clear();
-
-  NOM_DELETE_PTR(this->fp_);
 }
 
 // Private scope
 
 void PlayAudioSource::first_frame(real32 delta_time)
 {
-  if(this->released_ == true) {
-    return;
-  }
-
   if(this->timer_.started() == false) {
     this->timer_.start();
 
@@ -389,28 +314,14 @@ void PlayAudioSource::last_frame(real32 delta_time)
 {
   NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                "END at", delta_time);
+  auto itr = this->current_buffer_;
 
   this->timer_.stop();
+
+  // TODO(jeff): ?
+  // audio::stop((*itr), this->impl_);
+  // (*itr)->samples_read = 0;
   this->input_pos_ = 0;
-
-  bool queue_cleared = true;
-
-  for(auto buffer : this->audible_) {
-    if(buffer != nullptr) {
-      bool ok = audio::reset_stream_queue(buffer, this->impl_);
-      if(ok == false) {
-        queue_cleared = false;
-        audio::stop(buffer, this->impl_);
-      }
-    }
-  }
-
-  if(queue_cleared == false) {
-    NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
-                 DEBUG_CLASS_NAME,
-                 "last_frame(): audio backend does not support reset_stream_queue;",
-                 "falling back to stop().");
-  }
 }
 
 } // namespace nom

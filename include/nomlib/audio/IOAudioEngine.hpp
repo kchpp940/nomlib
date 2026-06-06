@@ -119,29 +119,6 @@ class IOAudioEngine
     virtual bool push_buffer(SoundBuffer* buffer) = 0;
     virtual bool queue_buffer(SoundBuffer* buffer) = 0;
 
-    /// \brief Stop the source and unqueue all buffers queued on it.
-    ///
-    /// \return true if the queue was actually cleared; false if this backend
-    /// does not support streaming / queue clearing or the operation failed.
-    ///
-    /// \remarks After this call returns true, the source is in STOPPED state
-    /// with no buffers attached to its queue. Safe to call on already-stopped
-    /// or non-streaming sources.
-    ///
-    /// The default implementation logs a warning and returns false so that
-    /// callers can fall back to a safe downgrade (e.g. at least stopping
-    /// playback). Audio backends that support streaming (queued buffers)
-    /// should override this to perform the real cleanup.
-    virtual bool reset_stream_queue(SoundBuffer* buffer)
-    {
-      (void)buffer;
-      NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
-                   "[IOAudioEngine] reset_stream_queue() is not implemented "
-                   "for this audio backend — queued OpenAL/audio buffers "
-                   "may leak.");
-      return false;
-    }
-
     virtual void suspend() = 0;
     virtual void resume() = 0;
     virtual void close() = 0;

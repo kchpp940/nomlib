@@ -43,6 +43,8 @@ GameControllerEventHandler::~GameControllerEventHandler()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_EVENT,
                       NOM_LOG_PRIORITY_VERBOSE );
+
+  this->remove_joysticks();
 }
 
 nom::size_type GameControllerEventHandler::num_joysticks() const
@@ -130,17 +132,12 @@ bool GameControllerEventHandler::remove_joystick(JoystickID dev_id)
 }
 
 void GameControllerEventHandler::remove_joysticks() {
-  auto res = this->joysticks_.begin();
-  if(res == this->joysticks_.end()) {
-    return;
+  for( auto itr = this->joysticks_.begin(); itr != this->joysticks_.end(); ++itr ) {
+    if( itr->second != nullptr ) {
+      itr->second->close();
+    }
   }
-
-  if(res != this->joysticks_.end()) {
-    // Success -- found device; say buh-bye!
-    res->second->close();
-    // FIXME(jeff): How do we properly erase
-    this->joysticks_.clear();
-  }
+  this->joysticks_.clear();
 }
 
 } // namespace nom

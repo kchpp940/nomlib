@@ -43,6 +43,8 @@ JoystickEventHandler::~JoystickEventHandler()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_EVENT,
                       NOM_LOG_PRIORITY_VERBOSE );
+
+  this->remove_joysticks();
 }
 
 nom::size_type JoystickEventHandler::num_joysticks() const
@@ -64,7 +66,7 @@ Joystick* JoystickEventHandler::joystick(JoystickID dev_id) const
   }
 }
 
-bool JoystickEventHandler::joystick_exists(JoystickID dev_id)
+bool JoystickEventHandler::joystick_exists(JoystickID dev_id) const
 {
   auto res = this->joysticks_.find(dev_id);
   if( res != this->joysticks_.end() ) {
@@ -113,6 +115,16 @@ bool JoystickEventHandler::remove_joystick(JoystickID dev_id)
     // Err -- device not found
     return false;
   }
+}
+
+void JoystickEventHandler::remove_joysticks()
+{
+  for( auto itr = this->joysticks_.begin(); itr != this->joysticks_.end(); ++itr ) {
+    if( itr->second != nullptr ) {
+      itr->second->close();
+    }
+  }
+  this->joysticks_.clear();
 }
 
 } // namespace nom

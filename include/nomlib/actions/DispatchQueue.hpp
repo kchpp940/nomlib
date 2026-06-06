@@ -91,9 +91,6 @@ class DispatchQueue
     DispatchQueue::State
     update(uint32 player_state, real32 delta_time);
 
-    /// \brief Release all enqueued actions' resources.
-    void release_actions();
-
   private:
     static const char* DEBUG_CLASS_NAME;
 

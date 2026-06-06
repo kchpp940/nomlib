@@ -324,6 +324,10 @@ class Joystick
     typedef std::unique_ptr<SDL_Joystick, void (*)(SDL_Joystick*)> joystick_dev;
 
     joystick_dev device_;
+
+    /// \brief Per-instance flag to prevent double-free of the underlying
+    /// SDL_Joystick handle.
+    bool device_closed_ = false;
 };
 
 std::unique_ptr<Joystick> make_unique_joystick();

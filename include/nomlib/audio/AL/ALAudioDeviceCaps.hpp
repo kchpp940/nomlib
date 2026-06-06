@@ -152,8 +152,6 @@ class ALAudioEngine: public IOAudioEngine
     virtual bool push_buffer(SoundBuffer* target) override;
     virtual bool queue_buffer(SoundBuffer* target) override;
 
-    virtual bool reset_stream_queue(SoundBuffer* target) override;
-
     // IMPORTANT(jeff): The audio hardware capabilities, maximum sources,
     // limitations and so on are subject to change anytime that we touch the
     // audio context state!

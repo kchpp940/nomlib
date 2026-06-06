@@ -1138,39 +1138,6 @@ bool ALAudioEngine::queue_buffer(SoundBuffer* target)
   return true;
 }
 
-bool ALAudioEngine::reset_stream_queue(SoundBuffer* target)
-{
-  if(target == nullptr || this->valid() == false) {
-    return false;
-  }
-
-  if(this->valid_source(target) == false) {
-    return false;
-  }
-
-  this->stop(target);
-
-  ALint queued = 0;
-  AL_CLEAR_ERR();
-  alGetSourcei(target->source_id, AL_BUFFERS_QUEUED, &queued);
-  if(alGetError() != AL_NO_ERROR) {
-    return false;
-  }
-
-  while(queued > 0) {
-    ALuint unqueued_buf = 0;
-    AL_CLEAR_ERR();
-    alSourceUnqueueBuffers(target->source_id, 1, &unqueued_buf);
-    ALenum err = alGetError();
-    if(err != AL_NO_ERROR) {
-      return false;
-    }
-    --queued;
-  }
-
-  return true;
-}
-
 void ALAudioEngine::suspend()
 {
   // auto ctx = NOM_SCAST(ALCcontext*, this->context());

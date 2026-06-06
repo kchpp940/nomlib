@@ -83,11 +83,7 @@ EventHandler::~EventHandler()
                     "max_events_count:", max_events_count_ );
   }
 
-  if( this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER ) {
-    this->disable_joystick_polling();
-  } else if( this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER ) {
-    this->disable_game_controller_polling();
-  }
+  this->shutdown_current_handler();
 }
 
 nom::size_type EventHandler::num_events() const
@@ -122,6 +118,8 @@ EventHandler::joystick_event_type() const
 
 bool EventHandler::enable_joystick_polling()
 {
+  this->shutdown_current_handler();
+
   if( nom::init_joystick_subsystem() == false ) {
     return false;
   }
@@ -129,6 +127,7 @@ bool EventHandler::enable_joystick_polling()
   this->joystick_event_handler_ = new JoystickEventHandler();
   if( this->joystick_event_handler_ == nullptr ) {
     nom::set_error(nom::OUT_OF_MEMORY_ERR);
+    nom::shutdown_joystick_subsystem();
     return false;
   }
 
@@ -139,6 +138,8 @@ bool EventHandler::enable_joystick_polling()
 
 bool EventHandler::enable_game_controller_polling()
 {
+  this->shutdown_current_handler();
+
   if( nom::init_game_controller_subsystem() == false ) {
     return false;
   }
@@ -146,6 +147,7 @@ bool EventHandler::enable_game_controller_polling()
   this->joystick_event_handler_ = new GameControllerEventHandler();
   if( this->joystick_event_handler_ == nullptr ) {
     nom::set_error(nom::OUT_OF_MEMORY_ERR);
+    nom::shutdown_game_controller_subsystem();
     return false;
   }
 
@@ -157,39 +159,38 @@ bool EventHandler::enable_game_controller_polling()
 void EventHandler::disable_joystick_polling()
 {
   if( this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER ) {
-
-    auto evt_handler = this->joystick_event_handler();
-    NOM_DELETE_PTR(evt_handler);
-
-    this->joystick_event_type_ = NO_EVENT_HANDLER;
-    nom::shutdown_joystick_subsystem();
-  } else if( this->joystick_event_type() == NO_EVENT_HANDLER ) {
-    // Nothing to do
-  } else {
-    // Possible memory leak
-    NOM_ASSERT_INVALID_PATH();
+    this->shutdown_current_handler();
   }
-
-  this->joystick_event_handler_ = nullptr;
 }
 
 void EventHandler::disable_game_controller_polling()
 {
   if( this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER ) {
+    this->shutdown_current_handler();
+  }
+}
 
+void EventHandler::shutdown_current_handler()
+{
+  if( this->joystick_event_type_ == NO_EVENT_HANDLER ) {
+    NOM_ASSERT(this->joystick_event_handler_ == nullptr);
+    return;
+  }
+
+  JoystickHandlerType current_type = this->joystick_event_type_;
+
+  if( current_type == SDL_JOYSTICK_EVENT_HANDLER ) {
+    auto evt_handler = this->joystick_event_handler();
+    NOM_DELETE_PTR(evt_handler);
+    nom::shutdown_joystick_subsystem();
+  } else if( current_type == GAME_CONTROLLER_EVENT_HANDLER ) {
     auto evt_handler = this->game_controller_event_handler();
     NOM_DELETE_PTR(evt_handler);
-
-    this->joystick_event_type_ = NO_EVENT_HANDLER;
     nom::shutdown_game_controller_subsystem();
-  } else if( this->joystick_event_type() == NO_EVENT_HANDLER ) {
-    // Nothing to do
-  } else {
-    // Possible memory leak
-    NOM_ASSERT_INVALID_PATH();
   }
 
   this->joystick_event_handler_ = nullptr;
+  this->joystick_event_type_ = NO_EVENT_HANDLER;
 }
 
 bool EventHandler::poll_event(Event& ev)
@@ -1093,8 +1094,6 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       }
     } break;
 
-    // TODO: I have no idea how this event is suppose to work ... we receive
-    // more than one of these events at a time -- which instance ID do we use??
     case SDL_CONTROLLERDEVICEREMAPPED:
     {
       Event event;
@@ -1102,6 +1101,11 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       event.timestamp = ev->cdevice.timestamp;
       event.cdevice.id = ev->cdevice.which;
       this->push_event(event);
+
+      auto dev_id = event.cdevice.id;
+      NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                    "Game controller mapping updated for instance ID",
+                    dev_id );
     } break;
   }
 }

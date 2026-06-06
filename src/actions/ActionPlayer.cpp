@@ -105,16 +105,17 @@ bool ActionPlayer::cancel_action(const std::string& action_id)
   auto res = this->actions_.find(action_id);
 
   if( res == this->actions_.end() ) {
+    // Err -- no action by that name found
     return false;
   } else {
-    if(res->second != nullptr) {
-      res->second->release_actions();
-    }
+
+    // Success -- action was found
     this->actions_.erase(res);
 
     return true;
   }
 
+  // Err -- no action by that name found
   return false;
 }
 
@@ -129,13 +130,6 @@ ActionPlayer::cancel_actions(const ActionPlayer::action_names& actions)
 void ActionPlayer::cancel_actions()
 {
   this->free_list_.clear();
-
-  for(auto& entry : this->actions_) {
-    if(entry.second != nullptr) {
-      entry.second->release_actions();
-    }
-  }
-
   this->actions_.clear();
 }
 
@@ -261,11 +255,6 @@ run_action( const std::shared_ptr<IActionObject>& action,
     NOM_LOG_WARN( NOM_LOG_CATEGORY_ACTION_PLAYER,
                   "Another action with the same name exists -- overwriting",
                   "with", action_id );
-
-    auto existing = this->actions_.find(action_id);
-    if(existing != this->actions_.end() && existing->second != nullptr) {
-      existing->second->release_actions();
-    }
   } // end if action was running
 
   this->actions_[action_id] = std::move(dispatch_queue);
