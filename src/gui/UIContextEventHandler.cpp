@@ -80,8 +80,9 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
     case nom::Event::MOUSE_MOTION:
     {
       Point2f scale = this->render_scale();
-      int mx = static_cast<int>( ev.motion.x / scale.x );
-      int my = static_cast<int>( ev.motion.y / scale.y );
+      IntRect viewport = this->render_viewport();
+      int mx = static_cast<int>( ( ev.motion.x - viewport.x * scale.x ) / scale.x );
+      int my = static_cast<int>( ( ev.motion.y - viewport.y * scale.y ) / scale.y );
       this->ctx_->context()->ProcessMouseMove(  mx, my,
                                                 this->translate_key_modifiers(ev) );
     } break;
@@ -89,8 +90,9 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
     case nom::Event::MOUSE_BUTTON_CLICK:
     {
       Point2f scale = this->render_scale();
-      int mx = static_cast<int>( ev.mouse.x / scale.x );
-      int my = static_cast<int>( ev.mouse.y / scale.y );
+      IntRect viewport = this->render_viewport();
+      int mx = static_cast<int>( ( ev.mouse.x - viewport.x * scale.x ) / scale.x );
+      int my = static_cast<int>( ( ev.mouse.y - viewport.y * scale.y ) / scale.y );
       this->ctx_->context()->ProcessMouseMove( mx, my,
                                             this->translate_key_modifiers(ev) );
       this->ctx_->context()->ProcessMouseButtonDown(  this->translate_mouse_button(ev),
@@ -100,8 +102,9 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
     case nom::Event::MOUSE_BUTTON_RELEASE:
     {
       Point2f scale = this->render_scale();
-      int mx = static_cast<int>( ev.mouse.x / scale.x );
-      int my = static_cast<int>( ev.mouse.y / scale.y );
+      IntRect viewport = this->render_viewport();
+      int mx = static_cast<int>( ( ev.mouse.x - viewport.x * scale.x ) / scale.x );
+      int my = static_cast<int>( ( ev.mouse.y - viewport.y * scale.y ) / scale.y );
       this->ctx_->context()->ProcessMouseMove( mx, my,
                                             this->translate_key_modifiers(ev) );
       this->ctx_->context()->ProcessMouseButtonUp(  this->translate_mouse_button(ev),
@@ -583,6 +586,22 @@ Point2f UIContextEventHandler::render_scale() const
   }
 
   return scale;
+}
+
+IntRect UIContextEventHandler::render_viewport() const
+{
+  IntRect viewport( IntRect::zero );
+
+  auto target =
+    dynamic_cast< nom::RocketSDL2RenderInterface* >(
+      Rocket::Core::GetRenderInterface() );
+
+  if( target != nullptr && target->window_ != nullptr )
+  {
+    viewport = target->window_->viewport();
+  }
+
+  return viewport;
 }
 
 } // namespace nom

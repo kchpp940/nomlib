@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/math/Point2.hpp"
+#include "nomlib/math/Rect.hpp"
 #include "nomlib/gui/IUIEventHandler.hpp"
 
 namespace nom {
@@ -86,6 +87,17 @@ class UIContextEventHandler: public IUIEventHandler
     /// pipeline share a single scaling convention. When the RenderWindow
     /// cannot be resolved, returns (1, 1).
     virtual Point2f render_scale() const;
+
+    /// \brief Query the SDL2 renderer's current viewport.
+    ///
+    /// \returns The viewport rectangle in the renderer's coordinate convention
+    /// (matches the values used by SetScissorRegion).
+    ///
+    /// \remarks The returned viewport.x and viewport.y are used together with
+    /// render_scale() to translate mouse coordinates in the exact same manner as the
+    /// scissor region calculation, so that input hit testing and rendering clipping
+    /// share a single convention.
+    virtual IntRect render_viewport() const;
 
   private:
     UIContext* ctx_;
