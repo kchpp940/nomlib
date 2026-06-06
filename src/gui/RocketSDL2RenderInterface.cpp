@@ -141,6 +141,20 @@ RenderGeometry( Rocket::Core::Vertex* vertices, int num_vertices, int* indices,
   Point2f scale;
   SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
 
+  // Save current SDL renderer state so we can restore it
+  Uint8 save_r = 0, save_g = 0, save_b = 0, save_a = 0;
+  SDL_BlendMode save_blend_mode = SDL_BLENDMODE_NONE;
+  SDL_GetRenderDrawColor( this->window_->renderer(), &save_r, &save_g, &save_b, &save_a );
+  SDL_GetRenderDrawBlendMode( this->window_->renderer(), &save_blend_mode );
+
+  // Save current OpenGL state so we can restore it
+  GLboolean save_blend = glIsEnabled( GL_BLEND );
+  GLint save_blend_src = 0, save_blend_dst = 0;
+  GLfloat save_color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+  glGetIntegerv( GL_BLEND_SRC, &save_blend_src );
+  glGetIntegerv( GL_BLEND_DST, &save_blend_dst );
+  glGetFloatv( GL_CURRENT_COLOR, save_color );
+
   // SDL uses shaders that we need to disable here
   if( RocketSDL2RenderInterface::ctx_ ) {
     RocketSDL2RenderInterface::ctx_(0); // glUseProgramObjectARB(0);
@@ -194,22 +208,22 @@ RenderGeometry( Rocket::Core::Vertex* vertices, int num_vertices, int* indices,
     glDisableClientState(GL_TEXTURE_COORD_ARRAY);
   }
 
-  glColor4f(1.0, 1.0, 1.0, 1.0);
   glPopMatrix();
 
-  /* Reset blending and draw a fake point just outside the screen to let SDL know that it needs to reset its state in case it wants to render a texture */
-  glDisable(GL_BLEND);
-  SDL_SetRenderDrawBlendMode(this->window_->renderer(), SDL_BLENDMODE_NONE);
-  SDL_RenderDrawPoint(this->window_->renderer(), -1, -1);
+  // Restore OpenGL state
+  glColor4f( save_color[0], save_color[1], save_color[2], save_color[3] );
+  glBlendFunc( save_blend_src, save_blend_dst );
+  if( save_blend ) {
+    glEnable( GL_BLEND );
+  } else {
+    glDisable( GL_BLEND );
+  }
 
-  // Reset the renderer's drawing color; this is necessary because otherwise
-  // the GL color call above this statement overwrites any drawing colors set
-  // by nomlib's SDL2 rendering subsystem.
-  //
-  // I don't really know what I'm doing here! I just know that it appears to
-  // work in the instance I'm working in (custom libRocket decorator)...
-  if( this->window_->set_color( Color4i::Blue ) == false )
-  {
+  // Restore SDL renderer state
+  if( SDL_SetRenderDrawBlendMode( this->window_->renderer(), save_blend_mode ) != 0 ) {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION, SDL_GetError() );
+  }
+  if( SDL_SetRenderDrawColor( this->window_->renderer(), save_r, save_g, save_b, save_a ) != 0 ) {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION, SDL_GetError() );
   }
 }
@@ -228,10 +242,7 @@ void RocketSDL2RenderInterface::EnableScissorRegion(bool enable)
 
 void RocketSDL2RenderInterface::SetScissorRegion(int x, int y, int width, int height)
 {
-  // Size2i window = this->window_->size();
-  // glScissor(x, window.w - (y + height), width, height);
-
-  // Support for independent resolution scale -- SDL2 logical viewport) -- we
+  // Support for independent resolution scale -- SDL2 logical viewport -- we
   // translate positioning coordinates in respect to the current scale
   Point2f scale;    // drawing scale
   IntRect viewport; // viewport dimensions
@@ -241,19 +252,29 @@ void RocketSDL2RenderInterface::SetScissorRegion(int x, int y, int width, int he
   viewport = this->window_->viewport();
   output = this->window_->output_size();
 
-  viewport.x = viewport.x * scale.x;
-  viewport.y = viewport.y * scale.y;
-  viewport.w = viewport.w * scale.x;
-  viewport.h = viewport.h * scale.y;
-  y = y * scale.y;
+  // Apply logical scale to the incoming scissor region (libRocket gives us
+  // coordinates in logical space)
+  int sx = static_cast<int>( x * scale.x );
+  int sy = static_cast<int>( y * scale.y );
+  int sw = static_cast<int>( width * scale.x );
+  int sh = static_cast<int>( height * scale.y );
 
-  // Calculations taken from the source at SDL_render_gl.c:GL_UpdateViewport
-  // with modification.
+  // Also scale the viewport offset to physical pixel space
+  int vpx = static_cast<int>( viewport.x * scale.x );
+  int vpy = static_cast<int>( viewport.y * scale.y );
+
+  // OpenGL's glScissor uses lower-left origin, while libRocket / SDL use
+  // upper-left. Flip the Y coordinate relative to the output (physical) size.
   //
-  // Incorrect calculations done here can result in bugs with libRocket's
-  // scrollbar functionality.
-  glScissor(  viewport.x, (output.h - viewport.y - y - viewport.h),
-              viewport.w, viewport.h );
+  // The final scissor rect is:
+  //   x = viewport_x + scissor_x
+  //   y = output_height - viewport_y - scissor_y - scissor_height
+  //   w = scissor_width
+  //   h = scissor_height
+  glScissor(  vpx + sx,
+              output.h - vpy - sy - sh,
+              sw,
+              sh );
 }
 
 bool RocketSDL2RenderInterface::LoadTexture(Rocket::Core::TextureHandle& texture_handle, Rocket::Core::Vector2i& texture_dimensions, const Rocket::Core::String& source)
@@ -291,11 +312,15 @@ bool RocketSDL2RenderInterface::LoadTexture(Rocket::Core::TextureHandle& texture
   Image surface;
   Texture* texture = new Texture();
   NOM_ASSERT(texture != nullptr);
-  if( surface.load_memory( buffer, buffer_size, extension.CString() ) == true)
+  bool load_success = surface.load_memory( buffer, buffer_size, extension.CString() );
+
+  delete[] buffer;
+  buffer = nullptr;
+
+  if( load_success == true )
   {
     if( texture->create( surface ) == true )
     {
-      // ::ReleaseTexture is responsible for freeing this pointer now
       texture_handle = (Rocket::Core::TextureHandle) texture;
 
       texture_dimensions =

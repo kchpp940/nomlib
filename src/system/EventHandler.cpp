@@ -83,7 +83,11 @@ EventHandler::~EventHandler()
                     "max_events_count:", max_events_count_ );
   }
 
-  this->shutdown_current_handler();
+  if( this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER ) {
+    this->disable_joystick_polling();
+  } else if( this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER ) {
+    this->disable_game_controller_polling();
+  }
 }
 
 nom::size_type EventHandler::num_events() const
@@ -98,14 +102,16 @@ nom::size_type EventHandler::num_event_watchers() const
 
 JoystickEventHandler* EventHandler::joystick_event_handler() const
 {
-  NOM_ASSERT(this->joystick_event_type_ == SDL_JOYSTICK_EVENT_HANDLER);
-  return static_cast<JoystickEventHandler*>(this->joystick_event_handler_);
+  auto result = (JoystickEventHandler*)this->joystick_event_handler_;
+
+  return result;
 }
 
 GameControllerEventHandler* EventHandler::game_controller_event_handler() const
 {
-  NOM_ASSERT(this->joystick_event_type_ == GAME_CONTROLLER_EVENT_HANDLER);
-  return static_cast<GameControllerEventHandler*>(this->joystick_event_handler_);
+  auto result = (GameControllerEventHandler*)this->joystick_event_handler_;
+
+  return result;
 }
 
 EventHandler::JoystickHandlerType
@@ -116,8 +122,6 @@ EventHandler::joystick_event_type() const
 
 bool EventHandler::enable_joystick_polling()
 {
-  this->shutdown_current_handler();
-
   if( nom::init_joystick_subsystem() == false ) {
     return false;
   }
@@ -125,7 +129,6 @@ bool EventHandler::enable_joystick_polling()
   this->joystick_event_handler_ = new JoystickEventHandler();
   if( this->joystick_event_handler_ == nullptr ) {
     nom::set_error(nom::OUT_OF_MEMORY_ERR);
-    nom::shutdown_joystick_subsystem();
     return false;
   }
 
@@ -136,8 +139,6 @@ bool EventHandler::enable_joystick_polling()
 
 bool EventHandler::enable_game_controller_polling()
 {
-  this->shutdown_current_handler();
-
   if( nom::init_game_controller_subsystem() == false ) {
     return false;
   }
@@ -145,7 +146,6 @@ bool EventHandler::enable_game_controller_polling()
   this->joystick_event_handler_ = new GameControllerEventHandler();
   if( this->joystick_event_handler_ == nullptr ) {
     nom::set_error(nom::OUT_OF_MEMORY_ERR);
-    nom::shutdown_game_controller_subsystem();
     return false;
   }
 
@@ -157,40 +157,39 @@ bool EventHandler::enable_game_controller_polling()
 void EventHandler::disable_joystick_polling()
 {
   if( this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER ) {
-    this->shutdown_current_handler();
+
+    auto evt_handler = this->joystick_event_handler();
+    NOM_DELETE_PTR(evt_handler);
+
+    this->joystick_event_type_ = NO_EVENT_HANDLER;
+    nom::shutdown_joystick_subsystem();
+  } else if( this->joystick_event_type() == NO_EVENT_HANDLER ) {
+    // Nothing to do
+  } else {
+    // Possible memory leak
+    NOM_ASSERT_INVALID_PATH();
   }
+
+  this->joystick_event_handler_ = nullptr;
 }
 
 void EventHandler::disable_game_controller_polling()
 {
   if( this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER ) {
-    this->shutdown_current_handler();
-  }
-}
 
-void EventHandler::shutdown_current_handler()
-{
-  if( this->joystick_event_type_ == NO_EVENT_HANDLER ) {
-    NOM_ASSERT(this->joystick_event_handler_ == nullptr);
-    return;
-  }
+    auto evt_handler = this->game_controller_event_handler();
+    NOM_DELETE_PTR(evt_handler);
 
-  JoystickHandlerType current_type = this->joystick_event_type_;
-  IJoystickEventHandler* handler = this->joystick_event_handler_;
-  NOM_ASSERT(handler != nullptr);
-
-  handler->remove_all_devices();
-
-  NOM_DELETE_PTR(handler);
-
-  if( current_type == SDL_JOYSTICK_EVENT_HANDLER ) {
-    nom::shutdown_joystick_subsystem();
-  } else if( current_type == GAME_CONTROLLER_EVENT_HANDLER ) {
+    this->joystick_event_type_ = NO_EVENT_HANDLER;
     nom::shutdown_game_controller_subsystem();
+  } else if( this->joystick_event_type() == NO_EVENT_HANDLER ) {
+    // Nothing to do
+  } else {
+    // Possible memory leak
+    NOM_ASSERT_INVALID_PATH();
   }
 
   this->joystick_event_handler_ = nullptr;
-  this->joystick_event_type_ = NO_EVENT_HANDLER;
 }
 
 bool EventHandler::poll_event(Event& ev)
@@ -913,8 +912,8 @@ void EventHandler::process_joystick_event(const SDL_Event* ev)
 {
   NOM_ASSERT(this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER);
 
-  IJoystickEventHandler* handler = this->joystick_event_handler_;
-  NOM_ASSERT(handler != nullptr);
+  auto evt_handler = this->joystick_event_handler();
+  NOM_ASSERT(evt_handler != nullptr);
 
   switch(ev->type)
   {
@@ -928,12 +927,13 @@ void EventHandler::process_joystick_event(const SDL_Event* ev)
       event.jdevice.id = ev->jdevice.which;
       this->push_event(event);
 
-      std::string dev_name;
-      JoystickID dev_id = -1;
-      if( handler->on_device_added(ev->jdevice.which, &dev_name, &dev_id) ) {
+      auto dev_index = event.jdevice.id;
+      auto joy_dev = evt_handler->add_joystick(dev_index);
+      if( joy_dev != nullptr ) {
+        auto dev_id = joy_dev->device_id();
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Registered joystick instance ID",
-                      dev_id, "for", dev_name );
+                      dev_id, "for", joy_dev->name() );
       } else {
         NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                       "Failed to register joystick:", nom::error() );
@@ -950,8 +950,8 @@ void EventHandler::process_joystick_event(const SDL_Event* ev)
       event.jdevice.id = ev->jdevice.which;
       this->push_event(event);
 
-      JoystickID dev_id = ev->jdevice.which;
-      if( handler->on_device_removed(dev_id) ) {
+      auto dev_id = event.jdevice.id;
+      if( evt_handler->remove_joystick(dev_id) == true ) {
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Removing registered instance ID", dev_id );
       } else {
@@ -1011,8 +1011,8 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
 {
   NOM_ASSERT(this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER);
 
-  IJoystickEventHandler* handler = this->joystick_event_handler_;
-  NOM_ASSERT(handler != nullptr);
+  auto evt_handler = this->game_controller_event_handler();
+  NOM_ASSERT(evt_handler != nullptr);
 
   switch(ev->type)
   {
@@ -1059,12 +1059,13 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       event.cdevice.id = ev->cdevice.which;
       this->push_event(event);
 
-      std::string dev_name;
-      JoystickID dev_id = -1;
-      if( handler->on_device_added(ev->cdevice.which, &dev_name, &dev_id) ) {
+      auto dev_index = event.cdevice.id;
+      auto joy_dev = evt_handler->add_joystick(dev_index);
+      if( joy_dev != nullptr ) {
+        auto dev_id = joy_dev->device_id();
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Registered game controller instance ID",
-                      dev_id, "for", dev_name );
+                      dev_id, "for", joy_dev->name() );
       } else {
         NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                       "Failed to register game controller:", nom::error() );
@@ -1081,8 +1082,8 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       event.cdevice.id = ev->cdevice.which;
       this->push_event(event);
 
-      JoystickID dev_id = ev->cdevice.which;
-      if( handler->on_device_removed(dev_id) ) {
+      auto dev_id = event.cdevice.id;
+      if( evt_handler->remove_joystick(dev_id) == true ) {
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Removing registered instance ID", dev_id );
       } else {
@@ -1092,27 +1093,14 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       }
     } break;
 
+    // TODO: I have no idea how this event is suppose to work ... we receive
+    // more than one of these events at a time -- which instance ID do we use??
     case SDL_CONTROLLERDEVICEREMAPPED:
     {
       Event event;
       event.type = Event::GAME_CONTROLLER_REMAPPED;
       event.timestamp = ev->cdevice.timestamp;
-
-      JoystickID old_dev_id = ev->cdevice.which;
-      std::string dev_name;
-      JoystickID new_dev_id = -1;
-      if( handler->on_device_remapped(old_dev_id, &dev_name, &new_dev_id) ) {
-        event.cdevice.id = new_dev_id;
-        NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                      "Re-mapped game controller", dev_name,
-                      "old instance ID:", old_dev_id,
-                      "new instance ID:", new_dev_id );
-      } else {
-        event.cdevice.id = old_dev_id;
-        NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
-                      "Could not re-map game controller instance ID",
-                      old_dev_id, "- keeping stale ID" );
-      }
+      event.cdevice.id = ev->cdevice.which;
       this->push_event(event);
     } break;
   }

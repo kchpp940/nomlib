@@ -62,7 +62,7 @@ void shutdown_joystick_subsystem()
 
 void JoystickDeleter(SDL_Joystick* dev)
 {
-  if( dev != nullptr && SDL_JoystickGetAttached(dev) == SDL_TRUE ) {
+  if( dev != nullptr && SDL_JoystickGetAttached(dev) == true ) {
     SDL_JoystickClose(dev);
   }
 }
@@ -137,15 +137,9 @@ bool Joystick::open(JoystickIndex device_index)
 
 void Joystick::close()
 {
-  if( this->device_closed_ == true ) {
-    return;
-  }
-
   if( this->device_ != nullptr && this->attached() == true ) {
     SDL_JoystickClose( this->device_.get() );
   }
-  this->device_closed_ = true;
-  this->device_.release();
 }
 
 int Joystick::num_axes()

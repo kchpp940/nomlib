@@ -34,7 +34,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Joystick.hpp"
-#include "nomlib/system/IJoystickEventHandler.hpp"
 
 namespace nom {
 
@@ -43,14 +42,13 @@ class Joystick;
 
 /// \brief Internal management of hot-pluggable joystick devices handling
 class JoystickEventHandler
-  : public IJoystickEventHandler
 {
   public:
     JoystickEventHandler();
     ~JoystickEventHandler();
 
     /// \brief Get the number of accessible joysticks.
-    nom::size_type num_joysticks() const override;
+    nom::size_type num_joysticks() const;
 
     // Non-owned pointer
     Joystick* joystick(JoystickID dev_id) const;
@@ -59,11 +57,11 @@ class JoystickEventHandler
     ///
     /// \returns Boolean TRUE when the joystick exists, and boolean FALSE when
     /// the joystick does **not** exist.
-    bool joystick_exists(JoystickID dev_id) const override;
+    bool joystick_exists(JoystickID dev_id);
 
-    /// \brief Append a joystick to the active devices pool.
+    /// \brief Append a game controller to the active devices pool.
     ///
-    /// \returns A non-owned pointer to the joystick device on success,
+    /// \returns A non-owned pointer to the game controller device on success,
     /// or NULL on failure, such as when the device can not be opened.
     Joystick* add_joystick(JoystickIndex device_index);
 
@@ -72,29 +70,6 @@ class JoystickEventHandler
     /// \returns Boolean TRUE when the joystick exists, and boolean FALSE when
     /// the joystick does **not** exist.
     bool remove_joystick(JoystickID dev_id);
-
-    /// \brief Remove all joystick connection IDs from the joystick event pool.
-    ///
-    /// \returns void
-    void remove_joysticks();
-
-    // --- IJoystickEventHandler overrides ---
-
-    bool add_device(JoystickIndex device_index) override;
-    bool remove_device(JoystickID dev_id) override;
-    void remove_all_devices() override;
-    bool remap_device(JoystickID dev_id) override;
-    bool device_info( JoystickID dev_id,
-                      std::string* out_name,
-                      JoystickID* out_instance_id ) const override;
-
-    bool on_device_added( JoystickIndex device_index,
-                          std::string* out_name,
-                          JoystickID* out_instance_id ) override;
-    bool on_device_removed(JoystickID dev_id) override;
-    bool on_device_remapped( JoystickID old_instance_id,
-                             std::string* out_name,
-                             JoystickID* out_new_instance_id ) override;
 
   private:
     typedef std::map<JoystickID, std::unique_ptr<Joystick>> joysticks;

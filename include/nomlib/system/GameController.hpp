@@ -90,6 +90,13 @@ class GameController
       BUTTON_MAX = SDL_CONTROLLER_BUTTON_MAX,
     };
 
+    // NOTE: This is a workaround to prevent a double-free bug that
+    // occasionally happens when the joystick device is closed more than once.
+    // This issue can be reliably reproduced by adding a second
+    // SDL_GameControllerClose call to test/testgamecontroller.c from the SDL
+    // source repository.
+    static bool device_closed_;
+
     typedef GameController self_type;
 
     GameController();
@@ -206,10 +213,6 @@ class GameController
     joystick_dev;
 
     joystick_dev device_;
-
-    /// \brief Per-instance flag to prevent double-free of the underlying
-    /// SDL_GameController handle.
-    bool device_closed_ = false;
 };
 
 std::unique_ptr<GameController> make_unique_game_controller();

@@ -43,8 +43,6 @@ GameControllerEventHandler::~GameControllerEventHandler()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_EVENT,
                       NOM_LOG_PRIORITY_VERBOSE );
-
-  this->remove_joysticks();
 }
 
 nom::size_type GameControllerEventHandler::num_joysticks() const
@@ -131,131 +129,18 @@ bool GameControllerEventHandler::remove_joystick(JoystickID dev_id)
   return result;
 }
 
-GameController*
-GameControllerEventHandler::remap_joystick(JoystickID dev_id)
-{
-  GameController* result = nullptr;
-
-  auto res = this->joysticks_.find(dev_id);
-  if( res == this->joysticks_.end() ) {
-    nom::set_error("Game controller instance ID not found");
-    return result;
-  }
-
-  JoystickIndex device_index = -1;
-  const int num_joysticks = SDL_NumJoysticks();
-  for( int i = 0; i < num_joysticks; ++i ) {
-    if( SDL_IsGameController(i) != SDL_TRUE ) {
-      continue;
-    }
-    const JoystickID inst_id = SDL_JoystickGetDeviceInstanceID(i);
-    if( inst_id == dev_id ) {
-      device_index = i;
-      break;
-    }
-  }
-
-  res->second->close();
-  this->joysticks_.erase(res);
-
-  if( device_index < 0 ) {
-    NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
-                  "Game controller instance ID", dev_id,
-                  "no longer present in device list; removing stale entry" );
-    nom::set_error("Game controller not present for remap");
-    return result;
-  }
-
-  result = this->add_joystick(device_index);
-  if( result != nullptr ) {
-    JoystickID new_dev_id = result->device_id();
-    NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                  "Re-mapped game controller", result->name(),
-                  "old instance ID:", dev_id,
-                  "new instance ID:", new_dev_id );
-  } else {
-    NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                  "Failed to re-open game controller after remap:",
-                  nom::error() );
-  }
-
-  return result;
-}
-
 void GameControllerEventHandler::remove_joysticks() {
-  for( auto itr = this->joysticks_.begin(); itr != this->joysticks_.end(); ++itr ) {
-    if( itr->second != nullptr ) {
-      itr->second->close();
-    }
-  }
-  this->joysticks_.clear();
-}
-
-// --- IJoystickEventHandler overrides ---
-
-bool GameControllerEventHandler::add_device(JoystickIndex device_index)
-{
-  return( this->add_joystick(device_index) != nullptr );
-}
-
-bool GameControllerEventHandler::remove_device(JoystickID dev_id)
-{
-  return this->remove_joystick(dev_id);
-}
-
-void GameControllerEventHandler::remove_all_devices()
-{
-  this->remove_joysticks();
-}
-
-bool GameControllerEventHandler::remap_device(JoystickID dev_id)
-{
-  return( this->remap_joystick(dev_id) != nullptr );
-}
-
-bool GameControllerEventHandler::device_info( JoystickID dev_id,
-                                              std::string* out_name,
-                                              JoystickID* out_instance_id ) const
-{
-  auto itr = this->joysticks_.find(dev_id);
-  if( itr == this->joysticks_.end() || itr->second == nullptr ) {
-    return false;
+  auto res = this->joysticks_.begin();
+  if(res == this->joysticks_.end()) {
+    return;
   }
 
-  if( out_name != nullptr ) {
-    *out_name = itr->second->name();
+  if(res != this->joysticks_.end()) {
+    // Success -- found device; say buh-bye!
+    res->second->close();
+    // FIXME(jeff): How do we properly erase
+    this->joysticks_.clear();
   }
-  if( out_instance_id != nullptr ) {
-    *out_instance_id = itr->second->device_id();
-  }
-  return true;
-}
-
-bool GameControllerEventHandler::on_device_added( JoystickIndex device_index,
-                                                  std::string* out_name,
-                                                  JoystickID* out_instance_id )
-{
-  GameController* dev = this->add_joystick(device_index);
-  if( dev == nullptr ) {
-    return false;
-  }
-  return this->device_info(dev->device_id(), out_name, out_instance_id);
-}
-
-bool GameControllerEventHandler::on_device_removed(JoystickID dev_id)
-{
-  return this->remove_joystick(dev_id);
-}
-
-bool GameControllerEventHandler::on_device_remapped( JoystickID old_instance_id,
-                                                     std::string* out_name,
-                                                     JoystickID* out_new_instance_id )
-{
-  GameController* dev = this->remap_joystick(old_instance_id);
-  if( dev == nullptr ) {
-    return false;
-  }
-  return this->device_info(dev->device_id(), out_name, out_new_instance_id);
 }
 
 } // namespace nom

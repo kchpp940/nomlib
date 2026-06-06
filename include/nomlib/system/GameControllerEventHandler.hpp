@@ -34,23 +34,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/GameController.hpp"
-#include "nomlib/system/IJoystickEventHandler.hpp"
 
 namespace nom {
 
 // Forward declarations
 class GameController;
 
-/// \brief Internal management of hot-pluggable game controller devices handling
+/// \brief Internal management of hot-pluggable joystick devices handling
 class GameControllerEventHandler
-  : public IJoystickEventHandler
 {
   public:
     GameControllerEventHandler();
     ~GameControllerEventHandler();
 
     /// \brief Get the number of accessible joysticks.
-    nom::size_type num_joysticks() const override;
+    nom::size_type num_joysticks() const;
 
     // Non-owned pointer
     GameController* joystick(JoystickID dev_id) const;
@@ -59,7 +57,7 @@ class GameControllerEventHandler
     ///
     /// \returns Boolean TRUE when the joystick exists, and boolean FALSE when
     /// the joystick does **not** exist.
-    bool joystick_exists(JoystickID dev_id) const override;
+    bool joystick_exists(JoystickID dev_id) const;
 
     /// \brief Append a game controller to the active devices pool.
     ///
@@ -73,44 +71,10 @@ class GameControllerEventHandler
     /// the joystick does **not** exist.
     bool remove_joystick(JoystickID dev_id);
 
-    /// \brief Re-open a game controller in response to a mapping update.
-    ///
-    /// The controller is looked up by its current instance ID. To find the
-    /// up-to-date device index reliably (SDL's device indices can be reassigned
-    /// after hot-plug events), the method scans SDL_NumJoysticks() and matches
-    /// against SDL_JoystickGetDeviceInstanceID(). If a matching device is
-    /// found, the old controller is closed cleanly and re-opened so the new
-    /// button/axis mapping from SDL takes effect; if the re-opened controller
-    /// receives a different instance ID, the internal pool entry is re-keyed
-    /// accordingly. If the instance ID is no longer present, the stale entry
-    /// is simply removed.
-    ///
-    /// \returns A non-owned pointer to the re-opened game controller on
-    /// success, or NULL on failure.
-    GameController* remap_joystick(JoystickID dev_id);
-
     /// \brief Remove all joystick connection IDs from the joystick event pool.
     ///
     /// \returns void
     void remove_joysticks();
-
-    // --- IJoystickEventHandler overrides ---
-
-    bool add_device(JoystickIndex device_index) override;
-    bool remove_device(JoystickID dev_id) override;
-    void remove_all_devices() override;
-    bool remap_device(JoystickID dev_id) override;
-    bool device_info( JoystickID dev_id,
-                      std::string* out_name,
-                      JoystickID* out_instance_id ) const override;
-
-    bool on_device_added( JoystickIndex device_index,
-                          std::string* out_name,
-                          JoystickID* out_instance_id ) override;
-    bool on_device_removed(JoystickID dev_id) override;
-    bool on_device_remapped( JoystickID old_instance_id,
-                             std::string* out_name,
-                             JoystickID* out_new_instance_id ) override;
 
   private:
     typedef std::map<JoystickID, std::unique_ptr<GameController>> joysticks;

@@ -76,9 +76,15 @@ void shutdown_game_controller_subsystem()
   nom::shutdown_joystick_subsystem();
 }
 
+bool GameController::device_closed_ = false;
+
 void GameControllerDeleter(SDL_GameController* dev)
 {
-  if( dev != nullptr && SDL_GameControllerGetAttached(dev) == SDL_TRUE ) {
+  if( GameController::device_closed_ == true ) {
+    return;
+  }
+
+  if( dev != nullptr && SDL_GameControllerGetAttached(dev) == true ) {
     SDL_GameControllerClose(dev);
   }
 }
@@ -155,7 +161,6 @@ bool GameController::open(JoystickIndex device_index)
   SDL_GameController* dev = SDL_GameControllerOpen(device_index);
   if( dev != nullptr ) {
     this->device_.reset(dev);
-    this->device_closed_ = false;
 
     // Success!
     return( this->attached() == true );
@@ -167,16 +172,13 @@ bool GameController::open(JoystickIndex device_index)
 
 void GameController::close()
 {
-  if( this->device_closed_ == true ) {
+  if( GameController::device_closed_ == true ) {
     return;
   }
 
   if( this->device_ != nullptr ) {
-    if( SDL_GameControllerGetAttached(this->device_.get()) == SDL_TRUE ) {
-      SDL_GameControllerClose( this->device_.get() );
-    }
-    this->device_closed_ = true;
-    this->device_.release();
+    SDL_GameControllerClose( this->device_.get() );
+    GameController::device_closed_ = true;
   }
 }
 
