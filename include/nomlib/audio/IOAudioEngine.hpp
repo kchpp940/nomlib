@@ -124,7 +124,13 @@ class IOAudioEngine
     /// \remarks After this call the source is in STOPPED state with no
     /// buffers attached to its queue. Safe to call on already-stopped or
     /// non-streaming sources.
-    virtual void reset_stream_queue(SoundBuffer* buffer) = 0;
+    ///
+    /// The default implementation is a no-op. Audio backends that support
+    /// streaming (queued buffers) should override this to unqueue them.
+    virtual void reset_stream_queue(SoundBuffer* buffer)
+    {
+      (void)buffer;
+    }
 
     virtual void suspend() = 0;
     virtual void resume() = 0;
