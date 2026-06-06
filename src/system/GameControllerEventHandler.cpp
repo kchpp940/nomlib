@@ -191,4 +191,44 @@ void GameControllerEventHandler::remove_joysticks() {
   this->joysticks_.clear();
 }
 
+// --- IJoystickEventHandler overrides ---
+
+bool GameControllerEventHandler::add_device(JoystickIndex device_index)
+{
+  return( this->add_joystick(device_index) != nullptr );
+}
+
+bool GameControllerEventHandler::remove_device(JoystickID dev_id)
+{
+  return this->remove_joystick(dev_id);
+}
+
+void GameControllerEventHandler::remove_all_devices()
+{
+  this->remove_joysticks();
+}
+
+bool GameControllerEventHandler::remap_device(JoystickID dev_id)
+{
+  return( this->remap_joystick(dev_id) != nullptr );
+}
+
+bool GameControllerEventHandler::device_info( JoystickID dev_id,
+                                              std::string* out_name,
+                                              JoystickID* out_instance_id ) const
+{
+  auto itr = this->joysticks_.find(dev_id);
+  if( itr == this->joysticks_.end() || itr->second == nullptr ) {
+    return false;
+  }
+
+  if( out_name != nullptr ) {
+    *out_name = itr->second->name();
+  }
+  if( out_instance_id != nullptr ) {
+    *out_instance_id = itr->second->device_id();
+  }
+  return true;
+}
+
 } // namespace nom

@@ -98,16 +98,14 @@ nom::size_type EventHandler::num_event_watchers() const
 
 JoystickEventHandler* EventHandler::joystick_event_handler() const
 {
-  auto result = (JoystickEventHandler*)this->joystick_event_handler_;
-
-  return result;
+  NOM_ASSERT(this->joystick_event_type_ == SDL_JOYSTICK_EVENT_HANDLER);
+  return static_cast<JoystickEventHandler*>(this->joystick_event_handler_);
 }
 
 GameControllerEventHandler* EventHandler::game_controller_event_handler() const
 {
-  auto result = (GameControllerEventHandler*)this->joystick_event_handler_;
-
-  return result;
+  NOM_ASSERT(this->joystick_event_type_ == GAME_CONTROLLER_EVENT_HANDLER);
+  return static_cast<GameControllerEventHandler*>(this->joystick_event_handler_);
 }
 
 EventHandler::JoystickHandlerType
@@ -178,14 +176,16 @@ void EventHandler::shutdown_current_handler()
   }
 
   JoystickHandlerType current_type = this->joystick_event_type_;
+  IJoystickEventHandler* handler = this->joystick_event_handler_;
+  NOM_ASSERT(handler != nullptr);
+
+  handler->remove_all_devices();
+
+  NOM_DELETE_PTR(handler);
 
   if( current_type == SDL_JOYSTICK_EVENT_HANDLER ) {
-    auto evt_handler = this->joystick_event_handler();
-    NOM_DELETE_PTR(evt_handler);
     nom::shutdown_joystick_subsystem();
   } else if( current_type == GAME_CONTROLLER_EVENT_HANDLER ) {
-    auto evt_handler = this->game_controller_event_handler();
-    NOM_DELETE_PTR(evt_handler);
     nom::shutdown_game_controller_subsystem();
   }
 

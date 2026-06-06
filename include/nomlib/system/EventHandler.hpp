@@ -42,6 +42,7 @@ namespace nom {
 
 // Forward declarations
 struct event_watcher;
+class IJoystickEventHandler;
 class JoystickEventHandler;
 class GameControllerEventHandler;
 
@@ -174,7 +175,7 @@ class EventHandler
     /// one frame of the game's update loop.
     nom::size_type max_events_count_ = 0;
 
-    void* joystick_event_handler_ = nullptr;
+    IJoystickEventHandler* joystick_event_handler_ = nullptr;
     JoystickHandlerType joystick_event_type_ = NO_EVENT_HANDLER;
 };
 
