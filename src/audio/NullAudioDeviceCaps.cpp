@@ -241,9 +241,10 @@ bool NullAudioEngineCaps::queue_buffer(SoundBuffer* buffer)
   return false;
 }
 
-void NullAudioEngineCaps::reset_stream_queue(SoundBuffer* buffer)
+bool NullAudioEngineCaps::reset_stream_queue(SoundBuffer* buffer)
 {
   (void)buffer;
+  return false;
 }
 
 void NullAudioEngineCaps::suspend()

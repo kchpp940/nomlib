@@ -295,11 +295,25 @@ void PlayAudioSource::rewind(real32 delta_time)
   this->set_status(FrameState::PLAYING);
   this->input_pos_ = 0;
 
+  bool queue_cleared = true;
+
   for(auto buffer : this->audible_) {
     if(buffer != nullptr) {
-      audio::reset_stream_queue(buffer, this->impl_);
+      bool ok = audio::reset_stream_queue(buffer, this->impl_);
+      if(ok == false) {
+        queue_cleared = false;
+        audio::stop(buffer, this->impl_);
+      }
       buffer->samples_read = 0;
     }
+  }
+
+  if(queue_cleared == false) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
+                 DEBUG_CLASS_NAME,
+                 "rewind(): audio backend does not support reset_stream_queue;",
+                 "falling back to stop(). Queued buffers may still be attached",
+                 "to the source.");
   }
 
   if(this->fp_ != nullptr) {
@@ -317,18 +331,23 @@ void PlayAudioSource::release()
 
   this->released_ = true;
 
-  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
-    auto itr = this->current_buffer_;
-
-    if(*itr != nullptr) {
-      audio::reset_stream_queue(*itr, this->impl_);
-    }
-  }
+  bool queue_cleared = true;
 
   for(auto buffer : this->audible_) {
     if(buffer != nullptr) {
-      audio::reset_stream_queue(buffer, this->impl_);
+      bool ok = audio::reset_stream_queue(buffer, this->impl_);
+      if(ok == false) {
+        queue_cleared = false;
+        audio::stop(buffer, this->impl_);
+      }
     }
+  }
+
+  if(queue_cleared == false) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
+                 DEBUG_CLASS_NAME,
+                 "release(): audio backend does not support reset_stream_queue;",
+                 "falling back to stop() before free_buffer().");
   }
 
   auto num_buffers = this->audible_.size();
@@ -374,11 +393,23 @@ void PlayAudioSource::last_frame(real32 delta_time)
   this->timer_.stop();
   this->input_pos_ = 0;
 
-  if(this->audible_.empty() == false && this->current_buffer_ != this->audible_.end()) {
-    auto itr = this->current_buffer_;
-    if(*itr != nullptr) {
-      audio::reset_stream_queue(*itr, this->impl_);
+  bool queue_cleared = true;
+
+  for(auto buffer : this->audible_) {
+    if(buffer != nullptr) {
+      bool ok = audio::reset_stream_queue(buffer, this->impl_);
+      if(ok == false) {
+        queue_cleared = false;
+        audio::stop(buffer, this->impl_);
+      }
     }
+  }
+
+  if(queue_cleared == false) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_AUDIO,
+                 DEBUG_CLASS_NAME,
+                 "last_frame(): audio backend does not support reset_stream_queue;",
+                 "falling back to stop().");
   }
 }
 

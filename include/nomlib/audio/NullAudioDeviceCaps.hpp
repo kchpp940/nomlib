@@ -99,7 +99,7 @@ class NullAudioEngineCaps: public IOAudioEngine
     virtual bool push_buffer(SoundBuffer* buffer) override;
     virtual bool queue_buffer(SoundBuffer* buffer) override;
 
-    virtual void reset_stream_queue(SoundBuffer* buffer) override;
+    virtual bool reset_stream_queue(SoundBuffer* buffer) override;
 
     virtual void suspend() override;
     virtual void resume() override;

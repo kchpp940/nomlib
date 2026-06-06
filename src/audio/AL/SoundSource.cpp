@@ -330,13 +330,13 @@ void free_buffer(SoundBuffer* buffer, IOAudioEngine* target)
   NOM_DELETE_PTR(buffer);
 }
 
-void reset_stream_queue(SoundBuffer* buffer, IOAudioEngine* target)
+bool reset_stream_queue(SoundBuffer* buffer, IOAudioEngine* target)
 {
   if(buffer == nullptr || target == nullptr || target->valid() == false) {
-    return;
+    return false;
   }
 
-  target->reset_stream_queue(buffer);
+  return target->reset_stream_queue(buffer);
 }
 
 // audio control
