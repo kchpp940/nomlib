@@ -71,6 +71,11 @@ InputActionProfileManager::~InputActionProfileManager()
   this->clear_all_players();
 }
 
+const std::string& InputActionProfileManager::last_error() const
+{
+  return this->last_error_;
+}
+
 std::string InputActionProfileManager::player_state_name(int player_index)
 {
   std::ostringstream oss;
@@ -81,8 +86,14 @@ std::string InputActionProfileManager::player_state_name(int player_index)
 bool InputActionProfileManager::load_profile(const std::string& name,
                                              const Value& root)
 {
+  this->last_error_.clear();
+
   auto profile = make_shared_input_action_profile();
   if( profile->load_from_value(root) == false ) {
+    this->last_error_ = profile->last_error();
+    if( this->last_error_.empty() ) {
+      this->last_error_ = "Failed to load profile '" + name + "'";
+    }
     return false;
   }
   if( profile->validate() == false ) {

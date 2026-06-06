@@ -1,0 +1,167 @@
+{
+  "name": "gameplay",
+
+  "actions": {
+
+    "jump": {
+      "conflict_allow": false,
+      "keyboard": [
+        { "key": "SPACE" },
+        { "key": "W" },
+        { "key": "UP" }
+      ],
+      "game_controller": [
+        { "button": "A" }
+      ]
+    },
+
+    "confirm": {
+      "keyboard": [
+        { "key": "ENTER" },
+        { "key": "RETURN" }
+      ],
+      "game_controller": [
+        { "button": "A" },
+        { "button": "START" }
+      ]
+    },
+
+    "cancel": {
+      "keyboard": [
+        { "key": "ESCAPE" },
+        { "key": "BACKSPACE" }
+      ],
+      "game_controller": [
+        { "button": "B" },
+        { "button": "BACK" }
+      ]
+    },
+
+    "pause": {
+      "conflict_allow": false,
+      "keyboard": [
+        { "key": "P" },
+        { "key": "ESCAPE" }
+      ],
+      "game_controller": [
+        { "button": "START" },
+        { "button": "GUIDE" }
+      ]
+    },
+
+    "move_left": {
+      "keyboard": [
+        { "key": "A" },
+        { "key": "LEFT" }
+      ],
+      "game_controller": [
+        { "button": "DPAD_LEFT" },
+        { "axis": "LEFT_X", "threshold": 0.25, "direction": "negative" }
+      ]
+    },
+
+    "move_right": {
+      "keyboard": [
+        { "key": "D" },
+        { "key": "RIGHT" }
+      ],
+      "game_controller": [
+        { "button": "DPAD_RIGHT" },
+        { "axis": "LEFT_X", "threshold": 0.25, "direction": "positive" }
+      ]
+    },
+
+    "move_up": {
+      "keyboard": [
+        { "key": "W" },
+        { "key": "UP" }
+      ],
+      "game_controller": [
+        { "button": "DPAD_UP" },
+        { "axis": "LEFT_Y", "threshold": 0.25, "direction": "negative" }
+      ]
+    },
+
+    "move_down": {
+      "keyboard": [
+        { "key": "S" },
+        { "key": "DOWN" }
+      ],
+      "game_controller": [
+        { "button": "DPAD_DOWN" },
+        { "axis": "LEFT_Y", "threshold": 0.25, "direction": "positive" }
+      ]
+    },
+
+    "attack": {
+      "conflict_allow": false,
+      "keyboard": [
+        { "key": "J" },
+        { "key": "LCTRL", "mod": "CTRL" }
+      ],
+      "game_controller": [
+        { "button": "X" },
+        { "button": "RIGHT_SHOULDER" }
+      ]
+    },
+
+    "interact": {
+      "keyboard": [
+        { "key": "E" },
+        { "key": "F" }
+      ],
+      "game_controller": [
+        { "button": "Y" }
+      ]
+    },
+
+    "dash": {
+      "conflict_allow": false,
+      "keyboard": [
+        { "key": "K" },
+        { "key": "LSHIFT", "mod": "SHIFT" }
+      ],
+      "game_controller": [
+        { "button": "B" },
+        { "button": "LEFT_SHOULDER" }
+      ]
+    },
+
+    "camera_left": {
+      "game_controller": [
+        { "axis": "RIGHT_X", "threshold": 0.3, "direction": "negative" }
+      ]
+    },
+
+    "camera_right": {
+      "game_controller": [
+        { "axis": "RIGHT_X", "threshold": 0.3, "direction": "positive" }
+      ]
+    },
+
+    "camera_up": {
+      "game_controller": [
+        { "axis": "RIGHT_Y", "threshold": 0.3, "direction": "negative" }
+      ]
+    },
+
+    "camera_down": {
+      "game_controller": [
+        { "axis": "RIGHT_Y", "threshold": 0.3, "direction": "positive" }
+      ]
+    },
+
+    "trigger_left": {
+      "game_controller": [
+        { "axis": "LEFT_TRIGGER", "threshold": 0.5, "direction": "positive" }
+      ]
+    },
+
+    "trigger_right": {
+      "game_controller": [
+        { "axis": "RIGHT_TRIGGER", "threshold": 0.5, "direction": "positive" }
+      ]
+    }
+
+  }
+}

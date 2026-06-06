@@ -43,6 +43,38 @@ namespace nom {
 
 class Value;
 
+/// \brief Manages input action profiles per-player across an InputStateMapper.
+///
+/// Integrates semantic InputActionProfile instances into the application's
+/// existing InputStateMapper event pipeline. Each player is assigned a named
+/// state (``__iap_player_N``) inside the external InputStateMapper.
+///
+/// Supported key/button/axis names can be queried via the static methods on
+/// InputActionProfile: supported_key_names(), supported_gc_button_names(),
+/// supported_gc_axis_names(), and supported_hat_position_names().
+/// See Resources/examples/input_action_profile.json for a complete example.
+///
+/// Typical frame loop:
+/// \code
+///   nom::InputStateMapper game_mapper;
+///   game_mapper.set_event_handler(evt_handler);
+///
+///   nom::InputActionProfileManager mgr;
+///   mgr.set_state_mapper(&game_mapper);
+///
+///   if( !mgr.load_profile("gameplay", profile_json_value) ) {
+///     std::cerr << mgr.last_error() << std::endl;
+///     return;
+///   }
+///   mgr.set_profile(0, "gameplay");
+///
+///   // Frame loop
+///   mgr.update();           // Clear per-frame pressed/released flags
+///   evt_handler.poll_events();
+///
+///   if( mgr.is_pressed("jump") )    do_jump();
+///   if( mgr.is_held("move_left") )  move_left(mgr.action_value("move_left"));
+/// \endcode
 class InputActionProfileManager
 {
   public:
@@ -61,6 +93,11 @@ class InputActionProfileManager
     InputActionProfileManager();
 
     ~InputActionProfileManager();
+
+    /// \brief Human-readable error from the last failed load_profile().
+    ///
+    /// Empty string if the last load was successful.
+    const std::string& last_error() const;
 
     bool load_profile(const std::string& name, const Value& root);
 
@@ -131,6 +168,7 @@ class InputActionProfileManager
     PlayerStateMap player_states_;
     PlayerContributionMap player_contributions_;
     PlayerStateNameMap player_state_names_;
+    std::string last_error_;
 
     InputStateMapper* state_mapper_;
 };

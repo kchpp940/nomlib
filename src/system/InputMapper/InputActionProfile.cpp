@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <vector>
 
 #include "nomlib/core/err.hpp"
 #include "nomlib/ptree.hpp"
@@ -79,12 +80,108 @@ void InputActionProfile::set_name(const std::string& name)
   this->name_ = name;
 }
 
+const std::string& InputActionProfile::last_error() const
+{
+  return this->last_error_;
+}
+
+// --- Static: supported name tables ---
+
+const std::vector<std::string>& InputActionProfile::supported_key_names()
+{
+  static const std::vector<std::string> table = []() -> std::vector<std::string> {
+    const char* names[] = {
+      "SPACE", "RETURN", "ENTER", "ESCAPE", "ESC", "TAB", "BACKSPACE",
+      "DELETE", "DEL", "INSERT", "HOME", "END", "PAGEUP", "PAGE_UP",
+      "PAGEDOWN", "PAGE_DOWN", "LEFT", "RIGHT", "UP", "DOWN",
+      "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+      "LSHIFT", "LEFT_SHIFT", "RSHIFT", "RIGHT_SHIFT",
+      "LCTRL", "LEFT_CTRL", "RCTRL", "RIGHT_CTRL",
+      "LALT", "LEFT_ALT", "RALT", "RIGHT_ALT",
+      "LGUI", "LEFT_GUI", "LEFT_META", "RGUI", "RIGHT_GUI", "RIGHT_META",
+      "MINUS", "-", "EQUALS", "=", "LEFTBRACKET", "[",
+      "RIGHTBRACKET", "]", "SEMICOLON", ";", "APOSTROPHE", "'",
+      "COMMA", ",", "PERIOD", ".", "SLASH", "/", "BACKSLASH", "\\",
+      "KP_0", "KP_1", "KP_2", "KP_3", "KP_4", "KP_5", "KP_6", "KP_7", "KP_8", "KP_9",
+      "KP_DIVIDE", "KP_MULTIPLY", "KP_MINUS", "KP_PLUS", "KP_ENTER", "KP_PERIOD",
+      "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+      "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+      "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+      nullptr
+    };
+    std::vector<std::string> v;
+    for( int i = 0; names[i] != nullptr; ++i ) v.push_back(names[i]);
+    return v;
+  }();
+  return table;
+}
+
+const std::vector<std::string>& InputActionProfile::supported_gc_button_names()
+{
+  static const std::vector<std::string> table = []() -> std::vector<std::string> {
+    const char* names[] = {
+      "A", "B", "X", "Y",
+      "BACK", "GUIDE", "START",
+      "LEFT_STICK", "LEFTSTICK", "RIGHT_STICK", "RIGHTSTICK",
+      "LEFT_SHOULDER", "LEFTSHOULDER", "LB",
+      "RIGHT_SHOULDER", "RIGHTSHOULDER", "RB",
+      "DPAD_UP", "DPADUP", "DPAD_DOWN", "DPADDOWN",
+      "DPAD_LEFT", "DPADLEFT", "DPAD_RIGHT", "DPADRIGHT",
+      nullptr
+    };
+    std::vector<std::string> v;
+    for( int i = 0; names[i] != nullptr; ++i ) v.push_back(names[i]);
+    return v;
+  }();
+  return table;
+}
+
+const std::vector<std::string>& InputActionProfile::supported_gc_axis_names()
+{
+  static const std::vector<std::string> table = []() -> std::vector<std::string> {
+    const char* names[] = {
+      "LEFT_X", "LEFTX", "LEFT_Y", "LEFTY",
+      "RIGHT_X", "RIGHTX", "RIGHT_Y", "RIGHTY",
+      "TRIGGER_LEFT", "TRIGGERLEFT", "LT",
+      "TRIGGER_RIGHT", "TRIGGERRIGHT", "RT",
+      nullptr
+    };
+    std::vector<std::string> v;
+    for( int i = 0; names[i] != nullptr; ++i ) v.push_back(names[i]);
+    return v;
+  }();
+  return table;
+}
+
+const std::vector<std::string>& InputActionProfile::supported_hat_position_names()
+{
+  static const std::vector<std::string> table = []() -> std::vector<std::string> {
+    const char* names[] = {
+      "CENTERED", "UP", "RIGHT", "DOWN", "LEFT",
+      "RIGHTUP", "RIGHT_UP", "RIGHTDOWN", "RIGHT_DOWN",
+      "LEFTUP", "LEFT_UP", "LEFTDOWN", "LEFT_DOWN",
+      nullptr
+    };
+    std::vector<std::string> v;
+    for( int i = 0; names[i] != nullptr; ++i ) v.push_back(names[i]);
+    return v;
+  }();
+  return table;
+}
+
+// --- Loading ---
+
 bool InputActionProfile::load_from_value(const Value& root)
 {
   this->clear();
+  this->last_error_.clear();
+
+  std::ostringstream err;
 
   if( root.object_type() == false ) {
-    NOM_LOG_ERR( NOM, "Input action profile root must be a JSON object" );
+    err << "Input action profile root must be a JSON object";
+    this->last_error_ = err.str();
+    NOM_LOG_ERR( NOM, this->last_error_ );
     return false;
   }
 
@@ -95,17 +192,21 @@ bool InputActionProfile::load_from_value(const Value& root)
 
   const Value& actions_val = root["actions"];
   if( actions_val.object_type() == false ) {
-    NOM_LOG_ERR( NOM, "Input action profile must have an 'actions' object" );
+    err << "Input action profile must have an 'actions' object";
+    this->last_error_ = err.str();
+    NOM_LOG_ERR( NOM, this->last_error_ );
     return false;
   }
 
+  bool any_actions_loaded = false;
   Value::Members action_names = actions_val.member_names();
   for( auto it = action_names.begin(); it != action_names.end(); ++it ) {
     const std::string& action_name = *it;
     const Value& action_node = actions_val[action_name];
 
     if( action_node.object_type() == false ) {
-      NOM_LOG_WARN( NOM, "Action '" + action_name + "' is not an object, skipping" );
+      err << "Action '" << action_name << "' is not an object, skipping";
+      NOM_LOG_WARN( NOM, err.str() );
       continue;
     }
 
@@ -119,40 +220,40 @@ bool InputActionProfile::load_from_value(const Value& root)
 
     const Value& keyboard_val = action_node["keyboard"];
     if( keyboard_val.array_type() ) {
-      this->parse_keyboard_bindings(keyboard_val, bindings);
+      this->parse_keyboard_bindings(keyboard_val, bindings, err);
     }
 
     const Value& gc_val = action_node["game_controller"];
     if( gc_val.array_type() ) {
-      this->parse_game_controller_bindings(gc_val, bindings);
+      this->parse_game_controller_bindings(gc_val, bindings, err);
     }
 
     const Value& js_btn_val = action_node["joystick_button"];
     if( js_btn_val.array_type() ) {
-      this->parse_joystick_button_bindings(js_btn_val, bindings);
+      this->parse_joystick_button_bindings(js_btn_val, bindings, err);
     }
 
     const Value& js_axis_val = action_node["joystick_axis"];
     if( js_axis_val.array_type() ) {
-      this->parse_joystick_axis_bindings(js_axis_val, bindings);
+      this->parse_joystick_axis_bindings(js_axis_val, bindings, err);
     }
 
     const Value& js_hat_val = action_node["joystick_hat"];
     if( js_hat_val.array_type() ) {
-      this->parse_joystick_hat_bindings(js_hat_val, bindings);
+      this->parse_joystick_hat_bindings(js_hat_val, bindings, err);
     }
 
     for( auto& b : bindings ) {
       b.conflict_allow = conflict_allow;
 
       if( this->validate_binding(b) == false ) {
-        std::ostringstream oss;
-        oss << "Invalid binding for action '" << action_name << "', skipping";
-        NOM_LOG_WARN( NOM, oss.str() );
+        err << "Invalid binding for action '" << action_name << "', skipping";
+        NOM_LOG_WARN( NOM, err.str() );
         continue;
       }
 
       this->add_binding(action_name, b);
+      any_actions_loaded = true;
     }
   }
 
@@ -173,6 +274,15 @@ bool InputActionProfile::load_from_value(const Value& root)
         << " lower-priority binding(s) in favor of exclusive bindings in profile '"
         << this->name_ << "'";
     NOM_LOG_WARN( NOM, oss.str() );
+  }
+
+  if( any_actions_loaded == false ) {
+    err << "Profile '" << (this->name_.empty() ? "(unnamed)" : this->name_)
+        << "' loaded but no valid bindings found";
+    this->last_error_ = err.str();
+    NOM_LOG_WARN( NOM, this->last_error_ );
+  } else {
+    this->last_error_ = err.str();
   }
 
   return true;
@@ -212,6 +322,7 @@ bool InputActionProfile::has_action(const std::string& action) const
 void InputActionProfile::clear()
 {
   this->name_.clear();
+  this->last_error_.clear();
   this->actions_.clear();
 }
 
@@ -253,11 +364,7 @@ bool InputActionProfile::validate_binding(const InputActionBinding& binding) con
       return true;
 
     case InputBindingType::JoystickButton:
-      return true;
-
     case InputBindingType::JoystickAxis:
-      return true;
-
     case InputBindingType::JoystickHat:
       return true;
   }
@@ -496,14 +603,17 @@ InputActionProfile::create_js_hat_action(
   return std::make_shared<JoystickHatAction>(device_id, binding.js_hat, binding.js_hat_value);
 }
 
-// --- Private: JSON parsing ---
+// --- Private: JSON parsing with error reporting ---
 
-bool InputActionProfile::parse_keyboard_bindings(const Value& node, BindingList& out)
+bool InputActionProfile::parse_keyboard_bindings(const Value& node,
+                                                  BindingList& out,
+                                                  std::ostream& err_stream)
 {
   if( node.array_type() == false ) {
     return false;
   }
 
+  bool added_any = false;
   for( nom::size_type i = 0; i < node.size(); ++i ) {
     const Value& entry = node[i];
     if( entry.object_type() == false ) continue;
@@ -513,7 +623,14 @@ bool InputActionProfile::parse_keyboard_bindings(const Value& node, BindingList&
 
     const Value& key_val = entry["key"];
     if( key_val.string_type() ) {
-      binding.key_sym = key_name_to_sym(key_val.get_string());
+      std::string kname = key_val.get_string();
+      binding.key_sym = key_name_to_sym(kname);
+      if( binding.key_sym == 0 ) {
+        std::string msg = "Unknown keyboard key name '" + kname + "'; ";
+        err_stream << msg;
+        NOM_LOG_WARN( NOM, msg );
+        continue;
+      }
     }
 
     const Value& mod_val = entry["mod"];
@@ -532,18 +649,22 @@ bool InputActionProfile::parse_keyboard_bindings(const Value& node, BindingList&
 
     if( binding.key_sym != 0 ) {
       out.push_back(binding);
+      added_any = true;
     }
   }
 
-  return true;
+  return added_any;
 }
 
-bool InputActionProfile::parse_game_controller_bindings(const Value& node, BindingList& out)
+bool InputActionProfile::parse_game_controller_bindings(const Value& node,
+                                                        BindingList& out,
+                                                        std::ostream& err_stream)
 {
   if( node.array_type() == false ) {
     return false;
   }
 
+  bool added_any = false;
   for( nom::size_type i = 0; i < node.size(); ++i ) {
     const Value& entry = node[i];
     if( entry.object_type() == false ) continue;
@@ -554,20 +675,35 @@ bool InputActionProfile::parse_game_controller_bindings(const Value& node, Bindi
     if( button_val.string_type() ) {
       InputActionBinding binding;
       binding.type = InputBindingType::GameControllerButton;
-      binding.gc_button = gc_button_name_to_enum(button_val.get_string());
+      std::string bname = button_val.get_string();
+      binding.gc_button = gc_button_name_to_enum(bname);
+
+      if( binding.gc_button == GameController::BUTTON_INVALID ) {
+        std::string msg = "Unknown game controller button name '" + bname + "'; ";
+        err_stream << msg;
+        NOM_LOG_WARN( NOM, msg );
+        continue;
+      }
 
       const Value& device_val = entry["device_id"];
       if( device_val.int_type() ) {
         binding.device_id = device_val.get_int();
       }
 
-      if( binding.gc_button != GameController::BUTTON_INVALID ) {
-        out.push_back(binding);
-      }
+      out.push_back(binding);
+      added_any = true;
     } else if( axis_val.string_type() ) {
       InputActionBinding binding;
       binding.type = InputBindingType::GameControllerAxis;
-      binding.gc_axis = gc_axis_name_to_enum(axis_val.get_string());
+      std::string aname = axis_val.get_string();
+      binding.gc_axis = gc_axis_name_to_enum(aname);
+
+      if( binding.gc_axis == GameController::AXIS_INVALID ) {
+        std::string msg = "Unknown game controller axis name '" + aname + "'; ";
+        err_stream << msg;
+        NOM_LOG_WARN( NOM, msg );
+        continue;
+      }
 
       const Value& threshold_val = entry["threshold"];
       if( threshold_val.double_type() || threshold_val.int_type() ) {
@@ -591,21 +727,24 @@ bool InputActionProfile::parse_game_controller_bindings(const Value& node, Bindi
         binding.device_id = device_val.get_int();
       }
 
-      if( binding.gc_axis != GameController::AXIS_INVALID ) {
-        out.push_back(binding);
-      }
+      out.push_back(binding);
+      added_any = true;
     }
   }
 
-  return true;
+  return added_any;
 }
 
-bool InputActionProfile::parse_joystick_button_bindings(const Value& node, BindingList& out)
+bool InputActionProfile::parse_joystick_button_bindings(const Value& node,
+                                                        BindingList& out,
+                                                        std::ostream& err_stream)
 {
+  (void)err_stream;
   if( node.array_type() == false ) {
     return false;
   }
 
+  bool added_any = false;
   for( nom::size_type i = 0; i < node.size(); ++i ) {
     const Value& entry = node[i];
     if( entry.object_type() == false ) continue;
@@ -624,17 +763,22 @@ bool InputActionProfile::parse_joystick_button_bindings(const Value& node, Bindi
     }
 
     out.push_back(binding);
+    added_any = true;
   }
 
-  return true;
+  return added_any;
 }
 
-bool InputActionProfile::parse_joystick_axis_bindings(const Value& node, BindingList& out)
+bool InputActionProfile::parse_joystick_axis_bindings(const Value& node,
+                                                      BindingList& out,
+                                                      std::ostream& err_stream)
 {
+  (void)err_stream;
   if( node.array_type() == false ) {
     return false;
   }
 
+  bool added_any = false;
   for( nom::size_type i = 0; i < node.size(); ++i ) {
     const Value& entry = node[i];
     if( entry.object_type() == false ) continue;
@@ -670,17 +814,21 @@ bool InputActionProfile::parse_joystick_axis_bindings(const Value& node, Binding
     }
 
     out.push_back(binding);
+    added_any = true;
   }
 
-  return true;
+  return added_any;
 }
 
-bool InputActionProfile::parse_joystick_hat_bindings(const Value& node, BindingList& out)
+bool InputActionProfile::parse_joystick_hat_bindings(const Value& node,
+                                                     BindingList& out,
+                                                     std::ostream& err_stream)
 {
   if( node.array_type() == false ) {
     return false;
   }
 
+  bool added_any = false;
   for( nom::size_type i = 0; i < node.size(); ++i ) {
     const Value& entry = node[i];
     if( entry.object_type() == false ) continue;
@@ -695,7 +843,14 @@ bool InputActionProfile::parse_joystick_hat_bindings(const Value& node, BindingL
 
     const Value& value_val = entry["value"];
     if( value_val.string_type() ) {
-      binding.js_hat_value = joystick_hat_name_to_value(value_val.get_string());
+      std::string vname = value_val.get_string();
+      binding.js_hat_value = joystick_hat_name_to_value(vname);
+      if( binding.js_hat_value == Joystick::HAT_CENTERED && to_upper(vname) != "CENTERED" ) {
+        std::string msg = "Unknown joystick hat position name '" + vname + "'; ";
+        err_stream << msg;
+        NOM_LOG_WARN( NOM, msg );
+        continue;
+      }
     } else if( value_val.int_type() || value_val.uint_type() ) {
       binding.js_hat_value = static_cast<uint8>(value_val.get_int());
     }
@@ -706,9 +861,10 @@ bool InputActionProfile::parse_joystick_hat_bindings(const Value& node, BindingL
     }
 
     out.push_back(binding);
+    added_any = true;
   }
 
-  return true;
+  return added_any;
 }
 
 // --- Static: name <-> enum conversion ---

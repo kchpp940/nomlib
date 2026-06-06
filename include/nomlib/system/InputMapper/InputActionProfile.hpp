@@ -97,6 +97,49 @@ struct InputActionBindingContribution
   real32 value = 0.0f;
 };
 
+/// \brief Semantic input action profile loaded from a JSON Value.
+///
+/// A profile maps logical action names ("jump", "attack", "move_left") to
+/// concrete input bindings across keyboards, game controllers, and joysticks.
+///
+/// JSON schema (see Resources/examples/input_action_profile.json):
+/// \code
+/// {
+///   "name": "gameplay",
+///   "actions": {
+///     "jump": {
+///       "conflict_allow": false,
+///       "keyboard": [ { "key": "SPACE" }, { "key": "UP" } ],
+///       "game_controller": [ { "button": "A" } ]
+///     },
+///     "move_left": {
+///       "keyboard": [ { "key": "LEFT" } ],
+///       "game_controller": [
+///         { "axis": "LEFT_X", "direction": "negative", "threshold": 0.2 }
+///       ]
+///     }
+///   }
+/// }
+/// \endcode
+///
+/// Usage:
+/// \code
+///   // 1. Parse JSON into a nom::Value
+///   nom::Value root;
+///   nom::JsonCppDeserializer deserializer;
+///   deserializer.load("input_profile.json", root);
+///
+///   // 2. Load and validate profile
+///   auto profile = nom::make_shared_input_action_profile();
+///   if( !profile->load_from_value(root) ) {
+///     std::cerr << profile->last_error() << std::endl;
+///     return;
+///   }
+///
+///   // 3. Query supported names
+///   auto keys = nom::InputActionProfile::supported_key_names();
+///   auto buttons = nom::InputActionProfile::supported_gc_button_names();
+/// \endcode
 class InputActionProfile
 {
   public:
@@ -112,6 +155,11 @@ class InputActionProfile
     const std::string& name() const;
 
     void set_name(const std::string& name);
+
+    /// \brief Human-readable error from the last failed load_from_value().
+    ///
+    /// Empty string if the last load was successful.
+    const std::string& last_error() const;
 
     bool load_from_value(const Value& root);
 
@@ -144,6 +192,31 @@ class InputActionProfile
         const std::string& action,
         JoystickID resolved_device_id = -1) const;
 
+    /// \brief All keyboard key names accepted by the JSON parser.
+    ///
+    /// Names are case-insensitive; examples: "SPACE", "ENTER", "A", "F1",
+    /// "LSHIFT", "LEFT", "ESCAPE", "0"-"9", "KP_0"-"KP_9" (numpad).
+    static const std::vector<std::string>& supported_key_names();
+
+    /// \brief All game controller button names accepted by the JSON parser.
+    ///
+    /// Names are case-insensitive; examples: "A", "B", "X", "Y", "BACK",
+    /// "GUIDE", "START", "LEFT_STICK", "RIGHT_STICK", "LEFT_SHOULDER"/"LB",
+    /// "RIGHT_SHOULDER"/"RB", "DPAD_UP", "DPAD_DOWN", "DPAD_LEFT", "DPAD_RIGHT".
+    static const std::vector<std::string>& supported_gc_button_names();
+
+    /// \brief All game controller axis names accepted by the JSON parser.
+    ///
+    /// Names are case-insensitive; examples: "LEFT_X", "LEFT_Y", "RIGHT_X",
+    /// "RIGHT_Y", "LEFT_TRIGGER"/"LT", "RIGHT_TRIGGER"/"RT".
+    static const std::vector<std::string>& supported_gc_axis_names();
+
+    /// \brief All joystick hat position names accepted by the JSON parser.
+    ///
+    /// Names are case-insensitive: "CENTERED", "UP", "RIGHT", "DOWN", "LEFT",
+    /// "RIGHT_UP", "RIGHT_DOWN", "LEFT_UP", "LEFT_DOWN".
+    static const std::vector<std::string>& supported_hat_position_names();
+
     static int32 key_name_to_sym(const std::string& name);
 
     static std::string key_sym_to_name(int32 sym);
@@ -161,11 +234,16 @@ class InputActionProfile
     static std::string joystick_hat_value_to_name(uint8 value);
 
   private:
-    bool parse_keyboard_bindings(const Value& node, BindingList& out);
-    bool parse_game_controller_bindings(const Value& node, BindingList& out);
-    bool parse_joystick_button_bindings(const Value& node, BindingList& out);
-    bool parse_joystick_axis_bindings(const Value& node, BindingList& out);
-    bool parse_joystick_hat_bindings(const Value& node, BindingList& out);
+    bool parse_keyboard_bindings(const Value& node, BindingList& out,
+                                 std::ostream& err_stream);
+    bool parse_game_controller_bindings(const Value& node, BindingList& out,
+                                        std::ostream& err_stream);
+    bool parse_joystick_button_bindings(const Value& node, BindingList& out,
+                                        std::ostream& err_stream);
+    bool parse_joystick_axis_bindings(const Value& node, BindingList& out,
+                                      std::ostream& err_stream);
+    bool parse_joystick_hat_bindings(const Value& node, BindingList& out,
+                                     std::ostream& err_stream);
 
     std::shared_ptr<InputAction> create_keyboard_action(
         const InputActionBinding& binding, InputState state) const;
@@ -188,6 +266,7 @@ class InputActionProfile
         const InputActionBinding& binding, JoystickID device_id) const;
 
     std::string name_;
+    std::string last_error_;
     ActionMap actions_;
     static const BindingList empty_bindings_;
 };
