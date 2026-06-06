@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <Rocket/Core/Input.h>
 
 #include "nomlib/config.hpp"
+#include "nomlib/math/Point2.hpp"
 #include "nomlib/gui/IUIEventHandler.hpp"
 
 namespace nom {
@@ -75,6 +76,16 @@ class UIContextEventHandler: public IUIEventHandler
     virtual int translate_mouse_wheel(const Event& ev);
 
     virtual int translate_key_modifiers( const Event& ev );
+
+    /// \brief Query the SDL2 renderer's independent resolution scale.
+    ///
+    /// \returns The logical-to-physical drawing scale as (scale_x, scale_y).
+    ///
+    /// \remarks This uses the same SDL_RenderGetScale call as the rendering
+    /// interface so that input coordinates and the scissor / rendering
+    /// pipeline share a single scaling convention. When the RenderWindow
+    /// cannot be resolved, returns (1, 1).
+    virtual Point2f render_scale() const;
 
   private:
     UIContext* ctx_;
