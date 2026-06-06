@@ -913,8 +913,8 @@ void EventHandler::process_joystick_event(const SDL_Event* ev)
 {
   NOM_ASSERT(this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER);
 
-  auto evt_handler = this->joystick_event_handler();
-  NOM_ASSERT(evt_handler != nullptr);
+  IJoystickEventHandler* handler = this->joystick_event_handler_;
+  NOM_ASSERT(handler != nullptr);
 
   switch(ev->type)
   {
@@ -928,13 +928,12 @@ void EventHandler::process_joystick_event(const SDL_Event* ev)
       event.jdevice.id = ev->jdevice.which;
       this->push_event(event);
 
-      auto dev_index = event.jdevice.id;
-      auto joy_dev = evt_handler->add_joystick(dev_index);
-      if( joy_dev != nullptr ) {
-        auto dev_id = joy_dev->device_id();
+      std::string dev_name;
+      JoystickID dev_id = -1;
+      if( handler->on_device_added(ev->jdevice.which, &dev_name, &dev_id) ) {
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Registered joystick instance ID",
-                      dev_id, "for", joy_dev->name() );
+                      dev_id, "for", dev_name );
       } else {
         NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                       "Failed to register joystick:", nom::error() );
@@ -951,8 +950,8 @@ void EventHandler::process_joystick_event(const SDL_Event* ev)
       event.jdevice.id = ev->jdevice.which;
       this->push_event(event);
 
-      auto dev_id = event.jdevice.id;
-      if( evt_handler->remove_joystick(dev_id) == true ) {
+      JoystickID dev_id = ev->jdevice.which;
+      if( handler->on_device_removed(dev_id) ) {
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Removing registered instance ID", dev_id );
       } else {
@@ -1012,8 +1011,8 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
 {
   NOM_ASSERT(this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER);
 
-  auto evt_handler = this->game_controller_event_handler();
-  NOM_ASSERT(evt_handler != nullptr);
+  IJoystickEventHandler* handler = this->joystick_event_handler_;
+  NOM_ASSERT(handler != nullptr);
 
   switch(ev->type)
   {
@@ -1060,13 +1059,12 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       event.cdevice.id = ev->cdevice.which;
       this->push_event(event);
 
-      auto dev_index = event.cdevice.id;
-      auto joy_dev = evt_handler->add_joystick(dev_index);
-      if( joy_dev != nullptr ) {
-        auto dev_id = joy_dev->device_id();
+      std::string dev_name;
+      JoystickID dev_id = -1;
+      if( handler->on_device_added(ev->cdevice.which, &dev_name, &dev_id) ) {
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Registered game controller instance ID",
-                      dev_id, "for", joy_dev->name() );
+                      dev_id, "for", dev_name );
       } else {
         NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                       "Failed to register game controller:", nom::error() );
@@ -1083,8 +1081,8 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       event.cdevice.id = ev->cdevice.which;
       this->push_event(event);
 
-      auto dev_id = event.cdevice.id;
-      if( evt_handler->remove_joystick(dev_id) == true ) {
+      JoystickID dev_id = ev->cdevice.which;
+      if( handler->on_device_removed(dev_id) ) {
         NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
                       "Removing registered instance ID", dev_id );
       } else {
@@ -1101,9 +1099,14 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       event.timestamp = ev->cdevice.timestamp;
 
       JoystickID old_dev_id = ev->cdevice.which;
-      auto remapped_dev = evt_handler->remap_joystick(old_dev_id);
-      if( remapped_dev != nullptr ) {
-        event.cdevice.id = remapped_dev->device_id();
+      std::string dev_name;
+      JoystickID new_dev_id = -1;
+      if( handler->on_device_remapped(old_dev_id, &dev_name, &new_dev_id) ) {
+        event.cdevice.id = new_dev_id;
+        NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                      "Re-mapped game controller", dev_name,
+                      "old instance ID:", old_dev_id,
+                      "new instance ID:", new_dev_id );
       } else {
         event.cdevice.id = old_dev_id;
         NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,

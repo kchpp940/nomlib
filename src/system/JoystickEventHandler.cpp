@@ -169,4 +169,31 @@ bool JoystickEventHandler::device_info( JoystickID dev_id,
   return true;
 }
 
+bool JoystickEventHandler::on_device_added( JoystickIndex device_index,
+                                            std::string* out_name,
+                                            JoystickID* out_instance_id )
+{
+  Joystick* dev = this->add_joystick(device_index);
+  if( dev == nullptr ) {
+    return false;
+  }
+  return this->device_info(dev->device_id(), out_name, out_instance_id);
+}
+
+bool JoystickEventHandler::on_device_removed(JoystickID dev_id)
+{
+  return this->remove_joystick(dev_id);
+}
+
+bool JoystickEventHandler::on_device_remapped( JoystickID old_instance_id,
+                                               std::string* out_name,
+                                               JoystickID* out_new_instance_id )
+{
+  // Raw joysticks have no SDL-level mapping concept; this is a no-op.
+  (void)old_instance_id;
+  (void)out_name;
+  (void)out_new_instance_id;
+  return false;
+}
+
 } // namespace nom

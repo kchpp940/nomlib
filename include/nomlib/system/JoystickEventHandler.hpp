@@ -88,6 +88,14 @@ class JoystickEventHandler
                       std::string* out_name,
                       JoystickID* out_instance_id ) const override;
 
+    bool on_device_added( JoystickIndex device_index,
+                          std::string* out_name,
+                          JoystickID* out_instance_id ) override;
+    bool on_device_removed(JoystickID dev_id) override;
+    bool on_device_remapped( JoystickID old_instance_id,
+                             std::string* out_name,
+                             JoystickID* out_new_instance_id ) override;
+
   private:
     typedef std::map<JoystickID, std::unique_ptr<Joystick>> joysticks;
 

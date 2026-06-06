@@ -95,6 +95,46 @@ class IJoystickEventHandler
     virtual bool device_info( JoystickID dev_id,
                               std::string* out_name,
                               JoystickID* out_instance_id ) const = 0;
+
+    // --- High-level device event handlers (called by EventHandler) ---
+
+    /// \brief Handle a device-added event: open the device at the given SDL
+    /// device index and register it in the pool.
+    ///
+    /// \param device_index    The SDL device index (e.g. ev->jdevice.which or
+    ///                        ev->cdevice.which for the ADDED event).
+    /// \param out_name        If non-NULL, populated with the device name on
+    ///                        success.
+    /// \param out_instance_id If non-NULL, populated with the instance ID
+    ///                        assigned by SDL on success.
+    ///
+    /// \returns Boolean TRUE on success, FALSE on failure.
+    virtual bool on_device_added( JoystickIndex device_index,
+                                  std::string* out_name,
+                                  JoystickID* out_instance_id ) = 0;
+
+    /// \brief Handle a device-removed event: close and unregister the device
+    /// with the given instance ID.
+    ///
+    /// \returns Boolean TRUE when the device was found and removed, FALSE
+    /// otherwise.
+    virtual bool on_device_removed(JoystickID dev_id) = 0;
+
+    /// \brief Handle a device-remapped event. For device types that support
+    /// mapping (game controllers) this closes and re-opens the device so that
+    /// the new mapping takes effect. For raw joysticks it is a no-op.
+    ///
+    /// \param old_instance_id  The instance ID carried by the SDL remap event.
+    /// \param out_name         If non-NULL, populated with the device name
+    ///                         after a successful remap.
+    /// \param out_new_instance_id If non-NULL, populated with the instance ID
+    ///                            after a successful remap (may differ from
+    ///                            old_instance_id).
+    ///
+    /// \returns Boolean TRUE when the remap succeeds, FALSE otherwise.
+    virtual bool on_device_remapped( JoystickID old_instance_id,
+                                     std::string* out_name,
+                                     JoystickID* out_new_instance_id ) = 0;
 };
 
 } // namespace nom

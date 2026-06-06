@@ -231,4 +231,31 @@ bool GameControllerEventHandler::device_info( JoystickID dev_id,
   return true;
 }
 
+bool GameControllerEventHandler::on_device_added( JoystickIndex device_index,
+                                                  std::string* out_name,
+                                                  JoystickID* out_instance_id )
+{
+  GameController* dev = this->add_joystick(device_index);
+  if( dev == nullptr ) {
+    return false;
+  }
+  return this->device_info(dev->device_id(), out_name, out_instance_id);
+}
+
+bool GameControllerEventHandler::on_device_removed(JoystickID dev_id)
+{
+  return this->remove_joystick(dev_id);
+}
+
+bool GameControllerEventHandler::on_device_remapped( JoystickID old_instance_id,
+                                                     std::string* out_name,
+                                                     JoystickID* out_new_instance_id )
+{
+  GameController* dev = this->remap_joystick(old_instance_id);
+  if( dev == nullptr ) {
+    return false;
+  }
+  return this->device_info(dev->device_id(), out_name, out_new_instance_id);
+}
+
 } // namespace nom
