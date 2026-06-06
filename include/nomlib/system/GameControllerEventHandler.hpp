@@ -71,6 +71,17 @@ class GameControllerEventHandler
     /// the joystick does **not** exist.
     bool remove_joystick(JoystickID dev_id);
 
+    /// \brief Re-open a game controller in response to a mapping update.
+    ///
+    /// The controller is looked up by its current instance ID, closed cleanly,
+    /// then re-opened using the same device index so that the new button/axis
+    /// mapping from SDL takes effect. If the re-opened controller receives a
+    /// different instance ID, the internal pool entry is re-keyed accordingly.
+    ///
+    /// \returns A non-owned pointer to the re-opened game controller on
+    /// success, or NULL on failure.
+    GameController* remap_joystick(JoystickID dev_id);
+
     /// \brief Remove all joystick connection IDs from the joystick event pool.
     ///
     /// \returns void

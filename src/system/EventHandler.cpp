@@ -1099,13 +1099,18 @@ void EventHandler::process_game_controller_event(const SDL_Event* ev)
       Event event;
       event.type = Event::GAME_CONTROLLER_REMAPPED;
       event.timestamp = ev->cdevice.timestamp;
-      event.cdevice.id = ev->cdevice.which;
-      this->push_event(event);
 
-      auto dev_id = event.cdevice.id;
-      NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                    "Game controller mapping updated for instance ID",
-                    dev_id );
+      JoystickID old_dev_id = ev->cdevice.which;
+      auto remapped_dev = evt_handler->remap_joystick(old_dev_id);
+      if( remapped_dev != nullptr ) {
+        event.cdevice.id = remapped_dev->device_id();
+      } else {
+        event.cdevice.id = old_dev_id;
+        NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
+                      "Could not re-map game controller instance ID",
+                      old_dev_id, "- keeping stale ID" );
+      }
+      this->push_event(event);
     } break;
   }
 }

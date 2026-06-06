@@ -135,6 +135,11 @@ JoystickID GameController::device_id() const
   return dev_id;
 }
 
+JoystickIndex GameController::device_index() const
+{
+  return this->device_index_;
+}
+
 std::string GameController::name() const
 {
   const char* dev_name = nullptr;
@@ -155,6 +160,8 @@ bool GameController::open(JoystickIndex device_index)
   SDL_GameController* dev = SDL_GameControllerOpen(device_index);
   if( dev != nullptr ) {
     this->device_.reset(dev);
+    this->device_index_ = device_index;
+    this->device_closed_ = false;
 
     // Success!
     return( this->attached() == true );
@@ -177,6 +184,7 @@ void GameController::close()
     this->device_closed_ = true;
     this->device_.release();
   }
+  this->device_index_ = -1;
 }
 
 // static

@@ -131,6 +131,42 @@ bool GameControllerEventHandler::remove_joystick(JoystickID dev_id)
   return result;
 }
 
+GameController*
+GameControllerEventHandler::remap_joystick(JoystickID dev_id)
+{
+  GameController* result = nullptr;
+
+  auto res = this->joysticks_.find(dev_id);
+  if( res == this->joysticks_.end() ) {
+    nom::set_error("Game controller instance ID not found");
+    return result;
+  }
+
+  JoystickIndex device_index = res->second->device_index();
+  if( device_index < 0 ) {
+    nom::set_error("Game controller has no valid device index");
+    return result;
+  }
+
+  res->second->close();
+  this->joysticks_.erase(res);
+
+  result = this->add_joystick(device_index);
+  if( result != nullptr ) {
+    JoystickID new_dev_id = result->device_id();
+    NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                  "Re-mapped game controller", result->name(),
+                  "old instance ID:", dev_id,
+                  "new instance ID:", new_dev_id );
+  } else {
+    NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                  "Failed to re-open game controller after remap:",
+                  nom::error() );
+  }
+
+  return result;
+}
+
 void GameControllerEventHandler::remove_joysticks() {
   for( auto itr = this->joysticks_.begin(); itr != this->joysticks_.end(); ++itr ) {
     if( itr->second != nullptr ) {
