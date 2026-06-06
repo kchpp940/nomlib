@@ -428,20 +428,12 @@ void UIContext::set_size(const Size2i& dims)
   Point2f scale( 1.0f, 1.0f );
   Size2i res(Size2i::zero);
 
-  Rocket::Core::RenderInterface* ri = this->renderer_;
-  if( ri == nullptr )
-  {
-    ri = Rocket::Core::GetRenderInterface();
-  }
+  auto target =
+    dynamic_cast< nom::RocketSDL2RenderInterface* >( this->renderer_ );
 
-  auto target = dynamic_cast< nom::RocketSDL2RenderInterface* >( ri );
-  NOM_ASSERT( target != nullptr );
-
-  const RenderWindow* context = ( target != nullptr ) ? target->window_ : nullptr;
-  NOM_ASSERT( context != nullptr );
-  if( target && context )
+  if( target != nullptr && target->window_ != nullptr )
   {
-    SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
+    SDL_RenderGetScale( target->window_->renderer(), &scale.x, &scale.y );
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is

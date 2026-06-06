@@ -576,13 +576,9 @@ Point2f UIContextEventHandler::render_scale() const
 {
   Point2f scale( 1.0f, 1.0f );
 
-  Rocket::Core::RenderInterface* ri = this->ctx_->render_interface();
-  if( ri == nullptr )
-  {
-    ri = Rocket::Core::GetRenderInterface();
-  }
-
-  auto target = dynamic_cast< nom::RocketSDL2RenderInterface* >( ri );
+  auto target =
+    dynamic_cast< nom::RocketSDL2RenderInterface* >(
+      this->ctx_->render_interface() );
 
   if( target != nullptr && target->window_ != nullptr )
   {
@@ -596,13 +592,9 @@ IntRect UIContextEventHandler::render_viewport() const
 {
   IntRect viewport( IntRect::zero );
 
-  Rocket::Core::RenderInterface* ri = this->ctx_->render_interface();
-  if( ri == nullptr )
-  {
-    ri = Rocket::Core::GetRenderInterface();
-  }
-
-  auto target = dynamic_cast< nom::RocketSDL2RenderInterface* >( ri );
+  auto target =
+    dynamic_cast< nom::RocketSDL2RenderInterface* >(
+      this->ctx_->render_interface() );
 
   if( target != nullptr && target->window_ != nullptr )
   {
