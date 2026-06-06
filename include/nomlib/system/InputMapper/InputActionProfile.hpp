@@ -41,8 +41,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
-// Forward declarations
 class Value;
+class InputAction;
 
 enum class InputBindingType: uint8
 {
@@ -82,13 +82,14 @@ struct InputActionBinding
   bool conflict_allow = true;
 };
 
-struct InputActionState
+struct InputActionRuntimeState
 {
   bool pressed = false;
   bool released = false;
   bool held = false;
   real32 value = 0.0f;
   real32 prev_value = 0.0f;
+  bool conflict_blocked = false;
 };
 
 class InputActionProfile
@@ -97,6 +98,7 @@ class InputActionProfile
     typedef InputActionProfile SelfType;
     typedef std::vector<InputActionBinding> BindingList;
     typedef std::map<std::string, BindingList> ActionMap;
+    typedef std::vector<std::shared_ptr<InputAction>> InputActionPtrList;
 
     InputActionProfile();
 
@@ -117,6 +119,19 @@ class InputActionProfile
     bool has_action(const std::string& action) const;
 
     void clear();
+
+    bool validate() const;
+
+    bool validate_binding(const InputActionBinding& binding) const;
+
+    std::vector<std::string> find_duplicate_bindings() const;
+
+    bool bindings_equal(const InputActionBinding& a,
+                        const InputActionBinding& b) const;
+
+    InputActionPtrList create_input_actions(
+        const std::string& action,
+        JoystickID resolved_device_id = -1) const;
 
     static int32 key_name_to_sym(const std::string& name);
 
@@ -140,6 +155,26 @@ class InputActionProfile
     bool parse_joystick_button_bindings(const Value& node, BindingList& out);
     bool parse_joystick_axis_bindings(const Value& node, BindingList& out);
     bool parse_joystick_hat_bindings(const Value& node, BindingList& out);
+
+    std::shared_ptr<InputAction> create_keyboard_action(
+        const InputActionBinding& binding, InputState state) const;
+
+    std::shared_ptr<InputAction> create_gc_button_action(
+        const InputActionBinding& binding, JoystickID device_id,
+        InputState state) const;
+
+    std::shared_ptr<InputAction> create_gc_axis_action(
+        const InputActionBinding& binding, JoystickID device_id) const;
+
+    std::shared_ptr<InputAction> create_js_button_action(
+        const InputActionBinding& binding, JoystickID device_id,
+        InputState state) const;
+
+    std::shared_ptr<InputAction> create_js_axis_action(
+        const InputActionBinding& binding, JoystickID device_id) const;
+
+    std::shared_ptr<InputAction> create_js_hat_action(
+        const InputActionBinding& binding, JoystickID device_id) const;
 
     std::string name_;
     ActionMap actions_;

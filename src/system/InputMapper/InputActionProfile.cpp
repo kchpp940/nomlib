@@ -30,9 +30,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <algorithm>
 #include <cctype>
+#include <sstream>
 
 #include "nomlib/core/err.hpp"
 #include "nomlib/ptree.hpp"
+#include "nomlib/system/InputMapper/InputAction.hpp"
 
 #include <SDL_keycode.h>
 #include <SDL_gamecontroller.h>
@@ -142,8 +144,21 @@ bool InputActionProfile::load_from_value(const Value& root)
 
     for( auto& b : bindings ) {
       b.conflict_allow = conflict_allow;
+
+      if( this->validate_binding(b) == false ) {
+        std::ostringstream oss;
+        oss << "Invalid binding for action '" << action_name << "', skipping";
+        NOM_LOG_WARN( NOM, oss.str() );
+        continue;
+      }
+
       this->add_binding(action_name, b);
     }
+  }
+
+  std::vector<std::string> dupes = this->find_duplicate_bindings();
+  for( auto it = dupes.begin(); it != dupes.end(); ++it ) {
+    NOM_LOG_WARN( NOM, "Duplicate bindings found in action: " + *it );
   }
 
   return true;
@@ -185,6 +200,218 @@ void InputActionProfile::clear()
   this->name_.clear();
   this->actions_.clear();
 }
+
+bool InputActionProfile::validate() const
+{
+  for( auto act_it = this->actions_.begin(); act_it != this->actions_.end(); ++act_it ) {
+    const BindingList& blist = act_it->second;
+    for( auto b_it = blist.begin(); b_it != blist.end(); ++b_it ) {
+      if( this->validate_binding(*b_it) == false ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool InputActionProfile::validate_binding(const InputActionBinding& binding) const
+{
+  switch( binding.type ) {
+    case InputBindingType::Invalid:
+      return false;
+
+    case InputBindingType::Keyboard:
+      if( binding.key_sym == 0 ) {
+        return false;
+      }
+      return true;
+
+    case InputBindingType::GameControllerButton:
+      if( binding.gc_button == GameController::BUTTON_INVALID ) {
+        return false;
+      }
+      return true;
+
+    case InputBindingType::GameControllerAxis:
+      if( binding.gc_axis == GameController::AXIS_INVALID ) {
+        return false;
+      }
+      if( binding.axis_threshold < 0.0f || binding.axis_threshold > 1.0f ) {
+        NOM_LOG_WARN( NOM, "Axis threshold out of [0, 1] range, clamping" );
+        return true;
+      }
+      return true;
+
+    case InputBindingType::JoystickButton:
+      return true;
+
+    case InputBindingType::JoystickAxis:
+      if( binding.axis_threshold < 0.0f || binding.axis_threshold > 1.0f ) {
+        NOM_LOG_WARN( NOM, "Axis threshold out of [0, 1] range, clamping" );
+        return true;
+      }
+      return true;
+
+    case InputBindingType::JoystickHat:
+      return true;
+  }
+
+  return false;
+}
+
+std::vector<std::string> InputActionProfile::find_duplicate_bindings() const
+{
+  std::vector<std::string> result;
+
+  for( auto act_it = this->actions_.begin(); act_it != this->actions_.end(); ++act_it ) {
+    const std::string& action_name = act_it->first;
+    const BindingList& blist = act_it->second;
+
+    bool found_dupe = false;
+    for( size_type i = 0; i < blist.size() && !found_dupe; ++i ) {
+      for( size_type j = i + 1; j < blist.size() && !found_dupe; ++j ) {
+        if( this->bindings_equal(blist[i], blist[j]) ) {
+          result.push_back(action_name);
+          found_dupe = true;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+bool InputActionProfile::bindings_equal(const InputActionBinding& a,
+                                        const InputActionBinding& b) const
+{
+  if( a.type != b.type ) return false;
+  if( a.device_id != b.device_id ) return false;
+
+  switch( a.type ) {
+    case InputBindingType::Keyboard:
+      return (a.key_sym == b.key_sym && a.key_mod == b.key_mod);
+
+    case InputBindingType::GameControllerButton:
+      return (a.gc_button == b.gc_button);
+
+    case InputBindingType::GameControllerAxis:
+      return (a.gc_axis == b.gc_axis &&
+              a.axis_direction == b.axis_direction);
+
+    case InputBindingType::JoystickButton:
+      return (a.js_button == b.js_button);
+
+    case InputBindingType::JoystickAxis:
+      return (a.js_axis == b.js_axis &&
+              a.axis_direction == b.axis_direction);
+
+    case InputBindingType::JoystickHat:
+      return (a.js_hat == b.js_hat && a.js_hat_value == b.js_hat_value);
+
+    case InputBindingType::Invalid:
+    default:
+      return false;
+  }
+}
+
+InputActionProfile::InputActionPtrList
+InputActionProfile::create_input_actions(
+    const std::string& action,
+    JoystickID resolved_device_id) const
+{
+  (void)action;
+  InputActionPtrList result;
+
+  const BindingList& blist = this->bindings(action);
+  for( auto b_it = blist.begin(); b_it != blist.end(); ++b_it ) {
+    const InputActionBinding& b = *b_it;
+    JoystickID device_id = (b.device_id != -1) ? b.device_id : resolved_device_id;
+
+    switch( b.type ) {
+      case InputBindingType::Keyboard:
+        result.push_back(this->create_keyboard_action(b, InputState::PRESSED));
+        result.push_back(this->create_keyboard_action(b, InputState::RELEASED));
+        break;
+
+      case InputBindingType::GameControllerButton:
+        result.push_back(this->create_gc_button_action(b, device_id, InputState::PRESSED));
+        result.push_back(this->create_gc_button_action(b, device_id, InputState::RELEASED));
+        break;
+
+      case InputBindingType::GameControllerAxis:
+        result.push_back(this->create_gc_axis_action(b, device_id));
+        break;
+
+      case InputBindingType::JoystickButton:
+        result.push_back(this->create_js_button_action(b, device_id, InputState::PRESSED));
+        result.push_back(this->create_js_button_action(b, device_id, InputState::RELEASED));
+        break;
+
+      case InputBindingType::JoystickAxis:
+        result.push_back(this->create_js_axis_action(b, device_id));
+        break;
+
+      case InputBindingType::JoystickHat:
+        result.push_back(this->create_js_hat_action(b, device_id));
+        break;
+
+      case InputBindingType::Invalid:
+      default:
+        break;
+    }
+  }
+
+  return result;
+}
+
+// --- Private: InputAction factory methods ---
+
+std::shared_ptr<InputAction>
+InputActionProfile::create_keyboard_action(
+    const InputActionBinding& binding, InputState state) const
+{
+  return std::make_shared<KeyboardAction>(binding.key_sym, binding.key_mod, state);
+}
+
+std::shared_ptr<InputAction>
+InputActionProfile::create_gc_button_action(
+    const InputActionBinding& binding, JoystickID device_id,
+    InputState state) const
+{
+  return std::make_shared<GameControllerButtonAction>(
+      device_id, binding.gc_button, state);
+}
+
+std::shared_ptr<InputAction>
+InputActionProfile::create_gc_axis_action(
+    const InputActionBinding& binding, JoystickID device_id) const
+{
+  return std::make_shared<GameControllerAxisAction>(device_id, binding.gc_axis);
+}
+
+std::shared_ptr<InputAction>
+InputActionProfile::create_js_button_action(
+    const InputActionBinding& binding, JoystickID device_id,
+    InputState state) const
+{
+  return std::make_shared<JoystickButtonAction>(device_id, binding.js_button, state);
+}
+
+std::shared_ptr<InputAction>
+InputActionProfile::create_js_axis_action(
+    const InputActionBinding& binding, JoystickID device_id) const
+{
+  return std::make_shared<JoystickAxisAction>(device_id, binding.js_axis);
+}
+
+std::shared_ptr<InputAction>
+InputActionProfile::create_js_hat_action(
+    const InputActionBinding& binding, JoystickID device_id) const
+{
+  return std::make_shared<JoystickHatAction>(device_id, binding.js_hat, binding.js_hat_value);
+}
+
+// --- Private: JSON parsing ---
 
 bool InputActionProfile::parse_keyboard_bindings(const Value& node, BindingList& out)
 {
@@ -264,6 +491,9 @@ bool InputActionProfile::parse_game_controller_bindings(const Value& node, Bindi
         binding.axis_threshold = 0.2f;
       }
 
+      if( binding.axis_threshold < 0.0f ) binding.axis_threshold = 0.0f;
+      if( binding.axis_threshold > 1.0f ) binding.axis_threshold = 1.0f;
+
       const Value& dir_val = entry["direction"];
       if( dir_val.string_type() ) {
         std::string dir_str = to_lower(dir_val.get_string());
@@ -342,6 +572,9 @@ bool InputActionProfile::parse_joystick_axis_bindings(const Value& node, Binding
       binding.axis_threshold = 0.2f;
     }
 
+    if( binding.axis_threshold < 0.0f ) binding.axis_threshold = 0.0f;
+    if( binding.axis_threshold > 1.0f ) binding.axis_threshold = 1.0f;
+
     const Value& dir_val = entry["direction"];
     if( dir_val.string_type() ) {
       std::string dir_str = to_lower(dir_val.get_string());
@@ -398,6 +631,8 @@ bool InputActionProfile::parse_joystick_hat_bindings(const Value& node, BindingL
 
   return true;
 }
+
+// --- Static: name <-> enum conversion ---
 
 int32 InputActionProfile::key_name_to_sym(const std::string& name)
 {

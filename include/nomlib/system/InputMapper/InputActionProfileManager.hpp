@@ -33,26 +33,31 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <map>
 #include <memory>
+#include <set>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Event.hpp"
 #include "nomlib/system/InputMapper/InputActionProfile.hpp"
+#include "nomlib/system/InputMapper/InputStateMapper.hpp"
 
 namespace nom {
 
-// Forward declarations
 class EventHandler;
 class Value;
+struct InputActionBinding;
+
+struct RawBindingState;
 
 class InputActionProfileManager
 {
   public:
     typedef InputActionProfileManager SelfType;
-    typedef std::map<std::string, InputActionState> ActionStateMap;
+    typedef std::map<std::string, InputActionRuntimeState> ActionStateMap;
     typedef std::map<int, ActionStateMap> PlayerStateMap;
     typedef std::map<int, std::string> PlayerProfileMap;
     typedef std::map<int, JoystickID> PlayerDeviceMap;
     typedef std::map<std::string, std::shared_ptr<InputActionProfile>> ProfileMap;
+    typedef std::map<int, std::string> PlayerStateNameMap;
 
     static const int DEFAULT_PLAYER = 0;
 
@@ -76,9 +81,11 @@ class InputActionProfileManager
 
     std::string active_profile(int player_index) const;
 
-    void set_player_device(int player_index, JoystickID device_id);
+    bool set_player_device(int player_index, JoystickID device_id);
 
     JoystickID player_device(int player_index) const;
+
+    std::vector<std::pair<int, JoystickID>> find_device_conflicts() const;
 
     void set_event_handler(EventHandler& evt_handler);
 
@@ -92,7 +99,7 @@ class InputActionProfileManager
 
     real32 action_value(int player_index, const std::string& action) const;
 
-    const InputActionState* action_state(int player_index, const std::string& action) const;
+    const InputActionRuntimeState* action_state(int player_index, const std::string& action) const;
 
     bool is_pressed(const std::string& action) const;
 
@@ -104,37 +111,32 @@ class InputActionProfileManager
 
     void clear_states();
 
+    InputStateMapper& state_mapper();
+
+    const InputStateMapper& state_mapper() const;
+
   private:
-    void on_event(const Event& ev);
+    struct Impl;
 
-    void process_key_event(const Event& ev);
+    static std::string player_state_name(int player_index);
 
-    void process_controller_button_event(const Event& ev);
+    void rebuild_player_state(int player_index);
 
-    void process_controller_axis_event(const Event& ev);
-
-    void process_joystick_button_event(const Event& ev);
-
-    void process_joystick_axis_event(const Event& ev);
-
-    void process_joystick_hat_event(const Event& ev);
-
-    void apply_binding_state( int player_index, const std::string& action,
-                              const InputActionBinding& binding,
-                              bool pressed, real32 value );
+    void resolve_conflicts(int player_index);
 
     void ensure_player_state(int player_index);
 
     void reset_frame_states(int player_index);
 
-    bool binding_matches_device(const InputActionBinding& binding,
-                                int player_index) const;
-
     ProfileMap profiles_;
     PlayerProfileMap player_profiles_;
     PlayerDeviceMap player_devices_;
     PlayerStateMap player_states_;
-    EventHandler* event_handler_ = nullptr;
+    PlayerStateNameMap player_state_names_;
+    std::map<int, std::map<std::string, std::vector<const InputActionBinding*>>> active_bindings_;
+
+    Impl* impl_;
+    InputStateMapper state_mapper_;
 };
 
 std::unique_ptr<InputActionProfileManager> make_unique_input_action_profile_manager();

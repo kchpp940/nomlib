@@ -28,44 +28,71 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/system/InputMapper/InputActionProfileManager.hpp"
 
+#include <algorithm>
+#include <sstream>
+
 #include "nomlib/core/err.hpp"
-#include "nomlib/system/EventHandler.hpp"
 #include "nomlib/ptree.hpp"
+#include "nomlib/system/EventHandler.hpp"
+#include "nomlib/system/InputMapper/InputAction.hpp"
+#include "nomlib/system/InputMapper/InputActionMapper.hpp"
 
 namespace nom {
 
 namespace {
 
-const real32 AXIS_MIN = -32768.0f;
-const real32 AXIS_MAX = 32767.0f;
-
 real32 normalize_axis(int16 raw_value)
 {
-  if( raw_value >= 0 ) {
-    return static_cast<real32>(raw_value) / AXIS_MAX;
-  } else {
-    return static_cast<real32>(raw_value) / -AXIS_MIN;
+  if( raw_value > 0 ) {
+    return static_cast<real32>(raw_value) / 32767.0f;
+  } else if( raw_value < 0 ) {
+    return static_cast<real32>(raw_value) / 32768.0f;
   }
+  return 0.0f;
 }
 
-real32 axis_magnitude(int16 raw_value, AxisDirection dir)
+real32 axis_magnitude(real32 normalized, AxisDirection direction)
 {
-  real32 normalized = normalize_axis(raw_value);
-  if( dir == AxisDirection::Positive ) {
-    return normalized > 0.0f ? normalized : 0.0f;
+  if( direction == AxisDirection::Positive ) {
+    return std::max(0.0f, normalized);
   } else {
-    return normalized < 0.0f ? -normalized : 0.0f;
+    return std::max(0.0f, -normalized);
   }
 }
 
 } // anonymous namespace
 
+struct RawBindingState
+{
+  bool raw_held = false;
+  real32 raw_value = 0.0f;
+  const InputActionBinding* binding = nullptr;
+};
+
+typedef std::map<std::string, std::vector<RawBindingState>> RawActionStateMap;
+typedef std::map<int, RawActionStateMap> RawPlayerStateMap;
+
+// Private implementation data
+struct InputActionProfileManager::Impl
+{
+  RawPlayerStateMap raw_states;
+};
+
 InputActionProfileManager::InputActionProfileManager()
+  : impl_(new Impl())
 {
 }
 
 InputActionProfileManager::~InputActionProfileManager()
 {
+  delete this->impl_;
+}
+
+std::string InputActionProfileManager::player_state_name(int player_index)
+{
+  std::ostringstream oss;
+  oss << "__iap_player_" << player_index;
+  return oss.str();
 }
 
 bool InputActionProfileManager::load_profile(const std::string& name,
@@ -75,6 +102,9 @@ bool InputActionProfileManager::load_profile(const std::string& name,
   if( profile->load_from_value(root) == false ) {
     return false;
   }
+  if( profile->validate() == false ) {
+    NOM_LOG_WARN( NOM, "Profile '" + name + "' contains invalid bindings" );
+  }
   if( profile->name().empty() ) {
     profile->set_name(name);
   }
@@ -82,14 +112,12 @@ bool InputActionProfileManager::load_profile(const std::string& name,
   return true;
 }
 
-bool InputActionProfileManager::add_profile(const std::string& name,
-                                            std::shared_ptr<InputActionProfile> profile)
+bool InputActionProfileManager::add_profile(
+    const std::string& name,
+    std::shared_ptr<InputActionProfile> profile)
 {
   if( profile == nullptr ) {
     return false;
-  }
-  if( profile->name().empty() ) {
-    profile->set_name(name);
   }
   this->profiles_[name] = profile;
   return true;
@@ -97,7 +125,17 @@ bool InputActionProfileManager::add_profile(const std::string& name,
 
 void InputActionProfileManager::remove_profile(const std::string& name)
 {
-  this->profiles_.erase(name);
+  auto it = this->profiles_.find(name);
+  if( it != this->profiles_.end() ) {
+    for( auto pit = this->player_profiles_.begin();
+         pit != this->player_profiles_.end(); ++pit ) {
+      if( pit->second == name ) {
+        std::string sname = this->player_state_name(pit->first);
+        this->state_mapper_.disable(sname);
+      }
+    }
+    this->profiles_.erase(it);
+  }
 }
 
 bool InputActionProfileManager::has_profile(const std::string& name) const
@@ -129,11 +167,12 @@ bool InputActionProfileManager::set_profile(int player_index,
                                             const std::string& profile_name)
 {
   if( this->profiles_.find(profile_name) == this->profiles_.end() ) {
-    NOM_LOG_ERR( NOM, "Could not set profile: profile '" + profile_name + "' not found" );
+    NOM_LOG_ERR( NOM, "Unknown profile: " + profile_name );
     return false;
   }
+
   this->player_profiles_[player_index] = profile_name;
-  this->ensure_player_state(player_index);
+  this->rebuild_player_state(player_index);
   return true;
 }
 
@@ -146,10 +185,22 @@ std::string InputActionProfileManager::active_profile(int player_index) const
   return it->second;
 }
 
-void InputActionProfileManager::set_player_device(int player_index,
+bool InputActionProfileManager::set_player_device(int player_index,
                                                   JoystickID device_id)
 {
+  auto conflicts = this->find_device_conflicts();
+  for( auto it = conflicts.begin(); it != conflicts.end(); ++it ) {
+    if( it->second == device_id && it->first != player_index ) {
+      std::ostringstream oss;
+      oss << "Device ID " << device_id << " is already assigned to player "
+          << it->first;
+      NOM_LOG_WARN( NOM, oss.str() );
+    }
+  }
+
   this->player_devices_[player_index] = device_id;
+  this->rebuild_player_state(player_index);
+  return true;
 }
 
 JoystickID InputActionProfileManager::player_device(int player_index) const
@@ -161,450 +212,297 @@ JoystickID InputActionProfileManager::player_device(int player_index) const
   return it->second;
 }
 
+std::vector<std::pair<int, JoystickID>>
+InputActionProfileManager::find_device_conflicts() const
+{
+  std::vector<std::pair<int, JoystickID>> result;
+  std::map<JoystickID, int> device_to_player;
+
+  for( auto it = this->player_devices_.begin();
+       it != this->player_devices_.end(); ++it ) {
+    JoystickID dev = it->second;
+    if( dev < 0 ) continue;
+
+    auto found = device_to_player.find(dev);
+    if( found != device_to_player.end() ) {
+      result.push_back(std::make_pair(found->second, dev));
+      result.push_back(std::make_pair(it->first, dev));
+    } else {
+      device_to_player[dev] = it->first;
+    }
+  }
+
+  return result;
+}
+
 void InputActionProfileManager::set_event_handler(EventHandler& evt_handler)
 {
-  this->event_handler_ = &evt_handler;
-
-  auto event_watch = nom::event_filter( [=](const Event& evt, void* data) {
-    this->on_event(evt);
-  });
-
-  this->event_handler_->append_event_watch(event_watch, nullptr);
+  this->state_mapper_.set_event_handler(evt_handler);
 }
 
-void InputActionProfileManager::update()
+void InputActionProfileManager::rebuild_player_state(int player_index)
 {
-  for( auto it = this->player_states_.begin(); it != this->player_states_.end(); ++it ) {
-    this->reset_frame_states(it->first);
+  std::string sname = this->player_state_name(player_index);
+  this->state_mapper_.disable(sname);
+  this->state_mapper_.erase(sname);
+
+  auto profile_it = this->player_profiles_.find(player_index);
+  if( profile_it == this->player_profiles_.end() ) {
+    return;
   }
-}
-
-void InputActionProfileManager::reset_frame_states(int player_index)
-{
-  auto player_it = this->player_states_.find(player_index);
-  if( player_it == this->player_states_.end() ) {
+  auto profile = this->profile(profile_it->second);
+  if( profile == nullptr ) {
     return;
   }
 
-  ActionStateMap& states = player_it->second;
-  for( auto it = states.begin(); it != states.end(); ++it ) {
-    InputActionState& s = it->second;
-    s.pressed = false;
-    s.released = false;
-    s.prev_value = s.value;
+  JoystickID device_id = this->player_device(player_index);
+
+  this->ensure_player_state(player_index);
+  RawActionStateMap& raw_map = this->impl_->raw_states[player_index];
+  raw_map.clear();
+
+  InputActionMapper mapper;
+  std::vector<std::string> actions = profile->action_names();
+
+  for( auto ait = actions.begin(); ait != actions.end(); ++ait ) {
+    const std::string& action_name = *ait;
+    const InputActionProfile::BindingList& bindings = profile->bindings(action_name);
+
+    raw_map[action_name].reserve(bindings.size());
+    for( size_type bidx = 0; bidx < bindings.size(); ++bidx ) {
+      RawBindingState rbs;
+      rbs.binding = &bindings[bidx];
+      raw_map[action_name].push_back(rbs);
+    }
+
+    InputActionProfile::InputActionPtrList input_actions =
+        profile->create_input_actions(action_name, device_id);
+
+    const InputActionProfile::BindingList& blist = profile->bindings(action_name);
+    size_type binding_idx = 0;
+    size_type action_count = 0;
+
+    for( auto iait = input_actions.begin(); iait != input_actions.end(); ++iait ) {
+      if( binding_idx >= blist.size() ) break;
+      const InputActionBinding& binding = blist[binding_idx];
+
+      RawBindingState* rbs_ptr = &raw_map[action_name][binding_idx];
+
+      switch( binding.type ) {
+        case InputBindingType::Keyboard:
+        case InputBindingType::GameControllerButton:
+        case InputBindingType::JoystickButton:
+        case InputBindingType::JoystickHat:
+        {
+          bool is_press_action = false;
+          uint32 et = (*iait)->event().type;
+          if( et == Event::KEY_PRESS ||
+              et == Event::GAME_CONTROLLER_BUTTON_PRESS ||
+              et == Event::JOYSTICK_BUTTON_PRESS ||
+              et == Event::JOYSTICK_HAT_MOTION ) {
+            is_press_action = true;
+          }
+
+          event_callback cb = [rbs_ptr, is_press_action, &binding](const Event& ev) {
+            bool pressed_state = is_press_action;
+
+            if( binding.type == InputBindingType::JoystickHat ) {
+              if( ev.jhat.value == binding.js_hat_value &&
+                  ev.jhat.value != Joystick::HAT_CENTERED ) {
+                pressed_state = true;
+              } else if( ev.jhat.value == Joystick::HAT_CENTERED ) {
+                pressed_state = false;
+              } else {
+                return;
+              }
+            }
+
+            rbs_ptr->raw_held = pressed_state;
+            rbs_ptr->raw_value = pressed_state ? 1.0f : 0.0f;
+            rbs_ptr->binding = &binding;
+          };
+          mapper.insert(action_name, *(*iait), cb);
+
+          ++action_count;
+          if( (binding.type == InputBindingType::Keyboard ||
+               binding.type == InputBindingType::GameControllerButton ||
+               binding.type == InputBindingType::JoystickButton) &&
+              action_count >= 2 ) {
+            action_count = 0;
+            ++binding_idx;
+          } else if( binding.type == InputBindingType::JoystickHat ) {
+            action_count = 0;
+            ++binding_idx;
+          }
+        } break;
+
+        case InputBindingType::GameControllerAxis:
+        case InputBindingType::JoystickAxis:
+        {
+          event_callback cb = [rbs_ptr, &binding](const Event& ev) {
+            int16 raw_val = 0;
+            if( binding.type == InputBindingType::GameControllerAxis ) {
+              raw_val = ev.caxis.value;
+            } else {
+              raw_val = ev.jaxis.value;
+            }
+            real32 norm = normalize_axis(raw_val);
+            real32 mag = axis_magnitude(norm, binding.axis_direction);
+            real32 threshold = binding.axis_threshold;
+            if( threshold <= 0.0f ) threshold = 0.2f;
+
+            if( mag >= threshold ) {
+              rbs_ptr->raw_held = true;
+              rbs_ptr->raw_value = std::min(1.0f, mag);
+            } else {
+              rbs_ptr->raw_held = false;
+              rbs_ptr->raw_value = 0.0f;
+            }
+            rbs_ptr->binding = &binding;
+          };
+          mapper.insert(action_name, *(*iait), cb);
+          ++binding_idx;
+        } break;
+
+        default:
+          ++binding_idx;
+          break;
+      }
+    }
   }
+
+  this->state_mapper_.insert(sname, mapper, true);
+  this->player_state_names_[player_index] = sname;
 }
 
 void InputActionProfileManager::ensure_player_state(int player_index)
 {
   if( this->player_states_.find(player_index) == this->player_states_.end() ) {
     this->player_states_[player_index] = ActionStateMap();
+    this->active_bindings_[player_index].clear();
   }
-
-  auto profile_it = this->player_profiles_.find(player_index);
-  if( profile_it == this->player_profiles_.end() ) {
-    return;
-  }
-
-  auto prof = this->profile(profile_it->second);
-  if( prof == nullptr ) {
-    return;
-  }
-
-  ActionStateMap& states = this->player_states_[player_index];
-  std::vector<std::string> names = prof->action_names();
-  for( auto it = names.begin(); it != names.end(); ++it ) {
-    if( states.find(*it) == states.end() ) {
-      states[*it] = InputActionState();
-    }
+  if( this->impl_->raw_states.find(player_index) == this->impl_->raw_states.end() ) {
+    this->impl_->raw_states[player_index] = RawActionStateMap();
   }
 }
 
-bool InputActionProfileManager::binding_matches_device(
-    const InputActionBinding& binding, int player_index) const
+void InputActionProfileManager::resolve_conflicts(int player_index)
 {
-  if( binding.type == InputBindingType::Keyboard ) {
-    return true;
-  }
+  auto pit = this->player_states_.find(player_index);
+  if( pit == this->player_states_.end() ) return;
 
-  JoystickID assigned_device = this->player_device(player_index);
+  ActionStateMap& final_states = pit->second;
+  RawActionStateMap& raw_map = this->impl_->raw_states[player_index];
 
-  if( binding.device_id == -1 ) {
-    if( assigned_device == -1 ) {
-      return true;
-    }
-    return true;
-  }
+  for( auto ait = raw_map.begin(); ait != raw_map.end(); ++ait ) {
+    const std::string& action_name = ait->first;
+    std::vector<RawBindingState>& raw_bindings = ait->second;
 
-  if( assigned_device == -1 ) {
-    return true;
-  }
-
-  return binding.device_id == assigned_device;
-}
-
-void InputActionProfileManager::on_event(const Event& ev)
-{
-  switch(ev.type)
-  {
-    default: break;
-
-    case Event::KEY_PRESS:
-    case Event::KEY_RELEASE:
-    {
-      this->process_key_event(ev);
-    } break;
-
-    case Event::GAME_CONTROLLER_BUTTON_PRESS:
-    case Event::GAME_CONTROLLER_BUTTON_RELEASE:
-    {
-      this->process_controller_button_event(ev);
-    } break;
-
-    case Event::GAME_CONTROLLER_AXIS_MOTION:
-    {
-      this->process_controller_axis_event(ev);
-    } break;
-
-    case Event::JOYSTICK_BUTTON_PRESS:
-    case Event::JOYSTICK_BUTTON_RELEASE:
-    {
-      this->process_joystick_button_event(ev);
-    } break;
-
-    case Event::JOYSTICK_AXIS_MOTION:
-    {
-      this->process_joystick_axis_event(ev);
-    } break;
-
-    case Event::JOYSTICK_HAT_MOTION:
-    {
-      this->process_joystick_hat_event(ev);
-    } break;
-  }
-}
-
-void InputActionProfileManager::process_key_event(const Event& ev)
-{
-  bool pressed = (ev.type == Event::KEY_PRESS);
-
-  for( auto pp_it = this->player_profiles_.begin();
-       pp_it != this->player_profiles_.end(); ++pp_it ) {
-    int player_index = pp_it->first;
-    const std::string& profile_name = pp_it->second;
-
-    auto prof = this->profile(profile_name);
-    if( prof == nullptr ) continue;
-
-    this->ensure_player_state(player_index);
-
-    std::vector<std::string> action_names = prof->action_names();
-    for( auto a_it = action_names.begin(); a_it != action_names.end(); ++a_it ) {
-      const std::string& action_name = *a_it;
-      const InputActionProfile::BindingList& bindings = prof->bindings(action_name);
-
-      for( auto b_it = bindings.begin(); b_it != bindings.end(); ++b_it ) {
-        const InputActionBinding& binding = *b_it;
-        if( binding.type != InputBindingType::Keyboard ) continue;
-        if( this->binding_matches_device(binding, player_index) == false ) continue;
-
-        if( binding.key_sym == ev.key.sym ) {
-          if( binding.key_mod != 0 && binding.key_mod != ev.key.mod ) {
-            continue;
-          }
-          this->apply_binding_state(player_index, action_name, binding, pressed, pressed ? 1.0f : 0.0f);
-        }
-      }
-    }
-  }
-}
-
-void InputActionProfileManager::process_controller_button_event(const Event& ev)
-{
-  bool pressed = (ev.type == Event::GAME_CONTROLLER_BUTTON_PRESS);
-
-  for( auto pp_it = this->player_profiles_.begin();
-       pp_it != this->player_profiles_.end(); ++pp_it ) {
-    int player_index = pp_it->first;
-    const std::string& profile_name = pp_it->second;
-
-    JoystickID assigned_device = this->player_device(player_index);
-    if( assigned_device != -1 && assigned_device != ev.cbutton.id ) {
+    if( raw_bindings.empty() ) {
       continue;
     }
 
-    auto prof = this->profile(profile_name);
-    if( prof == nullptr ) continue;
-
-    this->ensure_player_state(player_index);
-
-    std::vector<std::string> action_names = prof->action_names();
-    for( auto a_it = action_names.begin(); a_it != action_names.end(); ++a_it ) {
-      const std::string& action_name = *a_it;
-      const InputActionProfile::BindingList& bindings = prof->bindings(action_name);
-
-      for( auto b_it = bindings.begin(); b_it != bindings.end(); ++b_it ) {
-        const InputActionBinding& binding = *b_it;
-        if( binding.type != InputBindingType::GameControllerButton ) continue;
-        if( binding.device_id != -1 && binding.device_id != ev.cbutton.id ) continue;
-
-        if( binding.gc_button == static_cast<GameController::Button>(ev.cbutton.button) ) {
-          this->apply_binding_state(player_index, action_name, binding, pressed, pressed ? 1.0f : 0.0f);
-        }
+    bool has_non_conflict = false;
+    for( auto rit = raw_bindings.begin(); rit != raw_bindings.end(); ++rit ) {
+      if( rit->raw_held && rit->binding && !rit->binding->conflict_allow ) {
+        has_non_conflict = true;
+        break;
       }
+    }
+
+    bool any_held = false;
+    real32 max_value = 0.0f;
+    bool any_blocked = false;
+
+    for( auto rit = raw_bindings.begin(); rit != raw_bindings.end(); ++rit ) {
+      if( !rit->raw_held || !rit->binding ) continue;
+
+      if( has_non_conflict && rit->binding->conflict_allow ) {
+        any_blocked = true;
+        continue;
+      }
+
+      any_held = true;
+      if( rit->raw_value > max_value ) {
+        max_value = rit->raw_value;
+      }
+    }
+
+    InputActionRuntimeState& state = final_states[action_name];
+    bool prev_held = state.held;
+    state.held = any_held;
+    state.prev_value = state.value;
+    state.value = max_value;
+    state.conflict_blocked = any_blocked;
+
+    if( any_held && !prev_held ) {
+      state.pressed = true;
+    }
+    if( !any_held && prev_held ) {
+      state.released = true;
     }
   }
 }
 
-void InputActionProfileManager::process_controller_axis_event(const Event& ev)
+void InputActionProfileManager::reset_frame_states(int player_index)
 {
-  for( auto pp_it = this->player_profiles_.begin();
-       pp_it != this->player_profiles_.end(); ++pp_it ) {
-    int player_index = pp_it->first;
-    const std::string& profile_name = pp_it->second;
+  auto pit = this->player_states_.find(player_index);
+  if( pit == this->player_states_.end() ) return;
 
-    JoystickID assigned_device = this->player_device(player_index);
-    if( assigned_device != -1 && assigned_device != ev.caxis.id ) {
-      continue;
-    }
-
-    auto prof = this->profile(profile_name);
-    if( prof == nullptr ) continue;
-
-    this->ensure_player_state(player_index);
-
-    std::vector<std::string> action_names = prof->action_names();
-    for( auto a_it = action_names.begin(); a_it != action_names.end(); ++a_it ) {
-      const std::string& action_name = *a_it;
-      const InputActionProfile::BindingList& bindings = prof->bindings(action_name);
-
-      for( auto b_it = bindings.begin(); b_it != bindings.end(); ++b_it ) {
-        const InputActionBinding& binding = *b_it;
-        if( binding.type != InputBindingType::GameControllerAxis ) continue;
-        if( binding.device_id != -1 && binding.device_id != ev.caxis.id ) continue;
-
-        if( binding.gc_axis == static_cast<GameController::Axis>(ev.caxis.axis) ) {
-          real32 magnitude = axis_magnitude(ev.caxis.value, binding.axis_direction);
-          bool active = (magnitude >= binding.axis_threshold);
-          real32 clamped_value = active ? magnitude : 0.0f;
-          this->apply_binding_state(player_index, action_name, binding, active, clamped_value);
-        }
-      }
-    }
+  for( auto ait = pit->second.begin(); ait != pit->second.end(); ++ait ) {
+    ait->second.pressed = false;
+    ait->second.released = false;
   }
 }
 
-void InputActionProfileManager::process_joystick_button_event(const Event& ev)
+void InputActionProfileManager::update()
 {
-  bool pressed = (ev.type == Event::JOYSTICK_BUTTON_PRESS);
-
-  for( auto pp_it = this->player_profiles_.begin();
-       pp_it != this->player_profiles_.end(); ++pp_it ) {
-    int player_index = pp_it->first;
-    const std::string& profile_name = pp_it->second;
-
-    JoystickID assigned_device = this->player_device(player_index);
-    if( assigned_device != -1 && assigned_device != ev.jbutton.id ) {
-      continue;
-    }
-
-    auto prof = this->profile(profile_name);
-    if( prof == nullptr ) continue;
-
-    this->ensure_player_state(player_index);
-
-    std::vector<std::string> action_names = prof->action_names();
-    for( auto a_it = action_names.begin(); a_it != action_names.end(); ++a_it ) {
-      const std::string& action_name = *a_it;
-      const InputActionProfile::BindingList& bindings = prof->bindings(action_name);
-
-      for( auto b_it = bindings.begin(); b_it != bindings.end(); ++b_it ) {
-        const InputActionBinding& binding = *b_it;
-        if( binding.type != InputBindingType::JoystickButton ) continue;
-        if( binding.device_id != -1 && binding.device_id != ev.jbutton.id ) continue;
-
-        if( binding.js_button == ev.jbutton.button ) {
-          this->apply_binding_state(player_index, action_name, binding, pressed, pressed ? 1.0f : 0.0f);
-        }
-      }
-    }
-  }
-}
-
-void InputActionProfileManager::process_joystick_axis_event(const Event& ev)
-{
-  for( auto pp_it = this->player_profiles_.begin();
-       pp_it != this->player_profiles_.end(); ++pp_it ) {
-    int player_index = pp_it->first;
-    const std::string& profile_name = pp_it->second;
-
-    JoystickID assigned_device = this->player_device(player_index);
-    if( assigned_device != -1 && assigned_device != ev.jaxis.id ) {
-      continue;
-    }
-
-    auto prof = this->profile(profile_name);
-    if( prof == nullptr ) continue;
-
-    this->ensure_player_state(player_index);
-
-    std::vector<std::string> action_names = prof->action_names();
-    for( auto a_it = action_names.begin(); a_it != action_names.end(); ++a_it ) {
-      const std::string& action_name = *a_it;
-      const InputActionProfile::BindingList& bindings = prof->bindings(action_name);
-
-      for( auto b_it = bindings.begin(); b_it != bindings.end(); ++b_it ) {
-        const InputActionBinding& binding = *b_it;
-        if( binding.type != InputBindingType::JoystickAxis ) continue;
-        if( binding.device_id != -1 && binding.device_id != ev.jaxis.id ) continue;
-
-        if( binding.js_axis == ev.jaxis.axis ) {
-          real32 magnitude = axis_magnitude(ev.jaxis.value, binding.axis_direction);
-          bool active = (magnitude >= binding.axis_threshold);
-          real32 clamped_value = active ? magnitude : 0.0f;
-          this->apply_binding_state(player_index, action_name, binding, active, clamped_value);
-        }
-      }
-    }
-  }
-}
-
-void InputActionProfileManager::process_joystick_hat_event(const Event& ev)
-{
-  for( auto pp_it = this->player_profiles_.begin();
-       pp_it != this->player_profiles_.end(); ++pp_it ) {
-    int player_index = pp_it->first;
-    const std::string& profile_name = pp_it->second;
-
-    JoystickID assigned_device = this->player_device(player_index);
-    if( assigned_device != -1 && assigned_device != ev.jhat.id ) {
-      continue;
-    }
-
-    auto prof = this->profile(profile_name);
-    if( prof == nullptr ) continue;
-
-    this->ensure_player_state(player_index);
-
-    std::vector<std::string> action_names = prof->action_names();
-    for( auto a_it = action_names.begin(); a_it != action_names.end(); ++a_it ) {
-      const std::string& action_name = *a_it;
-      const InputActionProfile::BindingList& bindings = prof->bindings(action_name);
-
-      for( auto b_it = bindings.begin(); b_it != bindings.end(); ++b_it ) {
-        const InputActionBinding& binding = *b_it;
-        if( binding.type != InputBindingType::JoystickHat ) continue;
-        if( binding.device_id != -1 && binding.device_id != ev.jhat.id ) continue;
-
-        if( binding.js_hat == ev.jhat.hat ) {
-          bool pressed = false;
-          if( binding.js_hat_value != Joystick::HAT_CENTERED ) {
-            pressed = (ev.jhat.value & binding.js_hat_value) != 0;
-          } else {
-            pressed = (ev.jhat.value == Joystick::HAT_CENTERED);
-          }
-          this->apply_binding_state(player_index, action_name, binding, pressed, pressed ? 1.0f : 0.0f);
-        }
-      }
-    }
-  }
-}
-
-void InputActionProfileManager::apply_binding_state(
-    int player_index, const std::string& action,
-    const InputActionBinding& binding,
-    bool pressed, real32 value)
-{
-  (void)binding;
-
-  auto ps_it = this->player_states_.find(player_index);
-  if( ps_it == this->player_states_.end() ) {
-    this->ensure_player_state(player_index);
-    ps_it = this->player_states_.find(player_index);
-    if( ps_it == this->player_states_.end() ) {
-      return;
-    }
-  }
-
-  ActionStateMap& states = ps_it->second;
-  auto s_it = states.find(action);
-  if( s_it == states.end() ) {
-    states[action] = InputActionState();
-    s_it = states.find(action);
-  }
-
-  InputActionState& state = s_it->second;
-
-  if( pressed && !state.held ) {
-    state.pressed = true;
-  }
-  if( !pressed && state.held ) {
-    state.released = true;
-  }
-  state.held = pressed;
-  if( value > state.value ) {
-    state.value = value;
+  for( auto pit = this->player_states_.begin();
+       pit != this->player_states_.end(); ++pit ) {
+    this->reset_frame_states(pit->first);
+    this->resolve_conflicts(pit->first);
   }
 }
 
 bool InputActionProfileManager::is_pressed(int player_index,
                                            const std::string& action) const
 {
-  auto ps_it = this->player_states_.find(player_index);
-  if( ps_it == this->player_states_.end() ) return false;
-
-  auto s_it = ps_it->second.find(action);
-  if( s_it == ps_it->second.end() ) return false;
-
-  return s_it->second.pressed;
+  const InputActionRuntimeState* st = this->action_state(player_index, action);
+  return st ? st->pressed : false;
 }
 
 bool InputActionProfileManager::is_released(int player_index,
                                             const std::string& action) const
 {
-  auto ps_it = this->player_states_.find(player_index);
-  if( ps_it == this->player_states_.end() ) return false;
-
-  auto s_it = ps_it->second.find(action);
-  if( s_it == ps_it->second.end() ) return false;
-
-  return s_it->second.released;
+  const InputActionRuntimeState* st = this->action_state(player_index, action);
+  return st ? st->released : false;
 }
 
 bool InputActionProfileManager::is_held(int player_index,
                                         const std::string& action) const
 {
-  auto ps_it = this->player_states_.find(player_index);
-  if( ps_it == this->player_states_.end() ) return false;
-
-  auto s_it = ps_it->second.find(action);
-  if( s_it == ps_it->second.end() ) return false;
-
-  return s_it->second.held;
+  const InputActionRuntimeState* st = this->action_state(player_index, action);
+  return st ? st->held : false;
 }
 
 real32 InputActionProfileManager::action_value(int player_index,
                                                const std::string& action) const
 {
-  auto ps_it = this->player_states_.find(player_index);
-  if( ps_it == this->player_states_.end() ) return 0.0f;
-
-  auto s_it = ps_it->second.find(action);
-  if( s_it == ps_it->second.end() ) return 0.0f;
-
-  return s_it->second.value;
+  const InputActionRuntimeState* st = this->action_state(player_index, action);
+  return st ? st->value : 0.0f;
 }
 
-const InputActionState* InputActionProfileManager::action_state(
-    int player_index, const std::string& action) const
+const InputActionRuntimeState*
+InputActionProfileManager::action_state(int player_index,
+                                        const std::string& action) const
 {
-  auto ps_it = this->player_states_.find(player_index);
-  if( ps_it == this->player_states_.end() ) return nullptr;
+  auto pit = this->player_states_.find(player_index);
+  if( pit == this->player_states_.end() ) return nullptr;
 
-  auto s_it = ps_it->second.find(action);
-  if( s_it == ps_it->second.end() ) return nullptr;
+  auto ait = pit->second.find(action);
+  if( ait == pit->second.end() ) return nullptr;
 
-  return &s_it->second;
+  return &ait->second;
 }
 
 bool InputActionProfileManager::is_pressed(const std::string& action) const
@@ -630,6 +528,18 @@ real32 InputActionProfileManager::action_value(const std::string& action) const
 void InputActionProfileManager::clear_states()
 {
   this->player_states_.clear();
+  this->impl_->raw_states.clear();
+  this->active_bindings_.clear();
+}
+
+InputStateMapper& InputActionProfileManager::state_mapper()
+{
+  return this->state_mapper_;
+}
+
+const InputStateMapper& InputActionProfileManager::state_mapper() const
+{
+  return this->state_mapper_;
 }
 
 std::unique_ptr<InputActionProfileManager> make_unique_input_action_profile_manager()
