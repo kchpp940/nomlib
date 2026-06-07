@@ -211,21 +211,21 @@ class App: public nom::SDLApp
 
       this->desktop.set_event_handler(this->evt_handler);
 
-      if( this->desktop.load_font( manifest.resolve_path( "font_delicious_bold" ) ) == false )
+      if( nom::load_ui_font( manifest, "font_delicious_bold", this->desktop ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_delicious_bold'" );
         return false;
       }
 
-      if( this->desktop.load_font( manifest.resolve_path( "font_opensans_regular" ) ) == false )
+      if( nom::load_ui_font( manifest, "font_opensans_regular", this->desktop ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_opensans_regular'" );
         return false;
       }
 
-      if( this->desktop.load_font( manifest.resolve_path( "font_opensans_bold" ) ) == false )
+      if( nom::load_ui_font( manifest, "font_opensans_bold", this->desktop ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_opensans_bold'" );
@@ -240,14 +240,14 @@ class App: public nom::SDLApp
 
       nom::SpriteSheet sprite_frames;
 
-      if( sprite_frames.load_file( manifest.resolve_path( "cursors_sheet" ) ) == false ) {
+      if( nom::load_spritesheet( manifest, "cursors_sheet", sprite_frames ) == false ) {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load manifest spritesheet 'cursors_sheet'" );
         return false;
       }
 
-      if( this->sprite_tex.load( manifest.resolve_path( "cursors_texture" ),
-                                 false, nom::Texture::Access::Streaming ) == false )
+      if( nom::load_texture( manifest, "cursors_texture", this->sprite_tex,
+                             false, nom::Texture::Access::Streaming ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load manifest texture 'cursors_texture'" );
@@ -263,7 +263,7 @@ class App: public nom::SDLApp
         std::make_shared<nom::Texture>();
       NOM_ASSERT(ani_sprite_tex != nullptr);
 
-      if( ani_sprite_tex->load( manifest.resolve_path( "cursors_texture" ) ) == false )
+      if( nom::load_texture( manifest, "cursors_texture", *ani_sprite_tex ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load manifest texture 'cursors_texture'" );
@@ -292,7 +292,7 @@ class App: public nom::SDLApp
       if ( MAXIMUM_WINDOWS > 1 )
       {
         this->window[1].make_current();
-        if( this->background.load( manifest.resolve_path( "board_outline" ) ) == false ) {
+        if( nom::load_texture( manifest, "board_outline", this->background ) == false ) {
           nom::DialogMessageBox(  APP_NAME,
                                   "Could not load manifest texture 'board_outline'" );
           return false;
@@ -302,7 +302,7 @@ class App: public nom::SDLApp
       this->window[0].make_current();
 
       this->info_box[0].set_context(&this->desktop);
-      if( this->desktop.load_document_file( manifest.find( "ui_messagebox" ).path() ) == nullptr )
+      if( nom::load_ui_document( manifest, "ui_messagebox", this->desktop ) == nullptr )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );
@@ -316,7 +316,7 @@ class App: public nom::SDLApp
       this->info_box[0].show();
 
       this->info_box[1].set_context(&this->desktop);
-      if( this->desktop.load_document_file( manifest.find( "ui_messagebox" ).path() ) == nullptr )
+      if( nom::load_ui_document( manifest, "ui_messagebox", this->desktop ) == nullptr )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );

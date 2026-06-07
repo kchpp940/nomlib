@@ -170,7 +170,9 @@ NOM_IGNORED_VARS_ENDL();
     exit(NOM_EXIT_FAILURE);
   }
 
+  bool using_manifest_audio = false;
   if(args.audio_input.length() < 1) {
+    using_manifest_audio = true;
     args.audio_input = manifest.resolve_path( "sinewave_900hz_1s" );
   }
 
@@ -214,10 +216,17 @@ NOM_IGNORED_VARS_ENDL();
   master_gain = args.audio_volume;
   audio::set_volume(master_gain, dev);
 
-  buffer = audio::create_buffer(args.audio_input, dev);
+  if( using_manifest_audio ) {
+    buffer = audio::load_audio( manifest, "sinewave_900hz_1s", dev );
+  } else {
+    buffer = audio::create_buffer(args.audio_input, dev);
+  }
   if(audio::valid_buffer(buffer, dev) == false) {
     NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
-                "Could not load audio samples from:", args.audio_input);
+                "Could not load audio samples from:",
+                using_manifest_audio ?
+                  std::string("manifest id 'sinewave_900hz_1s'") :
+                  args.audio_input);
     return NOM_EXIT_FAILURE;
   }
 
