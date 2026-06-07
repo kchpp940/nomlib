@@ -44,6 +44,8 @@ if(NOM_BUILD_AUDIO_UNIT)
   set(NOM_AUDIO_AL_SOURCE
       ${SRC_DIR}/audio/AL/ALAudioDevice.cpp
       ${INC_DIR}/audio/AL/ALAudioDevice.hpp
+      ${SRC_DIR}/audio/AL/ALAudioOutputDevice.cpp
+      ${INC_DIR}/audio/AL/ALAudioOutputDevice.hpp
       ${SRC_DIR}/audio/AL/ALAudioDeviceCaps.cpp
       ${INC_DIR}/audio/AL/ALAudioDeviceCaps.hpp
 
