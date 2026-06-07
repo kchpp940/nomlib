@@ -44,6 +44,7 @@ namespace nom {
 struct event_watcher;
 class JoystickEventHandler;
 class GameControllerEventHandler;
+class ViewportManager;
 
 /// \brief Event handling abstraction
 class EventHandler
@@ -144,6 +145,23 @@ class EventHandler
     /// \brief Erase all event watchers.
     void remove_event_watchers();
 
+    /// \brief Bind a ViewportManager for coordinate conversion and
+    ///        window resize synchronization.
+    ///
+    /// When set:
+    /// - Window resize events (RESIZED, SIZE_CHANGED) automatically call
+    ///   ViewportManager::on_window_resized, updating the render scale
+    ///   and letterbox viewport.
+    /// - Mouse motion and button events have their x,y coordinates
+    ///   converted from window pixels to logical coordinates via
+    ///   ViewportManager::window_to_logical before being enqueued.
+    ///
+    /// Pass nullptr to unbind.
+    void set_viewport_manager(ViewportManager* vp);
+
+    /// \brief Get the bound ViewportManager, or nullptr if none.
+    ViewportManager* viewport_manager() const;
+
   private:
     bool pop_event(Event& ev);
 
@@ -169,6 +187,10 @@ class EventHandler
 
     void* joystick_event_handler_ = nullptr;
     JoystickHandlerType joystick_event_type_ = NO_EVENT_HANDLER;
+
+    /// \brief Optional viewport manager for coordinate conversion
+    ///        and automatic window resize handling.
+    ViewportManager* viewport_manager_ = nullptr;
 };
 
 Event create_key_press(int32 sym, uint16 mod, uint8 repeat);

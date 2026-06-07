@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/core/clock.hpp"
 #include "nomlib/core/strings.hpp"
 #include "nomlib/core/unique_ptr.hpp"
+#include "nomlib/graphics/ViewportManager.hpp"
 #include "nomlib/system/SDL_helpers.hpp"
 #include "nomlib/system/JoystickEventHandler.hpp"
 #include "nomlib/system/GameControllerEventHandler.hpp"
@@ -245,6 +246,16 @@ void EventHandler::remove_event_watchers()
   this->event_watchers_.clear();
 }
 
+void EventHandler::set_viewport_manager(ViewportManager* vp)
+{
+  this->viewport_manager_ = vp;
+}
+
+ViewportManager* EventHandler::viewport_manager() const
+{
+  return this->viewport_manager_;
+}
+
 void EventHandler::push_event(const Event& ev)
 {
   nom::size_type num_events = 0;
@@ -408,6 +419,11 @@ void EventHandler::process_event(const SDL_Event* ev)
 
         case SDL_WINDOWEVENT_RESIZED:
         {
+          if( this->viewport_manager_ != nullptr ) {
+            this->viewport_manager_->on_window_resized(
+              Size2i(ev->window.data1, ev->window.data2));
+          }
+
           Event event;
           event.type = Event::WINDOW_EVENT;
           event.timestamp = ev->window.timestamp;
@@ -421,6 +437,11 @@ void EventHandler::process_event(const SDL_Event* ev)
 
         case SDL_WINDOWEVENT_SIZE_CHANGED:
         {
+          if( this->viewport_manager_ != nullptr ) {
+            this->viewport_manager_->on_window_resized(
+              Size2i(ev->window.data1, ev->window.data2));
+          }
+
           Event event;
           event.type = Event::WINDOW_EVENT;
           event.timestamp = ev->window.timestamp;
@@ -584,12 +605,31 @@ void EventHandler::process_event(const SDL_Event* ev)
       event.motion.y_rel = ev->motion.yrel;
       event.motion.state = ev->motion.state;
       event.motion.window_id = ev->motion.windowID;
+
+      if( this->viewport_manager_ != nullptr ) {
+        Point2i logical = this->viewport_manager_->window_to_logical(
+          Point2i(event.motion.x, event.motion.y));
+        event.motion.x = logical.x;
+        event.motion.y = logical.y;
+
+        const Point2f& scale = this->viewport_manager_->scale();
+        if( scale.x != 0.0f && scale.y != 0.0f ) {
+          event.motion.x_rel = NOM_SCAST(int32, event.motion.x_rel / scale.x);
+          event.motion.y_rel = NOM_SCAST(int32, event.motion.y_rel / scale.y);
+        }
+      }
+
       this->push_event(event);
       break;
     }
 
     case SDL_MOUSEBUTTONDOWN:
     {
+      Point2i mouse_pos(ev->button.x, ev->button.y);
+      if( this->viewport_manager_ != nullptr ) {
+        mouse_pos = this->viewport_manager_->window_to_logical(mouse_pos);
+      }
+
       switch (ev->button.button)
       {
         default: break;
@@ -600,8 +640,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_CLICK;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::LEFT_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -616,8 +656,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_CLICK;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::MIDDLE_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -632,8 +672,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_CLICK;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::RIGHT_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -648,8 +688,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_CLICK;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::X1_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -664,8 +704,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_CLICK;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::X2_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -680,6 +720,11 @@ void EventHandler::process_event(const SDL_Event* ev)
 
     case SDL_MOUSEBUTTONUP:
     {
+      Point2i mouse_pos(ev->button.x, ev->button.y);
+      if( this->viewport_manager_ != nullptr ) {
+        mouse_pos = this->viewport_manager_->window_to_logical(mouse_pos);
+      }
+
       switch ( ev->button.button )
       {
         default: break;
@@ -690,8 +735,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_RELEASE;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::LEFT_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -706,8 +751,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_RELEASE;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::MIDDLE_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -722,8 +767,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_RELEASE;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::RIGHT_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -738,8 +783,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_RELEASE;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::X1_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
@@ -754,8 +799,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.type = Event::MOUSE_BUTTON_RELEASE;
           event.timestamp = ev->button.timestamp;
           event.mouse.id = ev->button.which;
-          event.mouse.x = ev->button.x;
-          event.mouse.y = ev->button.y;
+          event.mouse.x = mouse_pos.x;
+          event.mouse.y = mouse_pos.y;
           event.mouse.button = MouseButton::X2_MOUSE_BUTTON;
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;

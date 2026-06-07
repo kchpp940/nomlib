@@ -474,6 +474,11 @@ void UIContext::set_viewport_manager(ViewportManager* viewport)
         Rocket::Core::Vector2i(viewport->context_size().w,
                                viewport->context_size().h) );
     }
+
+    // Auto-bind to EventHandler if already attached
+    if( this->event_handler_ != nullptr ) {
+      this->event_handler_->set_viewport_manager(viewport);
+    }
   }
 }
 
@@ -485,6 +490,12 @@ ViewportManager* UIContext::viewport_manager() const
 void UIContext::set_event_handler(nom::EventHandler& evt_handler)
 {
   this->event_handler_ = &evt_handler;
+
+  // Auto-bind ViewportManager to EventHandler for coordinate conversion
+  // and window resize synchronization.
+  if( this->viewport_manager_ != nullptr ) {
+    this->event_handler_->set_viewport_manager(this->viewport_manager_);
+  }
 
   auto event_watch = nom::event_filter( [=](const nom::Event& evt, void* data) {
     this->process_event(evt);
