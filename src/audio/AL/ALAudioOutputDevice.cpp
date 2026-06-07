@@ -104,8 +104,12 @@ void ALAudioOutputDevice::resume()
 void ALAudioOutputDevice::close()
 {
   if(this->impl_ != nullptr) {
+    // audio::shutdown_audio() tears down the OpenAL context/device but does
+    // NOT delete the IOAudioEngine instance itself — we own the engine and
+    // must destroy it here so that the AudioMixerGroup (and with it all bus
+    // state and source registrations) is fully released.
     audio::shutdown_audio(this->impl_);
-    this->impl_ = nullptr;
+    NOM_DELETE_PTR(this->impl_);
   }
   this->device_name_.clear();
 }

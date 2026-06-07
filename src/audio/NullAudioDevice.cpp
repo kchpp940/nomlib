@@ -75,6 +75,10 @@ IOAudioEngine* NullAudioDevice::open(const audio::AudioSpec* spec)
   if(spec != nullptr) {
   }
 
+  if(this->initialized_ == true) {
+    this->close();
+  }
+
   this->device_name_ = "NullAudioDevice";
 
   this->impl_ = new NullAudioEngineCaps();

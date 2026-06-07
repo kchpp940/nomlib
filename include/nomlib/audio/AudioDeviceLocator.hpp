@@ -50,6 +50,7 @@ class AudioDeviceLocator
     ~AudioDeviceLocator( void );
 
     static void initialize( void );
+    static void shutdown( void );
     static IAudioDevice& audio_device( void );
     static void set_provider( IAudioDevice* service );
 

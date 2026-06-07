@@ -40,34 +40,65 @@ NullAudioDevice AudioDeviceLocator::null_audio_;
 
 AudioDeviceLocator::~AudioDeviceLocator( void )
 {
-  NOM_DELETE_PTR( AudioDeviceLocator::audio_ );
+  AudioDeviceLocator::shutdown();
 }
 
 void AudioDeviceLocator::initialize( void )
 {
+  if(AudioDeviceLocator::null_audio_.valid() == false) {
+    AudioDeviceLocator::null_audio_.open(nullptr);
+  }
+  AudioDeviceLocator::audio_ = &AudioDeviceLocator::null_audio_;
+}
+
+void AudioDeviceLocator::shutdown( void )
+{
+  // Release the currently-installed provider if it is a heap-allocated real
+  // device (never destroy the static null fallback instance that we own).
+  if(AudioDeviceLocator::audio_ != nullptr &&
+     AudioDeviceLocator::audio_ != &AudioDeviceLocator::null_audio_) {
+    AudioDeviceLocator::audio_->close();
+    NOM_DELETE_PTR(AudioDeviceLocator::audio_);
+  }
+
+  // Also reset the null fallback so its engine / mixer state and any
+  // lingering source registrations are fully torn down.
+  AudioDeviceLocator::null_audio_.close();
   AudioDeviceLocator::audio_ = &AudioDeviceLocator::null_audio_;
 }
 
 IAudioDevice& AudioDeviceLocator::audio_device( void )
 {
-  // if( AudioDeviceLocator::audio_ == nullptr )
-  // {
-    // NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO, "AudioDevice was not yet initialized. Initializing..." );
-    // AudioDeviceLocator::initialize();
-  // }
+  if(AudioDeviceLocator::audio_ == nullptr) {
+    NOM_LOG_INFO(NOM_LOG_CATEGORY_AUDIO,
+                 "AudioDevice was not yet initialized. Initializing...");
+    AudioDeviceLocator::initialize();
+  }
 
   return *AudioDeviceLocator::audio_;
 }
 
 void AudioDeviceLocator::set_provider( IAudioDevice* service )
 {
-  if( service == nullptr )
-  {
-    NOM_LOG_INFO( NOM_LOG_CATEGORY_APPLICATION, "Audio Service given was NULL; initializing NullAudioDevice..." );
-    AudioDeviceLocator::initialize();
+  // Release the currently-installed provider before swapping (always; even the
+  // null fallback gets cycled so its bus state and source registry reset).
+  if(AudioDeviceLocator::audio_ != nullptr) {
+    if(AudioDeviceLocator::audio_ != &AudioDeviceLocator::null_audio_) {
+      AudioDeviceLocator::audio_->close();
+      NOM_DELETE_PTR(AudioDeviceLocator::audio_);
+    } else {
+      AudioDeviceLocator::null_audio_.close();
+    }
   }
-  else
-  {
+
+  if(service == nullptr) {
+    NOM_LOG_INFO(NOM_LOG_CATEGORY_APPLICATION,
+                 "Audio Service given was NULL; falling back to NullAudioDevice.");
+    if(AudioDeviceLocator::null_audio_.valid() == false) {
+      AudioDeviceLocator::null_audio_.open(nullptr);
+    }
+    AudioDeviceLocator::audio_ = &AudioDeviceLocator::null_audio_;
+  } else {
     AudioDeviceLocator::audio_ = service;
   }
 }
