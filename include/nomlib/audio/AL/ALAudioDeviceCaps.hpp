@@ -29,6 +29,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef NOMLIB_AUDIO_AL_DEVICE_CAPS_HPP
 #define NOMLIB_AUDIO_AL_DEVICE_CAPS_HPP
 
+#include <array>
+
 #include "nomlib/config.hpp"
 #include "nomlib/math/Point3.hpp"
 #include "nomlib/audio/IOAudioEngine.hpp"
@@ -161,13 +163,40 @@ class ALAudioEngine: public IOAudioEngine
 
     virtual void free_buffer(SoundBuffer* target) override;
 
+    virtual real32 bus_volume(AudioBus bus) const override;
+    virtual void set_bus_volume(AudioBus bus, real32 gain) override;
+
+    virtual bool bus_muted(AudioBus bus) const override;
+    virtual void set_bus_muted(AudioBus bus, bool mute) override;
+
+    virtual bool bus_paused(AudioBus bus) const override;
+    virtual void pause_bus(AudioBus bus) override;
+    virtual void resume_bus(AudioBus bus) override;
+    virtual void stop_bus(AudioBus bus) override;
+
+    virtual void fade_bus_volume(AudioBus bus, real32 target_gain,
+                                 real32 duration) override;
+
+    virtual const AudioBusStates& bus_states() const override;
+
+    void register_source(SoundBuffer* target);
+    void unregister_source(SoundBuffer* target);
+
   private:
     bool fill_buffer(SoundBuffer* target);
+    void apply_bus_gain_to_source(SoundBuffer* target);
+    real32 compute_effective_bus_gain(AudioBus bus) const;
 
     virtual void close_context();
     virtual void close_device();
 
     ALAudioDevice* impl_ = nullptr;
+
+    AudioBusStates bus_states_;
+
+    typedef std::vector<SoundBuffer*> SourceList;
+    typedef std::array<SourceList, AUDIO_BUS_COUNT> BusSources;
+    BusSources bus_sources_;
 };
 
 } // namespace audio

@@ -10,6 +10,7 @@ set( NOM_AUDIO_LIBRARY "nomlib-audio" )
 set(  NOM_AUDIO_SOURCE
       ${INC_DIR}/audio.hpp
       ${INC_DIR}/audio/audio_defs.hpp
+      ${SRC_DIR}/audio/audio_defs.cpp
 
       ${INC_DIR}/audio/SoundBuffer.hpp
       ${INC_DIR}/audio/ISoundFileReader.hpp

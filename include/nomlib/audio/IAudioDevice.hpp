@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 
 #include "nomlib/config.hpp"
+#include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 namespace audio {
@@ -58,6 +59,7 @@ class IAudioDevice
     virtual std::string device_name() const = 0;
 
     virtual IOAudioEngine* open(const audio::AudioSpec* spec) = 0;
+    virtual IOAudioEngine* engine() const = 0;
     virtual void suspend() = 0;
     virtual void resume() = 0;
     virtual void close() = 0;

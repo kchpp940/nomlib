@@ -28,6 +28,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/audio/AudioDeviceLocator.hpp"
 
+// Private headers
+#include "nomlib/audio/IAudioDevice.hpp"
+#include "nomlib/audio/IOAudioEngine.hpp"
+
 namespace nom {
 
 // Static initializations
@@ -65,6 +69,88 @@ void AudioDeviceLocator::set_provider( IAudioDevice* service )
   else
   {
     AudioDeviceLocator::audio_ = service;
+  }
+}
+
+audio::IOAudioEngine* AudioDeviceLocator::engine()
+{
+  IAudioDevice& dev = AudioDeviceLocator::audio_device();
+  return dev.engine();
+}
+
+real32 AudioDeviceLocator::bus_volume(audio::AudioBus bus)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    return e->bus_volume(bus);
+  }
+  return audio::MIN_VOLUME;
+}
+
+void AudioDeviceLocator::set_bus_volume(audio::AudioBus bus, real32 gain)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    e->set_bus_volume(bus, gain);
+  }
+}
+
+bool AudioDeviceLocator::bus_muted(audio::AudioBus bus)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    return e->bus_muted(bus);
+  }
+  return false;
+}
+
+void AudioDeviceLocator::set_bus_muted(audio::AudioBus bus, bool mute)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    e->set_bus_muted(bus, mute);
+  }
+}
+
+bool AudioDeviceLocator::bus_paused(audio::AudioBus bus)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    return e->bus_paused(bus);
+  }
+  return false;
+}
+
+void AudioDeviceLocator::pause_bus(audio::AudioBus bus)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    e->pause_bus(bus);
+  }
+}
+
+void AudioDeviceLocator::resume_bus(audio::AudioBus bus)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    e->resume_bus(bus);
+  }
+}
+
+void AudioDeviceLocator::stop_bus(audio::AudioBus bus)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    e->stop_bus(bus);
+  }
+}
+
+void AudioDeviceLocator::fade_bus_volume(audio::AudioBus bus, real32 target_gain,
+                                         real32 duration)
+{
+  auto* e = AudioDeviceLocator::engine();
+  if(e != nullptr) {
+    e->fade_bus_volume(bus, target_gain, duration);
   }
 }
 

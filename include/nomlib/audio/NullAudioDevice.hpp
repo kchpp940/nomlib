@@ -58,13 +58,14 @@ class NullAudioDevice: public IAudioDevice
     std::string device_name() const override;
 
     virtual IOAudioEngine* open(const audio::AudioSpec* spec) override;
+    virtual IOAudioEngine* engine() const override;
     virtual void suspend() override;
     virtual void resume() override;
     virtual void close() override;
 
   private:
     bool initialized_ = false;
-    // IOAudioEngine* impl_ = nullptr;
+    IOAudioEngine* impl_ = nullptr;
     std::string device_name_;
 };
 

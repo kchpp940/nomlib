@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/audio/ISoundFileReader.hpp>
 #include <nomlib/audio/SoundBuffer.hpp>
 #include <nomlib/audio/SoundFile.hpp>
+#include <nomlib/audio/AudioDeviceLocator.hpp>
 
 #if defined(NOM_USE_OPENAL)
   // #include <nomlib/audio/AL/OpenAL.hpp>

@@ -52,7 +52,6 @@ namespace nom {
 struct Event;
 class EventHandler;
 class IUIEventHandler;
-class ViewportManager;
 
 /// \brief libRocket context abstraction
 ///
@@ -190,17 +189,6 @@ class UIContext
     /// as set with SDL2 (logical size).
     void set_size(const Size2i& dims);
 
-    /// \brief Set the viewport manager used for context size calculations
-    ///        and mouse coordinate conversion.
-    ///
-    /// When set, the UIContext will read dimensions and perform coordinate
-    /// transformations from the ViewportManager instead of querying the
-    /// SDL renderer directly.
-    void set_viewport_manager(ViewportManager* viewport);
-
-    /// \brief Get the viewport manager, or nullptr if none is set.
-    ViewportManager* viewport_manager() const;
-
     /// \brief Install the event handler used by the context.
     ///
     /// \remarks The application's events will not be processed until a call is
@@ -249,12 +237,6 @@ class UIContext
 
     // Non-owned pointer
     EventHandler* event_handler_ = nullptr;
-
-    /// \brief Optional viewport manager for unified size and scale state.
-    ///
-    /// When non-null, used instead of direct SDL renderer queries for
-    /// context dimensions and coordinate conversions.
-    ViewportManager* viewport_manager_ = nullptr;
 
     /// \brief The dimensions of the context.
     Size2i res_;

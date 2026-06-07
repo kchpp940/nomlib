@@ -38,6 +38,7 @@ namespace nom {
 namespace audio {
 
 NullAudioEngineCaps::NullAudioEngineCaps()
+  : bus_states_(AUDIO_BUS_COUNT)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 }
@@ -54,13 +55,13 @@ NullAudioEngineCaps::channel_format(uint32 num_channels, uint32 channel_format)
   return channel_format;
 }
 
-bool NullAudioEngineCaps::valid_audio_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::valid_buffer(SoundBuffer* buffer)
 {
   bool valid = false;
   return valid;
 }
 
-bool NullAudioEngineCaps::valid_sound_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::valid_source(SoundBuffer* buffer)
 {
   bool valid = false;
   return valid;
@@ -132,11 +133,6 @@ real32 NullAudioEngineCaps::playback_samples(SoundBuffer* buffer)
   return samples;
 }
 
-void NullAudioEngineCaps::set_state(SoundBuffer* target, uint32 state)
-{
-
-}
-
 void NullAudioEngineCaps::set_volume(real32 gain)
 {
 
@@ -202,7 +198,13 @@ void NullAudioEngineCaps::resume(SoundBuffer* buffer)
 
 }
 
-bool NullAudioEngineCaps::fill_audio_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::push_buffer(SoundBuffer* buffer)
+{
+  bool result = false;
+  return result;
+}
+
+bool NullAudioEngineCaps::queue_buffer(SoundBuffer* buffer)
 {
   bool result = false;
   return result;
@@ -211,6 +213,80 @@ bool NullAudioEngineCaps::fill_audio_buffer(SoundBuffer* buffer)
 void NullAudioEngineCaps::free_buffer(SoundBuffer* buffer)
 {
 
+}
+
+real32 NullAudioEngineCaps::bus_volume(AudioBus bus) const
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    return this->bus_states_[idx].volume;
+  }
+  return MIN_VOLUME;
+}
+
+void NullAudioEngineCaps::set_bus_volume(AudioBus bus, real32 gain)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    this->bus_states_[idx].volume = gain;
+  }
+}
+
+bool NullAudioEngineCaps::bus_muted(AudioBus bus) const
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    return this->bus_states_[idx].muted;
+  }
+  return false;
+}
+
+void NullAudioEngineCaps::set_bus_muted(AudioBus bus, bool mute)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    this->bus_states_[idx].muted = mute;
+  }
+}
+
+bool NullAudioEngineCaps::bus_paused(AudioBus bus) const
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    return this->bus_states_[idx].paused;
+  }
+  return false;
+}
+
+void NullAudioEngineCaps::pause_bus(AudioBus bus)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    this->bus_states_[idx].paused = true;
+  }
+}
+
+void NullAudioEngineCaps::resume_bus(AudioBus bus)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    this->bus_states_[idx].paused = false;
+  }
+}
+
+void NullAudioEngineCaps::stop_bus(AudioBus bus)
+{
+}
+
+void NullAudioEngineCaps::fade_bus_volume(AudioBus bus, real32 target_gain,
+                                          real32 duration)
+{
+  this->set_bus_volume(bus, target_gain);
+}
+
+const AudioBusStates& NullAudioEngineCaps::bus_states() const
+{
+  return this->bus_states_;
 }
 
 } // namespace audio

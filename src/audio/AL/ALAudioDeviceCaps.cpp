@@ -338,6 +338,7 @@ uint32 sound_id(SoundBuffer* target)
 #endif
 
 ALAudioEngine::ALAudioEngine()
+  : bus_states_(AUDIO_BUS_COUNT)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 
@@ -1053,6 +1054,15 @@ void ALAudioEngine::set_playback_position(SoundBuffer* target,
 void ALAudioEngine::play(SoundBuffer* target)
 {
   if(target != nullptr && this->valid() == true) {
+    this->register_source(target);
+    this->apply_bus_gain_to_source(target);
+
+    auto bus_idx = static_cast<nom::size_type>(target->bus);
+    if(bus_idx < this->bus_states_.size() &&
+       this->bus_states_[bus_idx].paused) {
+      return;
+    }
+
     AL_CLEAR_ERR();
     alSourcePlay(target->source_id);
     AL_CHECK_ERR_VOID();
@@ -1184,6 +1194,8 @@ void ALAudioEngine::free_buffer(SoundBuffer* target)
   uint32 num_sources = 1;
 
   if(target != nullptr) {
+
+    this->unregister_source(target);
 
     if(this->valid_source(target) == true) {
 
@@ -1327,6 +1339,257 @@ void ALAudioEngine::close_device()
     // NOM_LOG_DEBUG(NOM_LOG_PRIORITY_DEBUG, "Audio device released");
     NOM_LOG_INFO(NOM, "Audio device released");
   }
+}
+
+// AudioBus / MixerGroup implementation
+
+real32 ALAudioEngine::compute_effective_bus_gain(AudioBus bus) const
+{
+  auto bus_idx = static_cast<nom::size_type>(bus);
+  if(bus_idx >= this->bus_states_.size()) {
+    return MIN_VOLUME;
+  }
+
+  real32 master_gain = MAX_VOLUME;
+  auto master_idx = static_cast<nom::size_type>(AudioBus::Master);
+  if(master_idx < this->bus_states_.size()) {
+    if(this->bus_states_[master_idx].muted) {
+      master_gain = MIN_VOLUME;
+    } else {
+      master_gain = this->bus_states_[master_idx].volume;
+    }
+  }
+
+  real32 bus_gain = this->bus_states_[bus_idx].volume;
+  if(this->bus_states_[bus_idx].muted) {
+    bus_gain = MIN_VOLUME;
+  }
+
+  return (master_gain * bus_gain) / MAX_VOLUME;
+}
+
+void ALAudioEngine::apply_bus_gain_to_source(SoundBuffer* target)
+{
+  if(target == nullptr || this->valid() == false) {
+    return;
+  }
+
+  real32 effective_gain = this->compute_effective_bus_gain(target->bus);
+  effective_gain = nom::clamp(effective_gain, MIN_VOLUME, MAX_VOLUME);
+
+  auto normalized_gain = effective_gain * 0.01f;
+  AL_CLEAR_ERR();
+  alSourcef(target->source_id, AL_GAIN, normalized_gain);
+  AL_CHECK_ERR_VOID();
+}
+
+void ALAudioEngine::register_source(SoundBuffer* target)
+{
+  if(target == nullptr) {
+    return;
+  }
+
+  auto bus_idx = static_cast<nom::size_type>(target->bus);
+  if(bus_idx >= this->bus_sources_.size()) {
+    return;
+  }
+
+  auto& sources = this->bus_sources_[bus_idx];
+  auto it = std::find(sources.begin(), sources.end(), target);
+  if(it == sources.end()) {
+    sources.push_back(target);
+  }
+}
+
+void ALAudioEngine::unregister_source(SoundBuffer* target)
+{
+  if(target == nullptr) {
+    return;
+  }
+
+  for(nom::size_type i = 0; i < this->bus_sources_.size(); ++i) {
+    auto& sources = this->bus_sources_[i];
+    auto it = std::find(sources.begin(), sources.end(), target);
+    if(it != sources.end()) {
+      sources.erase(it);
+    }
+  }
+}
+
+real32 ALAudioEngine::bus_volume(AudioBus bus) const
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    return this->bus_states_[idx].volume;
+  }
+  return MIN_VOLUME;
+}
+
+void ALAudioEngine::set_bus_volume(AudioBus bus, real32 gain)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx >= this->bus_states_.size()) {
+    return;
+  }
+
+  gain = nom::clamp(gain, MIN_VOLUME, MAX_VOLUME);
+  this->bus_states_[idx].volume = gain;
+
+  if(bus == AudioBus::Master) {
+    for(nom::size_type i = 0; i < this->bus_sources_.size(); ++i) {
+      for(auto* src : this->bus_sources_[i]) {
+        this->apply_bus_gain_to_source(src);
+      }
+    }
+  } else {
+    for(auto* src : this->bus_sources_[idx]) {
+      this->apply_bus_gain_to_source(src);
+    }
+  }
+}
+
+bool ALAudioEngine::bus_muted(AudioBus bus) const
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    return this->bus_states_[idx].muted;
+  }
+  return false;
+}
+
+void ALAudioEngine::set_bus_muted(AudioBus bus, bool mute)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx >= this->bus_states_.size()) {
+    return;
+  }
+
+  this->bus_states_[idx].muted = mute;
+
+  if(bus == AudioBus::Master) {
+    for(nom::size_type i = 0; i < this->bus_sources_.size(); ++i) {
+      for(auto* src : this->bus_sources_[i]) {
+        this->apply_bus_gain_to_source(src);
+      }
+    }
+  } else {
+    for(auto* src : this->bus_sources_[idx]) {
+      this->apply_bus_gain_to_source(src);
+    }
+  }
+}
+
+bool ALAudioEngine::bus_paused(AudioBus bus) const
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx < this->bus_states_.size()) {
+    return this->bus_states_[idx].paused;
+  }
+  return false;
+}
+
+void ALAudioEngine::pause_bus(AudioBus bus)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx >= this->bus_states_.size() || this->valid() == false) {
+    return;
+  }
+
+  this->bus_states_[idx].paused = true;
+
+  if(bus == AudioBus::Master) {
+    for(nom::size_type i = 0; i < this->bus_sources_.size(); ++i) {
+      for(auto* src : this->bus_sources_[i]) {
+        if(this->valid_source(src) == true) {
+          AL_CLEAR_ERR();
+          alSourcePause(src->source_id);
+          AL_CHECK_ERR_VOID();
+        }
+      }
+    }
+  } else {
+    for(auto* src : this->bus_sources_[idx]) {
+      if(this->valid_source(src) == true) {
+        AL_CLEAR_ERR();
+        alSourcePause(src->source_id);
+        AL_CHECK_ERR_VOID();
+      }
+    }
+  }
+}
+
+void ALAudioEngine::resume_bus(AudioBus bus)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx >= this->bus_states_.size() || this->valid() == false) {
+    return;
+  }
+
+  this->bus_states_[idx].paused = false;
+
+  auto master_idx = static_cast<nom::size_type>(AudioBus::Master);
+  bool master_paused =
+    (master_idx < this->bus_states_.size()) ?
+      this->bus_states_[master_idx].paused : false;
+
+  if(bus == AudioBus::Master) {
+    for(nom::size_type i = 0; i < this->bus_sources_.size(); ++i) {
+      for(auto* src : this->bus_sources_[i]) {
+        if(this->valid_source(src) == true) {
+          AL_CLEAR_ERR();
+          alSourcePlay(src->source_id);
+          AL_CHECK_ERR_VOID();
+        }
+      }
+    }
+  } else if(!master_paused) {
+    for(auto* src : this->bus_sources_[idx]) {
+      if(this->valid_source(src) == true) {
+        AL_CLEAR_ERR();
+        alSourcePlay(src->source_id);
+        AL_CHECK_ERR_VOID();
+      }
+    }
+  }
+}
+
+void ALAudioEngine::stop_bus(AudioBus bus)
+{
+  auto idx = static_cast<nom::size_type>(bus);
+  if(idx >= this->bus_states_.size() || this->valid() == false) {
+    return;
+  }
+
+  if(bus == AudioBus::Master) {
+    for(nom::size_type i = 0; i < this->bus_sources_.size(); ++i) {
+      for(auto* src : this->bus_sources_[i]) {
+        if(this->valid_source(src) == true) {
+          AL_CLEAR_ERR();
+          alSourceStop(src->source_id);
+          AL_CHECK_ERR_VOID();
+        }
+      }
+    }
+  } else {
+    for(auto* src : this->bus_sources_[idx]) {
+      if(this->valid_source(src) == true) {
+        AL_CLEAR_ERR();
+        alSourceStop(src->source_id);
+        AL_CHECK_ERR_VOID();
+      }
+    }
+  }
+}
+
+void ALAudioEngine::fade_bus_volume(AudioBus bus, real32 target_gain,
+                                    real32 duration)
+{
+  this->set_bus_volume(bus, target_gain);
+}
+
+const AudioBusStates& ALAudioEngine::bus_states() const
+{
+  return this->bus_states_;
 }
 
 } // namespace audio

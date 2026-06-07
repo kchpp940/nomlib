@@ -35,7 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Forward declarations
 #include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/Event.hpp"
-#include "nomlib/graphics/ViewportManager.hpp"
 
 namespace nom {
 
@@ -64,64 +63,31 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
       {
         case nom::WindowEvent::SIZE_CHANGED:
         {
-          // NOTE: ViewportManager::on_change callback already triggers
-          // UIContext::context_->SetDimensions via set_viewport_manager().
-          // No manual synchronization needed here.
+          // Update desktop dimensions; this should not be used with SDL2's
+          // independent resolution scale feature (logical view-port),
+          // as it breaks the absolute positioning coordinates. This is due to
+          // the internally calculated aspect ratio that SDL2 does when using
+          // the feature upon a size change.
+          // this->ctx_->set_size( Size2i( ev.window.data1, ev.window.data2 ) );
         } break;
       }
     } break;
 
     case nom::Event::MOUSE_MOTION:
     {
-      int mouse_x = ev.motion.x;
-      int mouse_y = ev.motion.y;
-
-      // Only trust coordinates that are explicitly marked as Logical.
-      // Any other value (WindowPixels, uninitialized memory, future enum
-      // entries) is treated as raw window pixels and converted via the
-      // ViewportManager as a fallback.
-      if( ev.motion.coord_space != MouseCoordinateSpace_Logical ) {
-        ViewportManager* vp = this->ctx_->viewport_manager();
-        if( vp != nullptr ) {
-          Point2i logical = vp->window_to_logical(Point2i(mouse_x, mouse_y));
-          mouse_x = logical.x;
-          mouse_y = logical.y;
-        }
-      }
-
-      this->ctx_->context()->ProcessMouseMove(  mouse_x,
-                                                mouse_y,
+      this->ctx_->context()->ProcessMouseMove(  ev.motion.x,
+                                                ev.motion.y,
                                                 this->translate_key_modifiers(ev) );
     } break;
 
     case nom::Event::MOUSE_BUTTON_CLICK:
     {
-      if( ev.mouse.coord_space != MouseCoordinateSpace_Logical ) {
-        ViewportManager* vp = this->ctx_->viewport_manager();
-        if( vp != nullptr ) {
-          Point2i logical = vp->window_to_logical(
-            Point2i(ev.mouse.x, ev.mouse.y));
-          this->ctx_->context()->ProcessMouseMove( logical.x, logical.y,
-                                                   this->translate_key_modifiers(ev) );
-        }
-      }
-
       this->ctx_->context()->ProcessMouseButtonDown(  this->translate_mouse_button(ev),
                                                       this->translate_key_modifiers(ev) );
     } break;
 
     case nom::Event::MOUSE_BUTTON_RELEASE:
     {
-      if( ev.mouse.coord_space != MouseCoordinateSpace_Logical ) {
-        ViewportManager* vp = this->ctx_->viewport_manager();
-        if( vp != nullptr ) {
-          Point2i logical = vp->window_to_logical(
-            Point2i(ev.mouse.x, ev.mouse.y));
-          this->ctx_->context()->ProcessMouseMove( logical.x, logical.y,
-                                                   this->translate_key_modifiers(ev) );
-        }
-      }
-
       this->ctx_->context()->ProcessMouseButtonUp(  this->translate_mouse_button(ev),
                                                     this->translate_key_modifiers(ev) );
     } break;

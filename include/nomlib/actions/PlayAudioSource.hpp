@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
+#include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 namespace audio {
@@ -56,10 +57,12 @@ class PlayAudioSource: public virtual IActionObject
 
     /// \brief Default constructor; create the action from an audio file on
     /// disk.
-    PlayAudioSource(audio::IOAudioEngine* dev, const char* filename);
+    PlayAudioSource(audio::IOAudioEngine* dev, const char* filename,
+                    audio::AudioBus bus = audio::AudioBus::Master);
 
     /// \brief Construct the action from a pre-initialized audio buffer.
-    // PlayAudioSource(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer);
+    // PlayAudioSource(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
+    //                 audio::AudioBus bus = audio::AudioBus::Master);
 
     /// \brief Destructor.
     virtual ~PlayAudioSource();
@@ -101,6 +104,8 @@ class PlayAudioSource: public virtual IActionObject
     audio::IOAudioEngine* impl_ = nullptr;
 
     audio::ISoundFileReader* fp_ = nullptr;
+
+    audio::AudioBus bus_ = audio::AudioBus::Master;
 
     typedef std::vector<audio::SoundBuffer*> audio_buffers;
     audio_buffers::iterator current_buffer_;

@@ -126,13 +126,6 @@ RenderWindow::create( const std::string& window_title, const Point2i& pos,
   // (garbage) away.
   this->fill(Color4i::Transparent);
 
-  // Bind the renderer to the viewport manager so logical size changes
-  // automatically apply SDL_RenderSetScale / SetViewport.
-  this->viewport_manager_.set_renderer(this);
-
-  // Initialize viewport manager with the initial window size
-  this->viewport_manager_.on_window_resized(res, this->renderer());
-
   nom::set_render_interface(*this);
 
   return true;
@@ -369,10 +362,6 @@ NOM_LOG_ERR ( NOM, "Could not obtain a valid icon." );
 void RenderWindow::set_size ( int32 width, int32 height )
 {
   SDL_SetWindowSize ( this->window(), width, height );
-
-  // Sync viewport manager with the new window size
-  this->viewport_manager_.on_window_resized( Size2i(width, height),
-                                            this->renderer() );
 }
 
 void RenderWindow::set_position(const Point2i& window_pos)
@@ -590,16 +579,6 @@ void RenderWindow::set_context ( RenderWindow::RawPtr window )
 int RenderWindow::num_video_displays()
 {
   return SDL_GetNumVideoDisplays();
-}
-
-ViewportManager& RenderWindow::viewport_manager()
-{
-  return this->viewport_manager_;
-}
-
-const ViewportManager& RenderWindow::viewport_manager() const
-{
-  return this->viewport_manager_;
 }
 
 namespace priv {

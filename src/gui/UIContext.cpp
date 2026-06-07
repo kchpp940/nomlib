@@ -40,7 +40,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Private headers
 #include "nomlib/graphics/RenderWindow.hpp"
-#include "nomlib/graphics/ViewportManager.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
 namespace nom {
@@ -424,23 +423,16 @@ void UIContext::set_size(const Size2i& dims)
   Point2f scale( 1.0f, 1.0f );
   Size2i res(Size2i::zero);
 
-  if( this->viewport_manager_ != nullptr )
-  {
-    scale = this->viewport_manager_->scale();
-  }
-  else
-  {
-    nom::RocketSDL2RenderInterface* target =
-      NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
-                        Rocket::Core::GetRenderInterface() );
-    NOM_ASSERT( target != nullptr );
+  nom::RocketSDL2RenderInterface* target =
+    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
+                      Rocket::Core::GetRenderInterface() );
+  NOM_ASSERT( target != nullptr );
 
-    const RenderWindow* context = target->window_;
-    NOM_ASSERT( context != nullptr );
-    if( target && context )
-    {
-      SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
-    }
+  const RenderWindow* context = target->window_;
+  NOM_ASSERT( context != nullptr );
+  if( target && context )
+  {
+    SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is
@@ -452,50 +444,9 @@ void UIContext::set_size(const Size2i& dims)
   this->context_->SetDimensions( Rocket::Core::Vector2i(res.w, res.h) );
 }
 
-void UIContext::set_viewport_manager(ViewportManager* viewport)
-{
-  if( this->viewport_manager_ != nullptr ) {
-    this->viewport_manager_->set_on_change_callback(nullptr);
-  }
-
-  this->viewport_manager_ = viewport;
-
-  if( this->viewport_manager_ != nullptr ) {
-    this->viewport_manager_->set_on_change_callback(
-      [this](const ViewportManager& vp) {
-        if( this->context_ != nullptr && vp.logical_size() != Size2i::zero ) {
-          this->context_->SetDimensions(
-            Rocket::Core::Vector2i(vp.context_size().w, vp.context_size().h) );
-        }
-      });
-
-    if( this->context_ != nullptr && viewport->logical_size() != Size2i::zero ) {
-      this->context_->SetDimensions(
-        Rocket::Core::Vector2i(viewport->context_size().w,
-                               viewport->context_size().h) );
-    }
-
-    // Auto-bind to EventHandler if already attached
-    if( this->event_handler_ != nullptr ) {
-      this->event_handler_->set_viewport_manager(viewport);
-    }
-  }
-}
-
-ViewportManager* UIContext::viewport_manager() const
-{
-  return this->viewport_manager_;
-}
-
 void UIContext::set_event_handler(nom::EventHandler& evt_handler)
 {
   this->event_handler_ = &evt_handler;
-
-  // Auto-bind ViewportManager to EventHandler for coordinate conversion
-  // and window resize synchronization.
-  if( this->viewport_manager_ != nullptr ) {
-    this->event_handler_->set_viewport_manager(this->viewport_manager_);
-  }
 
   auto event_watch = nom::event_filter( [=](const nom::Event& evt, void* data) {
     this->process_event(evt);

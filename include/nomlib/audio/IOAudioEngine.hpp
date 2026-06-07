@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/math/Point3.hpp"
+#include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 namespace audio {
@@ -124,6 +125,22 @@ class IOAudioEngine
     virtual void close() = 0;
 
     virtual void free_buffer(SoundBuffer* buffer) = 0;
+
+    virtual real32 bus_volume(AudioBus bus) const = 0;
+    virtual void set_bus_volume(AudioBus bus, real32 gain) = 0;
+
+    virtual bool bus_muted(AudioBus bus) const = 0;
+    virtual void set_bus_muted(AudioBus bus, bool mute) = 0;
+
+    virtual bool bus_paused(AudioBus bus) const = 0;
+    virtual void pause_bus(AudioBus bus) = 0;
+    virtual void resume_bus(AudioBus bus) = 0;
+    virtual void stop_bus(AudioBus bus) = 0;
+
+    virtual void fade_bus_volume(AudioBus bus, real32 target_gain,
+                                 real32 duration) = 0;
+
+    virtual const AudioBusStates& bus_states() const = 0;
 };
 
 } // namespace audio

@@ -113,25 +113,6 @@ struct WindowEvent
   uint32 window_id;
 };
 
-/// \brief Coordinate space of the mouse position values stored in an event.
-///
-/// Consumers (e.g. UIContextEventHandler) check this field to decide whether
-/// coordinate conversion via ViewportManager is needed.
-enum MouseCoordinateSpace : uint8
-{
-  /// \brief Raw window-pixel coordinates, relative to window top-left.
-  ///
-  /// This is the default state for freshly-constructed events and for
-  /// events created outside the EventHandler pipeline.
-  MouseCoordinateSpace_WindowPixels = 0,
-
-  /// \brief Logical (virtual) resolution coordinates.
-  ///
-  /// Set by EventHandler when a ViewportManager is bound and has
-  /// applied the letterbox offset subtraction and inverse scaling.
-  MouseCoordinateSpace_Logical = 1,
-};
-
 /// \brief A structure containing information on a keyboard event.
 struct KeyboardEvent
 {
@@ -188,15 +169,6 @@ struct MouseMotionEvent
 
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
-
-  /// \brief The coordinate space of x, y, x_rel, y_rel.
-  ///
-  /// Always explicitly initialized; consumers should check this value
-  /// and only treat coordinates as logical when exactly equal to
-  /// MouseCoordinateSpace_Logical. Any other value (including
-  /// uninitialized memory patterns that happen to match neither enum
-  /// constant) should be treated as raw window pixels.
-  MouseCoordinateSpace coord_space;
 };
 
 /// \brief A structure containing information on a mouse button event.
@@ -234,15 +206,6 @@ struct MouseButtonEvent
 
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
-
-  /// \brief The coordinate space of x, y.
-  ///
-  /// Always explicitly initialized; consumers should check this value
-  /// and only treat coordinates as logical when exactly equal to
-  /// MouseCoordinateSpace_Logical. Any other value (including
-  /// uninitialized memory patterns that happen to match neither enum
-  /// constant) should be treated as raw window pixels.
-  MouseCoordinateSpace coord_space;
 };
 
 /// \brief A structure containing information on a mouse wheel event.

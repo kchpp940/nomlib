@@ -26,64 +26,21 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ******************************************************************************/
-#ifndef NOMLIB_AUDIO_SOUND_BUFFER_HPP
-#define NOMLIB_AUDIO_SOUND_BUFFER_HPP
-
-#include "nomlib/config.hpp"
 #include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 namespace audio {
 
-// TODO(jeff): Verify that these fields match nom::SoundInfo data types!
-struct SoundBuffer
+const char* audio_bus_name(AudioBus bus)
 {
-  /// \brief The unique identifier for the buffer.
-  ///
-  /// \remarks This is the internal referencing system used by OpenAL.
-  uint32 buffer_id = 0;
-
-  /// \brief The unique identifier for the sound source.
-  uint32 source_id = 0;
-
-  /// \brief The audio bus this source belongs to.
-  AudioBus bus = AudioBus::Master;
-
-  /// \brief The audio buffer.
-  void* samples = nullptr;
-
-  /// \brief The total number of frames in this sample instance
-  nom::size_type frame_count = 0;
-
-  uint32 channel_count = 0;
-
-  uint32 channel_format = 0;
-
-  uint32 sample_rate = 0;
-
-  int64 sample_count = 0;
-
-  /// \brief The total time, in seconds, of the audio buffer.
-  real32 duration = 0.0f;
-
-  nom::size_type total_bytes = 0;
-
-  bool seekable = false;
-
-  /// \see nom::audio::ALAudioDeviceCaps
-  /// \todo Consider using the AudioSourceType enumeration instead
-  bool stream_source = false;
-
-  nom::size_type samples_read = 0;
-  // nom::size_type samples_output = 0;
-
-  nom::size_type elapsed_seconds = 0;
-
-  // TODO(jeff): Implement..? See API docs for alcGetContextsDevice(ctx)
-  void* context = nullptr;
-};
+  switch(bus) {
+    case AudioBus::Master: return "Master";
+    case AudioBus::Music:  return "Music";
+    case AudioBus::Sfx:    return "Sfx";
+    case AudioBus::Voice:  return "Voice";
+    default:               return "Unknown";
+  }
+}
 
 } // namespace audio
 } // namespace nom
-
-#endif // include guard defined
