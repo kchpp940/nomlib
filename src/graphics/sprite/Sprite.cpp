@@ -392,17 +392,36 @@ void Sprite::draw(RenderTarget& target, real64 degrees) const
 
 void Sprite::update()
 {
-  if( this->texture_ == nullptr ) return;
-  if( this->sheet_id_ < 0 ) return;
+  // Mirror the behaviour of the original SpriteBatch::update(): hide the sprite
+  // when the current frame is negative, apply sprite-sheet texture cropping
+  // when a sheet is attached, and always sync the Transformable position/size
+  // state to the underlying texture so that set_position / set_size changes
+  // made before the texture was attached are not lost.
+
+  if( this->sheet_id_ < 0 ) {
+    return;
+  }
 
   if( this->sprite_sheet_.total_frames() > 0 )
   {
     this->offsets_ = this->sprite_sheet_.dimensions( this->sheet_id_ );
-
-    this->texture_->set_bounds( this->offsets_ );
-    this->texture_->set_size( this->size() );
-    this->texture_->set_position( this->position() );
   }
+
+  NOM_ASSERT( this->texture_ != nullptr );
+
+  if( this->texture_ == nullptr ) {
+    NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                  "Could not update sprite: invalid texture." );
+    return;
+  }
+
+  if( this->sprite_sheet_.total_frames() > 0 )
+  {
+    this->texture_->set_bounds( this->offsets_ );
+  }
+
+  this->texture_->set_size( this->size() );
+  this->texture_->set_position( this->position() );
 }
 
 // Non-member factory functions
