@@ -29,7 +29,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/audio/NullAudioDeviceCaps.hpp"
 
 // Private headers
-#include "nomlib/audio/AudioMixerGroup.hpp"
 #include "nomlib/audio/audio_defs.hpp"
 
 // FIXME(jeff): enums
@@ -39,7 +38,6 @@ namespace nom {
 namespace audio {
 
 NullAudioEngineCaps::NullAudioEngineCaps()
-  : mixer_(new AudioMixerGroup())
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 }
@@ -49,35 +47,6 @@ NullAudioEngineCaps::~NullAudioEngineCaps()
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 }
 
-void NullAudioEngineCaps::init(void* driver)
-{
-  (void)driver;
-}
-
-bool NullAudioEngineCaps::valid() const
-{
-  return true;
-}
-
-uint32 NullAudioEngineCaps::caps() const
-{
-  return CAPS_UNDEFINED;
-}
-
-void NullAudioEngineCaps::set_cap(uint32 format)
-{
-  (void)format;
-}
-
-bool NullAudioEngineCaps::connected() const
-{
-  return false;
-}
-
-void NullAudioEngineCaps::close()
-{
-}
-
 uint32
 NullAudioEngineCaps::channel_format(uint32 num_channels, uint32 channel_format)
 {
@@ -85,13 +54,13 @@ NullAudioEngineCaps::channel_format(uint32 num_channels, uint32 channel_format)
   return channel_format;
 }
 
-bool NullAudioEngineCaps::valid_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::valid_audio_buffer(SoundBuffer* buffer)
 {
   bool valid = false;
   return valid;
 }
 
-bool NullAudioEngineCaps::valid_source(SoundBuffer* buffer)
+bool NullAudioEngineCaps::valid_sound_buffer(SoundBuffer* buffer)
 {
   bool valid = false;
   return valid;
@@ -163,6 +132,11 @@ real32 NullAudioEngineCaps::playback_samples(SoundBuffer* buffer)
   return samples;
 }
 
+void NullAudioEngineCaps::set_state(SoundBuffer* target, uint32 state)
+{
+
+}
+
 void NullAudioEngineCaps::set_volume(real32 gain)
 {
 
@@ -228,13 +202,7 @@ void NullAudioEngineCaps::resume(SoundBuffer* buffer)
 
 }
 
-bool NullAudioEngineCaps::push_buffer(SoundBuffer* buffer)
-{
-  bool result = false;
-  return result;
-}
-
-bool NullAudioEngineCaps::queue_buffer(SoundBuffer* buffer)
+bool NullAudioEngineCaps::fill_audio_buffer(SoundBuffer* buffer)
 {
   bool result = false;
   return result;
@@ -243,16 +211,6 @@ bool NullAudioEngineCaps::queue_buffer(SoundBuffer* buffer)
 void NullAudioEngineCaps::free_buffer(SoundBuffer* buffer)
 {
 
-}
-
-AudioMixerGroup* NullAudioEngineCaps::mixer()
-{
-  return this->mixer_.get();
-}
-
-const AudioMixerGroup* NullAudioEngineCaps::mixer() const
-{
-  return this->mixer_.get();
 }
 
 } // namespace audio

@@ -10,10 +10,6 @@ set( NOM_AUDIO_LIBRARY "nomlib-audio" )
 set(  NOM_AUDIO_SOURCE
       ${INC_DIR}/audio.hpp
       ${INC_DIR}/audio/audio_defs.hpp
-      ${SRC_DIR}/audio/audio_defs.cpp
-
-      ${INC_DIR}/audio/AudioMixerGroup.hpp
-      ${SRC_DIR}/audio/AudioMixerGroup.cpp
 
       ${INC_DIR}/audio/SoundBuffer.hpp
       ${INC_DIR}/audio/ISoundFileReader.hpp
@@ -22,15 +18,14 @@ set(  NOM_AUDIO_SOURCE
 
       ${INC_DIR}/audio/IAudioDevice.hpp
       ${INC_DIR}/audio/IOAudioEngine.hpp
-      ${SRC_DIR}/audio/IOAudioEngine.cpp
 
-      ${SRC_DIR}/audio/AudioDeviceLocator.cpp
-      ${INC_DIR}/audio/AudioDeviceLocator.hpp
+      # ${SRC_DIR}/audio/AudioDeviceLocator.cpp
+      # ${INC_DIR}/audio/AudioDeviceLocator.hpp
 
-      ${SRC_DIR}/audio/NullAudioDevice.cpp
-      ${INC_DIR}/audio/NullAudioDevice.hpp
-      ${SRC_DIR}/audio/NullAudioDeviceCaps.cpp
-      ${INC_DIR}/audio/NullAudioDeviceCaps.hpp
+      # ${SRC_DIR}/audio/NullAudioDevice.cpp
+      # ${INC_DIR}/audio/NullAudioDevice.hpp
+      # ${SRC_DIR}/audio/NullAudioDeviceCaps.cpp
+      # ${INC_DIR}/audio/NullAudioDeviceCaps.hpp
 )
 
 # Common dependencies on all platforms
@@ -44,8 +39,6 @@ if(NOM_BUILD_AUDIO_UNIT)
   set(NOM_AUDIO_AL_SOURCE
       ${SRC_DIR}/audio/AL/ALAudioDevice.cpp
       ${INC_DIR}/audio/AL/ALAudioDevice.hpp
-      ${SRC_DIR}/audio/AL/ALAudioOutputDevice.cpp
-      ${INC_DIR}/audio/AL/ALAudioOutputDevice.hpp
       ${SRC_DIR}/audio/AL/ALAudioDeviceCaps.cpp
       ${INC_DIR}/audio/AL/ALAudioDeviceCaps.hpp
 

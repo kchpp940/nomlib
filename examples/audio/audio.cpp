@@ -43,8 +43,7 @@ using namespace nom;
 
 const std::string APP_NAME = "nomlib: audio";
 
-// File resource paths
-SearchPath res;
+ResourceManifest manifest;
 
 /// \remarks See program usage by passing --help
 struct AppFlags
@@ -125,7 +124,7 @@ int main(int argc, char* argv[])
   audio::IOAudioEngine* dev = nullptr;
   audio::SoundBuffer* buffer = nullptr;
 
-  const char* RES_FILENAME = "audio.json";
+  const char* MANIFEST_FILENAME = "audio_manifest.json";
   real32 master_gain = 100.0f;
   const real32 pitch = 1.0f;
   const Point3f audio_pos = {0.0f, 0.0f, 0.0f};
@@ -158,19 +157,21 @@ NOM_IGNORED_VARS_ENDL();
 
   ActionPlayer audio_player;
 
-  if(res.load_file(RES_FILENAME, "resources") == false) {
+  const char* MANIFEST_FILENAME = "audio_manifest.json";
+  if(manifest.load_file(MANIFEST_FILENAME, "resources") == false) {
     NOM_LOG_CRIT(NOM_LOG_CATEGORY_APPLICATION,
-                 "Could not resolve the resources path from given input:",
-                 RES_FILENAME);
+                 "Could not load resource manifest:",
+                 MANIFEST_FILENAME);
     exit(NOM_EXIT_FAILURE);
   }
+  manifest.dump();
 
   if(parse_cmdline(argc, argv, args) != 0) {
     exit(NOM_EXIT_FAILURE);
   }
 
   if(args.audio_input.length() < 1) {
-    args.audio_input = res.path() + "sinewave_1s-900.wav";
+    args.audio_input = manifest.resolve_path( "sinewave_900hz_1s" );
   }
 
   // Fatal error; if we are not able to complete this step, it means that

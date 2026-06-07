@@ -30,7 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_AUDIO_SOUND_BUFFER_HPP
 
 #include "nomlib/config.hpp"
-#include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 namespace audio {
@@ -45,9 +44,6 @@ struct SoundBuffer
 
   /// \brief The unique identifier for the sound source.
   uint32 source_id = 0;
-
-  /// \brief The audio bus this source belongs to.
-  AudioBus bus = AudioBus::Master;
 
   /// \brief The audio buffer.
   void* samples = nullptr;

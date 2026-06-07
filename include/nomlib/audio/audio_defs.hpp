@@ -31,9 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <nomlib/types.hpp>
 
-#include <string>
-#include <vector>
-
 namespace nom {
 namespace audio {
 
@@ -45,29 +42,6 @@ class IOAudioEngine;
 // internally stored as a 32-bit floating-point value that is normalized to 0..1
 const nom::real32 MIN_VOLUME = 0.0f;
 const nom::real32 MAX_VOLUME = 100.0f;
-
-enum class AudioBus
-{
-  Master = 0,
-  Music,
-  Sfx,
-  Voice,
-  Total
-};
-
-const char* audio_bus_name(AudioBus bus);
-
-struct AudioBusState
-{
-  real32 volume = MAX_VOLUME;
-  bool muted = false;
-  bool paused = false;
-};
-
-const nom::size_type AUDIO_BUS_COUNT =
-  static_cast<nom::size_type>(AudioBus::Total);
-
-typedef std::vector<AudioBusState> AudioBusStates;
 
 /// Optimal sound frame size (in bytes); used by libsndfile
 const nom::uint32 BUFFER_SIZE = kilobyte(32);

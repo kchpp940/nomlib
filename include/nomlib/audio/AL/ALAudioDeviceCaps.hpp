@@ -29,8 +29,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef NOMLIB_AUDIO_AL_DEVICE_CAPS_HPP
 #define NOMLIB_AUDIO_AL_DEVICE_CAPS_HPP
 
-#include <memory>
-
 #include "nomlib/config.hpp"
 #include "nomlib/math/Point3.hpp"
 #include "nomlib/audio/IOAudioEngine.hpp"
@@ -49,7 +47,6 @@ namespace audio {
 struct SoundBuffer;
 // struct AudioSpec;
 struct ALAudioDevice;
-class AudioMixerGroup;
 
 // Function declarations
 
@@ -164,21 +161,13 @@ class ALAudioEngine: public IOAudioEngine
 
     virtual void free_buffer(SoundBuffer* target) override;
 
-    virtual AudioMixerGroup* mixer() override;
-    virtual const AudioMixerGroup* mixer() const override;
-
   private:
     bool fill_buffer(SoundBuffer* target);
-
-    void apply_effective_gain(SoundBuffer* target);
-    void wire_mixer_callbacks();
 
     virtual void close_context();
     virtual void close_device();
 
     ALAudioDevice* impl_ = nullptr;
-
-    std::unique_ptr<AudioMixerGroup> mixer_;
 };
 
 } // namespace audio

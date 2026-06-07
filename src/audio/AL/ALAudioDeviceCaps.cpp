@@ -33,9 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/core/err.hpp"
 #include "nomlib/core/strings.hpp"
-#include "nomlib/math/math_helpers.hpp"
 #include "nomlib/audio/audio_defs.hpp"
-#include "nomlib/audio/AudioMixerGroup.hpp"
 #include "nomlib/audio/AL/OpenAL.hpp"
 #include "nomlib/audio/SoundFile.hpp"
 
@@ -340,11 +338,8 @@ uint32 sound_id(SoundBuffer* target)
 #endif
 
 ALAudioEngine::ALAudioEngine()
-  : mixer_(new AudioMixerGroup())
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
-
-  this->wire_mixer_callbacks();
 
   // TODO(jeff): Remove
   NOM_LOG_INFO(NOM, "Audio device initialized");
@@ -1058,14 +1053,6 @@ void ALAudioEngine::set_playback_position(SoundBuffer* target,
 void ALAudioEngine::play(SoundBuffer* target)
 {
   if(target != nullptr && this->valid() == true) {
-    this->mixer_->register_source(target);
-    this->apply_effective_gain(target);
-
-    if(this->mixer_->bus_paused(target->bus) ||
-       this->mixer_->bus_paused(AudioBus::Master)) {
-      return;
-    }
-
     AL_CLEAR_ERR();
     alSourcePlay(target->source_id);
     AL_CHECK_ERR_VOID();
@@ -1197,8 +1184,6 @@ void ALAudioEngine::free_buffer(SoundBuffer* target)
   uint32 num_sources = 1;
 
   if(target != nullptr) {
-
-    this->mixer_->unregister_source(target);
 
     if(this->valid_source(target) == true) {
 
@@ -1342,69 +1327,6 @@ void ALAudioEngine::close_device()
     // NOM_LOG_DEBUG(NOM_LOG_PRIORITY_DEBUG, "Audio device released");
     NOM_LOG_INFO(NOM, "Audio device released");
   }
-}
-
-// AudioMixerGroup integration -------------------------------------------------
-
-void ALAudioEngine::apply_effective_gain(SoundBuffer* target)
-{
-  if(target == nullptr || this->valid() == false) {
-    return;
-  }
-
-  real32 effective_gain = this->mixer_->effective_bus_gain(target->bus);
-  if(effective_gain < MIN_VOLUME) effective_gain = MIN_VOLUME;
-  if(effective_gain > MAX_VOLUME) effective_gain = MAX_VOLUME;
-
-  auto normalized_gain = effective_gain * 0.01f;
-  AL_CLEAR_ERR();
-  alSourcef(target->source_id, AL_GAIN, normalized_gain);
-  AL_CHECK_ERR_VOID();
-}
-
-void ALAudioEngine::wire_mixer_callbacks()
-{
-  this->mixer_->set_pause_callback(
-    [this](SoundBuffer* target) {
-      if(target != nullptr && this->valid_source(target) == true) {
-        AL_CLEAR_ERR();
-        alSourcePause(target->source_id);
-        AL_CHECK_ERR_VOID();
-      }
-    });
-
-  this->mixer_->set_resume_callback(
-    [this](SoundBuffer* target) {
-      if(target != nullptr && this->valid_source(target) == true) {
-        AL_CLEAR_ERR();
-        alSourcePlay(target->source_id);
-        AL_CHECK_ERR_VOID();
-      }
-    });
-
-  this->mixer_->set_stop_callback(
-    [this](SoundBuffer* target) {
-      if(target != nullptr && this->valid_source(target) == true) {
-        AL_CLEAR_ERR();
-        alSourceStop(target->source_id);
-        AL_CHECK_ERR_VOID();
-      }
-    });
-
-  this->mixer_->set_gain_callback(
-    [this](SoundBuffer* target) {
-      this->apply_effective_gain(target);
-    });
-}
-
-AudioMixerGroup* ALAudioEngine::mixer()
-{
-  return this->mixer_.get();
-}
-
-const AudioMixerGroup* ALAudioEngine::mixer() const
-{
-  return this->mixer_.get();
 }
 
 } // namespace audio

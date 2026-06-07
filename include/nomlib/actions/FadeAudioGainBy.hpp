@@ -33,7 +33,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
-#include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 namespace audio {
@@ -61,10 +60,6 @@ class FadeAudioGainBy: public virtual IActionObject
 
     /// \brief Construct the action from a pre-initialized audio buffer.
     FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
-                    real32 delta, real32 duration);
-
-    /// \brief Construct the action to fade an entire audio bus.
-    FadeAudioGainBy(audio::IOAudioEngine* dev, audio::AudioBus bus,
                     real32 delta, real32 duration);
 
     /// \brief Destructor.
@@ -106,12 +101,6 @@ class FadeAudioGainBy: public virtual IActionObject
 
     /// \brief The animation proxy object used to perform alpha blending on.
     audio::SoundBuffer* audible_ = nullptr;
-
-    /// \brief The audio bus to fade; only used when audible_ is nullptr.
-    audio::AudioBus bus_ = audio::AudioBus::Master;
-
-    /// \brief Whether we are fading an entire bus instead of a single source.
-    bool fade_bus_ = false;
 };
 
 } // namespace nom

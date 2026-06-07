@@ -31,18 +31,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/audio/NullAudioDevice.hpp"
-#include "nomlib/audio/audio_defs.hpp"
 
 namespace nom {
 
-// Import into nom namespace for convenience (historical code expected these
-// types at this level).
-using audio::IAudioDevice;
-using audio::NullAudioDevice;
-
-namespace audio {
-  class IOAudioEngine;
-}
+// Forward declarations
+class IAudioDevice;
 
 class AudioDeviceLocator
 {
@@ -50,25 +43,8 @@ class AudioDeviceLocator
     ~AudioDeviceLocator( void );
 
     static void initialize( void );
-    static void shutdown( void );
     static IAudioDevice& audio_device( void );
     static void set_provider( IAudioDevice* service );
-
-    static audio::IOAudioEngine* engine();
-
-    static real32 bus_volume(audio::AudioBus bus);
-    static void set_bus_volume(audio::AudioBus bus, real32 gain);
-
-    static bool bus_muted(audio::AudioBus bus);
-    static void set_bus_muted(audio::AudioBus bus, bool mute);
-
-    static bool bus_paused(audio::AudioBus bus);
-    static void pause_bus(audio::AudioBus bus);
-    static void resume_bus(audio::AudioBus bus);
-    static void stop_bus(audio::AudioBus bus);
-
-    static void fade_bus_volume(audio::AudioBus bus, real32 target_gain,
-                                real32 duration);
 
   private:
     static IAudioDevice* audio_;

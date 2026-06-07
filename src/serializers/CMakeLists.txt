@@ -36,6 +36,9 @@ set(  NOM_SERIALIZERS_SOURCE
       ${SRC_DIR}/serializers/SearchPath.cpp
       ${INC_DIR}/serializers/SearchPath.hpp
 
+      ${SRC_DIR}/serializers/ResourceManifest.cpp
+      ${INC_DIR}/serializers/ResourceManifest.hpp
+
       ${INC_DIR}/serializers/serializers_config.hpp
 )
 

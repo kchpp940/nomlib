@@ -1,0 +1,77 @@
+{
+  "search_prefix":
+  [
+    "../../../",
+    "../../",
+    "./"
+  ],
+
+  "base_path": "Resources/tests/audio/ALAudioTest/",
+
+  "resources":
+  [
+    {
+      "id": "sinewave_900hz_1s",
+      "type": "audio",
+      "path": "sinewave_1s-900.wav",
+      "tags": ["sfx", "test", "sine"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_900hz_1s_chunk",
+      "type": "audio",
+      "path": "sinewave_1s-chunk.wav",
+      "tags": ["sfx", "test", "sine"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_440hz_2s",
+      "type": "audio",
+      "path": "sinewave_2s-440.wav",
+      "tags": ["sfx", "test", "sine"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_s16_4s",
+      "type": "audio",
+      "path": "sinewave_4s-s16.wav",
+      "tags": ["sfx", "test", "sine"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_real32_1s_900hz",
+      "type": "audio",
+      "path": "sinewave-real32_1s-900.wav",
+      "tags": ["sfx", "test", "sine", "float"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_s8_1s_900hz",
+      "type": "audio",
+      "path": "sinewave-s8_1s-900.wav",
+      "tags": ["sfx", "test", "sine", "8bit"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_s16_1s_900hz",
+      "type": "audio",
+      "path": "sinewave-s16_1s-900.wav",
+      "tags": ["sfx", "test", "sine", "16bit"],
+      "preload": "lazy"
+    },
+    {
+      "id": "sinewave_s32_1s_900hz",
+      "type": "audio",
+      "path": "sinewave-s32_1s-900.wav",
+      "tags": ["sfx", "test", "sine", "32bit"],
+      "preload": "lazy"
+    },
+    {
+      "id": "laura_ff1",
+      "type": "audio",
+      "path": "laura_ff1-s16.wav",
+      "tags": ["music", "voice", "test"],
+      "preload": "lazy"
+    }
+  ]
+}

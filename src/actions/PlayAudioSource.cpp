@@ -46,9 +46,7 @@ namespace nom {
 const char* PlayAudioSource::DEBUG_CLASS_NAME = "[PlayAudioSource]:";
 
 PlayAudioSource::
-PlayAudioSource(audio::IOAudioEngine* dev, const char* filename,
-                audio::AudioBus bus)
-  : bus_(bus)
+PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
@@ -92,7 +90,6 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename,
         return;
       }
 
-      buffer->bus = this->bus_;
       this->set_duration(buffer->duration);
       this->audible_.push_back(buffer);
 
