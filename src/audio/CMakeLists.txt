@@ -12,6 +12,9 @@ set(  NOM_AUDIO_SOURCE
       ${INC_DIR}/audio/audio_defs.hpp
       ${SRC_DIR}/audio/audio_defs.cpp
 
+      ${INC_DIR}/audio/AudioMixerGroup.hpp
+      ${SRC_DIR}/audio/AudioMixerGroup.cpp
+
       ${INC_DIR}/audio/SoundBuffer.hpp
       ${INC_DIR}/audio/ISoundFileReader.hpp
       ${INC_DIR}/audio/ISoundFileWriter.hpp
@@ -19,6 +22,7 @@ set(  NOM_AUDIO_SOURCE
 
       ${INC_DIR}/audio/IAudioDevice.hpp
       ${INC_DIR}/audio/IOAudioEngine.hpp
+      ${SRC_DIR}/audio/IOAudioEngine.cpp
 
       # ${SRC_DIR}/audio/AudioDeviceLocator.cpp
       # ${INC_DIR}/audio/AudioDeviceLocator.hpp

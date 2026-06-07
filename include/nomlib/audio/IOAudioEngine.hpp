@@ -38,6 +38,7 @@ namespace audio {
 
 // Forward declarations
 struct SoundBuffer;
+class AudioMixerGroup;
 
 /// \brief Abstract base class for an instance of the audio hardware interface.
 ///
@@ -126,21 +127,31 @@ class IOAudioEngine
 
     virtual void free_buffer(SoundBuffer* buffer) = 0;
 
-    virtual real32 bus_volume(AudioBus bus) const = 0;
-    virtual void set_bus_volume(AudioBus bus, real32 gain) = 0;
+    // -- AudioMixerGroup access ---------------------------------------------
+    //
+    // Back-ends that support audio bus / mixer group management override
+    // mixer() to return their owned AudioMixerGroup instance. The default
+    // implementation returns nullptr so existing drivers that do not use the
+    // mixer layer continue to compile and link unchanged.
 
-    virtual bool bus_muted(AudioBus bus) const = 0;
-    virtual void set_bus_muted(AudioBus bus, bool mute) = 0;
+    virtual AudioMixerGroup* mixer();
+    virtual const AudioMixerGroup* mixer() const;
 
-    virtual bool bus_paused(AudioBus bus) const = 0;
-    virtual void pause_bus(AudioBus bus) = 0;
-    virtual void resume_bus(AudioBus bus) = 0;
-    virtual void stop_bus(AudioBus bus) = 0;
+    // Convenience accessors; these forward to mixer() when available and
+    // return safe no-op / default values otherwise.
 
-    virtual void fade_bus_volume(AudioBus bus, real32 target_gain,
-                                 real32 duration) = 0;
+    real32 bus_volume(AudioBus bus) const;
+    void set_bus_volume(AudioBus bus, real32 gain);
 
-    virtual const AudioBusStates& bus_states() const = 0;
+    bool bus_muted(AudioBus bus) const;
+    void set_bus_muted(AudioBus bus, bool mute);
+
+    bool bus_paused(AudioBus bus) const;
+    void pause_bus(AudioBus bus);
+    void resume_bus(AudioBus bus);
+    void stop_bus(AudioBus bus);
+
+    void fade_bus_volume(AudioBus bus, real32 target_gain, real32 duration);
 };
 
 } // namespace audio

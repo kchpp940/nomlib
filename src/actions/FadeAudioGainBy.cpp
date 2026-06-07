@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/core/unique_ptr.hpp"
 #include "nomlib/math/math_helpers.hpp"
 #include "nomlib/audio/audio_defs.hpp"
+#include "nomlib/audio/IOAudioEngine.hpp"
 
 // Forward declarations
 #include "nomlib/audio/SoundBuffer.hpp"

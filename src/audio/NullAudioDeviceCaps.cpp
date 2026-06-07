@@ -29,6 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/audio/NullAudioDeviceCaps.hpp"
 
 // Private headers
+#include "nomlib/audio/AudioMixerGroup.hpp"
 #include "nomlib/audio/audio_defs.hpp"
 
 // FIXME(jeff): enums
@@ -38,7 +39,7 @@ namespace nom {
 namespace audio {
 
 NullAudioEngineCaps::NullAudioEngineCaps()
-  : bus_states_(AUDIO_BUS_COUNT)
+  : mixer_(new AudioMixerGroup())
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 }
@@ -215,78 +216,14 @@ void NullAudioEngineCaps::free_buffer(SoundBuffer* buffer)
 
 }
 
-real32 NullAudioEngineCaps::bus_volume(AudioBus bus) const
+AudioMixerGroup* NullAudioEngineCaps::mixer()
 {
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    return this->bus_states_[idx].volume;
-  }
-  return MIN_VOLUME;
+  return this->mixer_.get();
 }
 
-void NullAudioEngineCaps::set_bus_volume(AudioBus bus, real32 gain)
+const AudioMixerGroup* NullAudioEngineCaps::mixer() const
 {
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    this->bus_states_[idx].volume = gain;
-  }
-}
-
-bool NullAudioEngineCaps::bus_muted(AudioBus bus) const
-{
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    return this->bus_states_[idx].muted;
-  }
-  return false;
-}
-
-void NullAudioEngineCaps::set_bus_muted(AudioBus bus, bool mute)
-{
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    this->bus_states_[idx].muted = mute;
-  }
-}
-
-bool NullAudioEngineCaps::bus_paused(AudioBus bus) const
-{
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    return this->bus_states_[idx].paused;
-  }
-  return false;
-}
-
-void NullAudioEngineCaps::pause_bus(AudioBus bus)
-{
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    this->bus_states_[idx].paused = true;
-  }
-}
-
-void NullAudioEngineCaps::resume_bus(AudioBus bus)
-{
-  auto idx = static_cast<nom::size_type>(bus);
-  if(idx < this->bus_states_.size()) {
-    this->bus_states_[idx].paused = false;
-  }
-}
-
-void NullAudioEngineCaps::stop_bus(AudioBus bus)
-{
-}
-
-void NullAudioEngineCaps::fade_bus_volume(AudioBus bus, real32 target_gain,
-                                          real32 duration)
-{
-  this->set_bus_volume(bus, target_gain);
-}
-
-const AudioBusStates& NullAudioEngineCaps::bus_states() const
-{
-  return this->bus_states_;
+  return this->mixer_.get();
 }
 
 } // namespace audio

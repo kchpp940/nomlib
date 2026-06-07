@@ -38,6 +38,7 @@ namespace audio {
 
 // Forward declarations
 struct SoundBuffer;
+class AudioMixerGroup;
 
 // TODO(jeff): Add const to getters!
 class NullAudioEngineCaps: public IOAudioEngine
@@ -90,24 +91,11 @@ class NullAudioEngineCaps: public IOAudioEngine
     virtual void suspend() override;
     virtual void resume() override;
 
-    virtual real32 bus_volume(AudioBus bus) const override;
-    virtual void set_bus_volume(AudioBus bus, real32 gain) override;
-
-    virtual bool bus_muted(AudioBus bus) const override;
-    virtual void set_bus_muted(AudioBus bus, bool mute) override;
-
-    virtual bool bus_paused(AudioBus bus) const override;
-    virtual void pause_bus(AudioBus bus) override;
-    virtual void resume_bus(AudioBus bus) override;
-    virtual void stop_bus(AudioBus bus) override;
-
-    virtual void fade_bus_volume(AudioBus bus, real32 target_gain,
-                                 real32 duration) override;
-
-    virtual const AudioBusStates& bus_states() const override;
+    virtual AudioMixerGroup* mixer() override;
+    virtual const AudioMixerGroup* mixer() const override;
 
   private:
-    AudioBusStates bus_states_;
+    std::unique_ptr<AudioMixerGroup> mixer_;
 };
 
 } // namespace audio
