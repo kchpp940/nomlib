@@ -36,6 +36,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/math/Rect.hpp"
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/system/SDL_helpers.hpp"
+#include "nomlib/graphics/sprite/SpriteSheet.hpp"
+#include "nomlib/graphics/sprite/SpriteAnimator.hpp"
 
 namespace nom {
 
@@ -52,6 +54,17 @@ class Sprite: public Transformable
     typedef Transformable derived_class;
 
     Sprite();
+
+    /// \brief Copy constructor.
+    ///
+    /// \remarks The entire sprite state (texture, position, size, sprite
+    /// sheet, current frame) and embedded SpriteAnimator (clips, playback
+    /// state) are deep-copied.  The animator is automatically rebound to the
+    /// new Sprite instance.
+    Sprite( const Sprite& other );
+
+    /// \brief Copy assignment operator.
+    Sprite& operator=( const Sprite& other );
 
     virtual ~Sprite();
 
@@ -139,6 +152,76 @@ class Sprite: public Transformable
     /// freeing the resource.
     void release_texture();
 
+    // -- Sprite-sheet support ----------------------------------------------
+
+    /// \brief Use the sprite frames from an existing SpriteSheet object.
+    ///
+    /// \param sheet The pre-loaded sprite sheet instance to use the frames
+    /// from.
+    ///
+    /// \remarks The dimensions of this sprite are initialized to the first
+    /// frame of the sprite sheet source.  Any named animations defined in
+    /// the sheet's "animations" JSON node are automatically registered with
+    /// the embedded animator.
+    ///
+    /// \see nom::SpriteSheet::load_file, nom::SpriteAnimator::load_clips.
+    virtual void set_sprite_sheet( const SpriteSheet& sheet );
+
+    /// \brief Returns the current sheet frame ID being rendered, or -1 if the
+    /// sprite is not currently visible.
+    virtual int32 frame() const;
+
+    /// \brief Returns the total number of frames available via the attached
+    /// SpriteSheet, or 1 if no sheet is attached.
+    virtual int32 frames() const;
+
+    /// \brief Set the current sheet frame ID to render.
+    ///
+    /// \param id The frame identifier (from the sprite sheet) to use in
+    /// rendering.  Passing negative one (-1) disables rendering of the sprite
+    /// (useful for toggling visibility without a placeholder frame).
+    ///
+    /// \remarks If no sprite sheet is attached this is a no-op.
+    virtual void set_frame( int32 id );
+
+    // -- Named animation support (built-in SpriteAnimator) -----------------
+
+    /// \brief Play a named animation clip registered with the embedded
+    /// animator (either manually via animator() or automatically from a
+    /// SpriteSheet's "animations" node).
+    ///
+    /// \returns Boolean FALSE if no clip with that name exists.
+    bool play_animation( const std::string& name );
+
+    /// \brief Stop any currently playing animation.
+    void stop_animation();
+
+    /// \brief Pause a playing animation at its current frame.
+    void pause_animation();
+
+    /// \brief Resume a paused animation.
+    void resume_animation();
+
+    /// \brief Returns true if an animation clip is currently playing.
+    bool is_animation_playing() const;
+
+    /// \brief Returns the name of the currently playing animation clip, or an
+    /// empty string if no clip is playing.
+    const std::string& current_animation() const;
+
+    /// \brief Advance any currently playing animation by delta_time seconds.
+    ///
+    /// \remarks This is a no-op if no animation is playing.  It is called
+    /// automatically from the actions system when using SpriteAnimatorAction.
+    SpriteAnimator::State update_animation( real32 delta_time );
+
+    /// \brief Direct access to the embedded SpriteAnimator for advanced usage
+    /// (registering clips manually, setting completion callbacks, etc.).
+    SpriteAnimator& animator();
+    const SpriteAnimator& animator() const;
+
+    // -- Drawing -----------------------------------------------------------
+
     virtual void draw(RenderTarget& target) const override;
 
     /// Draw a rotated nom::Sprite on a nom::RenderWindow
@@ -151,8 +234,20 @@ class Sprite: public Transformable
     /// \brief The underlying texture for the sprite.
     std::shared_ptr<Texture> texture_;
 
+    /// \brief Attached sprite sheet (may be empty).
+    SpriteSheet sprite_sheet_;
+
+    /// \brief Source (input) coordinates — used for sprite sheet positioning.
+    IntRect offsets_;
+
+    /// \brief The sheet's frame ID presently in use; -1 means "not visible".
+    int32 sheet_id_;
+
   private:
     virtual void update() override;
+
+    /// \brief Built-in animation controller.
+    SpriteAnimator animator_;
 
     // TODO: Implement these member variables:
 

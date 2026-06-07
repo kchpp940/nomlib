@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/core/unique_ptr.hpp"
 
 // Forward declarations
-#include "nomlib/graphics/sprite/SpriteBatch.hpp"
+#include "nomlib/graphics/sprite/Sprite.hpp"
 #include "nomlib/graphics/sprite/SpriteAnimationClip.hpp"
 #include "nomlib/graphics/sprite/SpriteAnimator.hpp"
 
@@ -42,7 +42,7 @@ namespace nom {
 const char* SpriteAnimatorAction::DEBUG_CLASS_NAME = "[SpriteAnimatorAction]:";
 
 SpriteAnimatorAction::SpriteAnimatorAction(
-  const std::shared_ptr<SpriteBatch>& drawable,
+  const std::shared_ptr<Sprite>& drawable,
   const std::string& clip_name ) :
   drawable_(drawable),
   clip_name_(clip_name),

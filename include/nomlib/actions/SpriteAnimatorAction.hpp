@@ -38,30 +38,32 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace nom {
 
 // Forward declarations
-class SpriteBatch;
+class Sprite;
 
-/// \brief Drive a nom::SpriteBatch's built-in animator through the actions update loop
+/// \brief Drive a nom::Sprite's built-in animator through the actions update loop
 ///
 /// \remarks This action plays a single named animation clip on a
-/// nom::SpriteBatch via its object-level play_animation / update_animation
-/// entry points.  For looping clips the action will report
-/// FrameState::PLAYING indefinitely — wrap it with nom::RepeatForeverAction
-/// or nom::RepeatForAction as appropriate. For non-looping clips the action
-/// will report FrameState::COMPLETED once the clip finishes, and the
-/// SpriteAnimator's completion callback (if any) will fire naturally.
+/// nom::Sprite (including its subclass nom::SpriteBatch) via its object-level
+/// play_animation / update_animation entry points.  For looping clips the
+/// action will report FrameState::PLAYING indefinitely — wrap it with
+/// nom::RepeatForeverAction or nom::RepeatForAction as appropriate. For
+/// non-looping clips the action will report FrameState::COMPLETED once the
+/// clip finishes, and the SpriteAnimator's completion callback (if any) will
+/// fire naturally.
 ///
-/// \see nom::SpriteBatch, nom::SpriteAnimator, nom::SpriteAnimationClip
+/// \see nom::Sprite, nom::SpriteBatch, nom::SpriteAnimator, nom::SpriteAnimationClip
 class SpriteAnimatorAction: public virtual IActionObject
 {
   public:
     typedef SpriteAnimatorAction self_type;
     typedef IActionObject derived_type;
 
-    /// \brief Play a named clip on a SpriteBatch via the actions system.
+    /// \brief Play a named clip on a Sprite via the actions system.
     ///
-    /// \param drawable   The target sprite. Must outlive this action.
+    /// \param drawable   The target sprite (Sprite or SpriteBatch). Must
+    ///                   outlive this action.
     /// \param clip_name  Name of a previously registered animation clip.
-    SpriteAnimatorAction( const std::shared_ptr<SpriteBatch>& drawable,
+    SpriteAnimatorAction( const std::shared_ptr<Sprite>& drawable,
                           const std::string& clip_name );
 
     virtual ~SpriteAnimatorAction();
@@ -84,7 +86,7 @@ class SpriteAnimatorAction: public virtual IActionObject
     static const char* DEBUG_CLASS_NAME;
 
     /// \brief The sprite we are driving.
-    std::shared_ptr<SpriteBatch> drawable_;
+    std::shared_ptr<Sprite> drawable_;
 
     /// \brief Clip name requested at construction time.
     std::string clip_name_;
@@ -100,13 +102,13 @@ class SpriteAnimatorAction: public virtual IActionObject
 /// \class nom::SpriteAnimatorAction
 /// \ingroup actions
 ///
-/// \brief This action bridges nom::SpriteBatch's built-in animator into the
+/// \brief This action bridges nom::Sprite's built-in animator into the
 /// existing action system so that animations can be sequenced with other
 /// actions like nom::MoveByAction, nom::CallbackAction, etc.
 ///
 /// Typical usage:
 /// \code
-///   auto sprite = std::make_shared<nom::SpriteBatch>();
+///   auto sprite = std::make_shared<nom::Sprite>();
 ///   sprite->set_sprite_sheet(preloaded_sheet); // sheet has animations defined
 ///
 ///   auto attack_action = nom::create_action<nom::SpriteAnimatorAction>(

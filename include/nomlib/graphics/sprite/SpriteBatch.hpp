@@ -30,16 +30,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_GRAPHICS_SPRITE_BATCH_HPP
 
 #include "nomlib/config.hpp"
-#include "nomlib/math/Rect.hpp"
 #include "nomlib/graphics/sprite/Sprite.hpp"
-#include "nomlib/graphics/sprite/SpriteSheet.hpp"
-#include "nomlib/graphics/sprite/SpriteAnimator.hpp"
 
 namespace nom {
 
-// TODO: Consider compositing from nom::Sprite instead of inheriting!
-
 /// \brief Extended sprite rendering using sprite sheets
+///
+/// \note This class was formerly the only place sprite-sheet driven frame
+/// animation lived.  All of that functionality has been moved down to the
+/// base nom::Sprite class.  nom::SpriteBatch is now a thin compatibility
+/// wrapper kept for existing code; it forwards every call to its Sprite
+/// base.
+///
+/// \deprecated Prefer nom::Sprite directly for new code.
 class SpriteBatch: public Sprite
 {
   public:
@@ -48,37 +51,21 @@ class SpriteBatch: public Sprite
 
     /// Default construct for initializing instance variables to their
     /// respective defaults.
-    ///
-    /// \todo Consider initializing sheet_id_ to -1..?
     SpriteBatch();
 
     /// \brief Copy constructor.
     ///
-    /// \remarks The entire sprite state (sheet, frame, texture, position,
-    /// size) and the embedded SpriteAnimator (clips, current clip, playback
-    /// state) are deep-copied from \p other.  The animator is automatically
-    /// rebound to the new SpriteBatch instance, so animations played on the
-    /// copy will drive the copy — not the original.
+    /// \remarks Delegates to nom::Sprite copy constructor, which handles
+    /// deep-copying the sprite state and rebinding the embedded animator.
     SpriteBatch( const SpriteBatch& other );
 
     /// \brief Copy assignment operator.
     ///
-    /// \remarks Same semantics as the copy constructor.
+    /// \remarks Delegates to nom::Sprite copy assignment.
     SpriteBatch& operator=( const SpriteBatch& other );
 
     /// Destructor.
     virtual ~SpriteBatch();
-
-    /// \brief Use the sprite frames from an existing SpriteSheet object.
-    ///
-    /// \param sheet The pre-loaded sprite sheet instance to use the frames
-    /// from.
-    ///
-    /// \remarks The dimensions of this object's Sprite instance are initialized
-    /// to the first frame of the sprite sheet source.
-    ///
-    /// \see nom::SpriteSheet::load_file.
-    virtual void set_sprite_sheet(const SpriteSheet& sheet);
 
     /// \brief Re-implements the IObject::type method.
     ///
@@ -88,100 +75,29 @@ class SpriteBatch: public Sprite
     /// \brief Implements the required IDrawable::clone method.
     SpriteBatch* clone() const;
 
-    /// Get the object's current sheet_id.
-    virtual int32 frame() const;
+    // -- Sprite-sheet & animation API (forwarded to base) ------------------
+    //
+    // These methods are kept for source compatibility with existing code
+    // that uses nom::SpriteBatch.  Every call simply forwards to the
+    // corresponding method in nom::Sprite.
 
-    /// Obtain the number of frames available
-    int32 frames() const;
+    using Sprite::set_sprite_sheet;
+    using Sprite::frame;
+    using Sprite::frames;
+    using Sprite::set_frame;
 
-    /// \brief Set a new frame ID to render.
-    ///
-    /// \param id The frame identifier (from the sprite sheet) to use in
-    /// rendering.
-    ///
-    /// \remarks Setting the frame number to negative one (-1) will prevent
-    /// updating and rendering of the object. This can be used to effectively
-    /// toggle visibility of a sprite without the need of using a placeholder
-    /// frame in the image source.
-    ///
-    /// \see ::update.
-    void set_frame(int32 id);
+    using Sprite::play_animation;
+    using Sprite::stop_animation;
+    using Sprite::pause_animation;
+    using Sprite::resume_animation;
+    using Sprite::is_animation_playing;
+    using Sprite::current_animation;
+    using Sprite::update_animation;
+    using Sprite::animator;
 
-    // -- Named animation support (built-in SpriteAnimator) -----------------
+    // -- Drawing (forwarded to base) ---------------------------------------
 
-    /// \brief Play a named animation clip that was registered with the
-    /// attached SpriteSheet or manually via animator().
-    ///
-    /// \returns Boolean FALSE if no clip with that name exists.
-    bool play_animation( const std::string& name );
-
-    /// \brief Stop any currently playing animation.
-    void stop_animation();
-
-    /// \brief Pause a playing animation at its current frame.
-    void pause_animation();
-
-    /// \brief Resume a paused animation.
-    void resume_animation();
-
-    /// \brief Returns true if an animation clip is currently playing.
-    bool is_animation_playing() const;
-
-    /// \brief Returns the name of the currently playing animation clip, or an
-    /// empty string if no clip is playing.
-    const std::string& current_animation() const;
-
-    /// \brief Advance any currently playing animation by delta_time seconds.
-    ///
-    /// \remarks This is a no-op if no animation is playing.  It is called
-    /// automatically from the actions system when using SpriteAnimatorAction;
-    /// if you are driving animations manually you must call it yourself each
-    /// frame.
-    SpriteAnimator::State update_animation( real32 delta_time );
-
-    /// \brief Direct access to the embedded SpriteAnimator for advanced usage
-    /// (registering clips manually, setting completion callbacks, etc.).
-    SpriteAnimator& animator();
-    const SpriteAnimator& animator() const;
-
-    // -- Drawing -----------------------------------------------------------
-
-    /// \brief Render the sprite frame.
-    ///
-    /// \remarks The sprite is not rendered when the frame number is negative
-    /// one (-1).
-    ///
-    /// \note Re-implements Sprite::draw.
-    virtual void draw(IDrawable::RenderTarget& target) const override;
-
-    /// \brief Render the sprite frame at an angle.
-    ///
-    /// \remarks The sprite is not rendered when the frame number is negative
-    /// one (-1).
-    ///
-    /// \note Re-implements Sprite::draw.
-    virtual void draw(RenderTarget& target, real64 angle) const override;
-
-  protected:
-    /// Source (input) coordinates -- used for sprite sheet positioning
-    IntRect offsets;
-
-    /// Our attached sprite sheet object
-    SpriteSheet sprite_sheet;
-
-    /// The sheet's frame ID presently in use
-    int32 sheet_id_;
-
-  private:
-    /// \brief Update the sprite for rendering with regard to positioning
-    /// coordinates and target frame ID.
-    ///
-    /// \remarks The sprite is not updated when the frame number is negative
-    /// one (-1).
-    virtual void update() override;
-
-    /// \brief Built-in animation controller.
-    SpriteAnimator animator_;
+    using Sprite::draw;
 };
 
 } // namespace nom

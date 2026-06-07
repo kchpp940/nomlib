@@ -28,31 +28,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/graphics/sprite/SpriteBatch.hpp"
 
-// Forward declarations
-#include "nomlib/graphics/Texture.hpp"
+// Private headers
+#include "nomlib/core/unique_ptr.hpp"
 
 namespace nom {
 
 SpriteBatch::SpriteBatch() :
-  sheet_id_(0)
+  Sprite()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
 }
 
 SpriteBatch::SpriteBatch( const SpriteBatch& other ) :
-  Sprite( other ),
-  offsets( other.offsets ),
-  sprite_sheet( other.sprite_sheet ),
-  sheet_id_( other.sheet_id_ ),
-  animator_( other.animator_ )
+  Sprite( other )
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
-
-  // Re-bind the copied animator to *this*, not to &other.
-  this->animator_.set_target( *this );
-
-  // Re-sync rendering state for the new object.
-  this->update();
 }
 
 SpriteBatch& SpriteBatch::operator=( const SpriteBatch& other )
@@ -61,16 +51,6 @@ SpriteBatch& SpriteBatch::operator=( const SpriteBatch& other )
 
   if( this != &other ) {
     Sprite::operator=( other );
-    this->offsets = other.offsets;
-    this->sprite_sheet = other.sprite_sheet;
-    this->sheet_id_ = other.sheet_id_;
-    this->animator_ = other.animator_;
-
-    // Re-bind the assigned animator to *this* (the copy leaves drawable_
-    // alone, so even if we were already bound we must refresh the target).
-    this->animator_.set_target( *this );
-
-    this->update();
   }
   return *this;
 }
@@ -78,27 +58,6 @@ SpriteBatch& SpriteBatch::operator=( const SpriteBatch& other )
 SpriteBatch::~SpriteBatch()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
-}
-
-void SpriteBatch::set_sprite_sheet(const SpriteSheet& sheet)
-{
-  IntRect dims;
-
-  this->sprite_sheet = sheet;
-
-  dims = this->sprite_sheet.dimensions(0);
-
-  Sprite::set_size( dims.size() );
-
-  this->set_frame(0);
-
-  this->animator_.set_target( *this );
-
-  if( !sheet.animations().null_type() ) {
-    this->animator_.load_clips( sheet.animations() );
-  }
-
-  this->update();
 }
 
 ObjectTypeInfo SpriteBatch::type() const
@@ -109,116 +68,6 @@ ObjectTypeInfo SpriteBatch::type() const
 SpriteBatch* SpriteBatch::clone() const
 {
   return( new SpriteBatch(*this) );
-}
-
-int32 SpriteBatch::frame() const
-{
-  return this->sheet_id_;
-}
-
-int32 SpriteBatch::frames() const
-{
-  return this->sprite_sheet.frames();
-}
-
-void SpriteBatch::set_frame(int32 id)
-{
-  this->sheet_id_ = id;
-
-  this->update();
-}
-
-// -- Named animation support -----------------------------------------------
-
-bool SpriteBatch::play_animation( const std::string& name )
-{
-  return this->animator_.play( name );
-}
-
-void SpriteBatch::stop_animation()
-{
-  this->animator_.stop();
-}
-
-void SpriteBatch::pause_animation()
-{
-  this->animator_.pause();
-}
-
-void SpriteBatch::resume_animation()
-{
-  this->animator_.resume();
-}
-
-bool SpriteBatch::is_animation_playing() const
-{
-  return this->animator_.playing();
-}
-
-const std::string& SpriteBatch::current_animation() const
-{
-  return this->animator_.current_clip_name();
-}
-
-SpriteAnimator::State SpriteBatch::update_animation( real32 delta_time )
-{
-  return this->animator_.update( delta_time );
-}
-
-SpriteAnimator& SpriteBatch::animator()
-{
-  return this->animator_;
-}
-
-const SpriteAnimator& SpriteBatch::animator() const
-{
-  return this->animator_;
-}
-
-// -- Drawing --------------------------------------------------------------
-
-void SpriteBatch::draw(IDrawable::RenderTarget& target) const
-{
-  if( this->frame() >= 0 )
-  {
-    Sprite::draw(target);
-  }
-}
-
-void SpriteBatch::draw(IDrawable::RenderTarget& target, real64 angle) const
-{
-  if( this->frame() >= 0 )
-  {
-    Sprite::draw(target, angle);
-  }
-}
-
-// Private scope
-
-void SpriteBatch::update()
-{
-  int scale_factor = 1;
-
-  if( this->texture_ != nullptr ) {
-    scale_factor = this->texture_->scale_factor();
-  }
-
-  if( this->frame() >= 0 ) {
-
-    Sprite::set_position( this->position() );
-
-    IntRect dims = this->sprite_sheet.dimensions( this->frame() );
-
-    this->offsets.x = dims.x * scale_factor;
-    this->offsets.y = dims.y * scale_factor;
-    this->offsets.w = dims.w * scale_factor;
-    this->offsets.h = dims.h * scale_factor;
-
-    Sprite::set_size( Size2i(offsets.w, offsets.h) );
-    if( this->texture_ != nullptr ) {
-      this->texture_->set_bounds(this->offsets);
-    }
-  }
 }
 
 } // namespace nom

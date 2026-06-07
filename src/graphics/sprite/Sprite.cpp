@@ -46,9 +46,45 @@ void TextureReferenceDeleter(Texture* tex)
 }
 
 Sprite::Sprite() :
-  Transformable(Point2i::zero, Size2i::zero)
+  Transformable(Point2i::zero, Size2i::zero),
+  offsets_(IntRect::zero),
+  sheet_id_(0)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_RENDER, NOM_LOG_PRIORITY_VERBOSE);
+
+  this->animator_.set_target( *this );
+}
+
+Sprite::Sprite( const Sprite& other ) :
+  Transformable( other ),
+  texture_( other.texture_ ),
+  sprite_sheet_( other.sprite_sheet_ ),
+  offsets_( other.offsets_ ),
+  sheet_id_( other.sheet_id_ ),
+  animator_( other.animator_ )
+{
+  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_RENDER, NOM_LOG_PRIORITY_VERBOSE);
+
+  this->animator_.set_target( *this );
+  this->update();
+}
+
+Sprite& Sprite::operator=( const Sprite& other )
+{
+  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_RENDER, NOM_LOG_PRIORITY_VERBOSE);
+
+  if( this != &other ) {
+    Transformable::operator=( other );
+    this->texture_ = other.texture_;
+    this->sprite_sheet_ = other.sprite_sheet_;
+    this->offsets_ = other.offsets_;
+    this->sheet_id_ = other.sheet_id_;
+    this->animator_ = other.animator_;
+
+    this->animator_.set_target( *this );
+    this->update();
+  }
+  return *this;
 }
 
 Sprite::~Sprite()
@@ -241,16 +277,113 @@ void Sprite::release_texture()
   this->texture_.reset();
 }
 
+// -- Sprite-sheet support ---------------------------------------------------
+
+void Sprite::set_sprite_sheet( const SpriteSheet& sheet )
+{
+  IntRect dims;
+
+  this->sprite_sheet_ = sheet;
+
+  dims = this->sprite_sheet_.dimensions(0);
+
+  this->set_size( dims.size() );
+
+  this->set_frame(0);
+
+  this->animator_.set_target( *this );
+
+  if( !sheet.animations().null_type() ) {
+    this->animator_.load_clips( sheet.animations() );
+  }
+
+  this->update();
+}
+
+int32 Sprite::frame() const
+{
+  return this->sheet_id_;
+}
+
+int32 Sprite::frames() const
+{
+  if( this->sprite_sheet_.total_frames() > 0 ) {
+    return this->sprite_sheet_.total_frames();
+  }
+  return 1;
+}
+
+void Sprite::set_frame( int32 id )
+{
+  if( this->sprite_sheet_.total_frames() <= 0 ) {
+    // No sprite sheet attached — no-op.
+    return;
+  }
+
+  this->sheet_id_ = id;
+
+  this->update();
+}
+
+// -- Named animation support ------------------------------------------------
+
+bool Sprite::play_animation( const std::string& name )
+{
+  return this->animator_.play( name );
+}
+
+void Sprite::stop_animation()
+{
+  this->animator_.stop();
+}
+
+void Sprite::pause_animation()
+{
+  this->animator_.pause();
+}
+
+void Sprite::resume_animation()
+{
+  this->animator_.resume();
+}
+
+bool Sprite::is_animation_playing() const
+{
+  return this->animator_.playing();
+}
+
+const std::string& Sprite::current_animation() const
+{
+  return this->animator_.current_clip_name();
+}
+
+SpriteAnimator::State Sprite::update_animation( real32 delta_time )
+{
+  return this->animator_.update( delta_time );
+}
+
+SpriteAnimator& Sprite::animator()
+{
+  return this->animator_;
+}
+
+const SpriteAnimator& Sprite::animator() const
+{
+  return this->animator_;
+}
+
+// -- Drawing ----------------------------------------------------------------
+
 void Sprite::draw(RenderTarget& target) const
 {
-  if( this->valid() == true ) {
+  if( this->sheet_id_ >= 0 && this->valid() == true ) {
     this->texture_->draw( target.renderer() );
   }
 }
 
 void Sprite::draw(RenderTarget& target, real64 degrees) const
 {
-  if( this->valid() == true ) {
+  if( this->sheet_id_ >= 0 && this->valid() == true ) {
     this->texture_->draw(target.renderer(), degrees);
   }
 }
@@ -259,7 +392,17 @@ void Sprite::draw(RenderTarget& target, real64 degrees) const
 
 void Sprite::update()
 {
-  // Stub
+  if( this->texture_ == nullptr ) return;
+  if( this->sheet_id_ < 0 ) return;
+
+  if( this->sprite_sheet_.total_frames() > 0 )
+  {
+    this->offsets_ = this->sprite_sheet_.dimensions( this->sheet_id_ );
+
+    this->texture_->set_bounds( this->offsets_ );
+    this->texture_->set_size( this->size() );
+    this->texture_->set_position( this->position() );
+  }
 }
 
 // Non-member factory functions

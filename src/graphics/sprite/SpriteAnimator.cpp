@@ -33,7 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/ptree.hpp"
 
 // Forward declarations
-#include "nomlib/graphics/sprite/SpriteBatch.hpp"
+#include "nomlib/graphics/sprite/Sprite.hpp"
 
 namespace nom {
 
@@ -51,7 +51,7 @@ SpriteAnimator::SpriteAnimator() :
                       nom::NOM_LOG_PRIORITY_VERBOSE );
 }
 
-SpriteAnimator::SpriteAnimator( SpriteBatch& drawable ) :
+SpriteAnimator::SpriteAnimator( Sprite& drawable ) :
   drawable_(&drawable),
   state_(State::STOPPED),
   current_clip_(this->clips_.end()),
@@ -95,7 +95,7 @@ SpriteAnimator& SpriteAnimator::operator=( const SpriteAnimator& other )
                       nom::NOM_LOG_PRIORITY_VERBOSE );
 
   if( this != &other ) {
-    // Preserve our own target SpriteBatch; only copy clips and playback state.
+    // Preserve our own target Sprite; only copy clips and playback state.
     this->clips_ = other.clips_;
     this->state_ = other.state_;
     this->current_clip_name_ = other.current_clip_name_;
@@ -127,7 +127,7 @@ SpriteAnimator* SpriteAnimator::clone() const
   return( new SpriteAnimator(*this) );
 }
 
-void SpriteAnimator::set_target( SpriteBatch& drawable )
+void SpriteAnimator::set_target( Sprite& drawable )
 {
   this->drawable_ = &drawable;
 }

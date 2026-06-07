@@ -40,15 +40,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace nom {
 
 // Forward declarations
-class SpriteBatch;
+class Sprite;
 class Value;
 
-/// \brief Playback controller for named sprite animations on a SpriteBatch
+/// \brief Playback controller for named sprite animations
 ///
 /// \remarks SpriteAnimator manages a collection of SpriteAnimationClip objects
-/// and drives frame selection on an attached SpriteBatch. It can be updated
-/// directly from your game loop, or driven through the actions system via
-/// nom::SpriteAnimatorAction.
+/// and drives frame selection on an attached nom::Sprite (including subclasses
+/// such as nom::SpriteBatch). It can be updated directly from your game loop,
+/// or driven through the actions system via nom::SpriteAnimatorAction.
 class SpriteAnimator
 {
   public:
@@ -64,22 +64,22 @@ class SpriteAnimator
 
     SpriteAnimator();
 
-    /// \brief Construct an animator bound to an existing SpriteBatch.
-    explicit SpriteAnimator( SpriteBatch& drawable );
+    /// \brief Construct an animator bound to an existing Sprite.
+    explicit SpriteAnimator( Sprite& drawable );
 
     /// \brief Copy constructor.
     ///
     /// \remarks All clips, playback state (current clip, frame position,
     /// elapsed time, direction, completion flag) and timer are deep-copied
-    /// from \p other.  The target SpriteBatch pointer is NOT copied — the
+    /// from \p other.  The target Sprite pointer is NOT copied — the
     /// new animator starts with no target and the caller must invoke
-    /// set_target() afterwards to attach it to a SpriteBatch.
+    /// set_target() afterwards to attach it to a Sprite.
     SpriteAnimator( const SpriteAnimator& other );
 
     /// \brief Copy assignment operator.
     ///
     /// \remarks Same semantics as the copy constructor: clips and playback
-    /// state are deep-copied, but the target SpriteBatch pointer is left
+    /// state are deep-copied, but the target Sprite pointer is left
     /// untouched — if you are replacing an already-bound animator you must
     /// call set_target() afterwards to ensure the target remains correct.
     SpriteAnimator& operator=( const SpriteAnimator& other );
@@ -88,8 +88,8 @@ class SpriteAnimator
 
     SpriteAnimator* clone() const;
 
-    /// \brief Attach a SpriteBatch to receive frame updates.
-    void set_target( SpriteBatch& drawable );
+    /// \brief Attach a Sprite to receive frame updates.
+    void set_target( Sprite& drawable );
 
     /// \brief Register a clip.
     ///
@@ -158,7 +158,7 @@ class SpriteAnimator
     typedef std::map<std::string, SpriteAnimationClip> clip_container;
     typedef clip_container::const_iterator clip_iterator;
 
-    SpriteBatch* drawable_;
+    Sprite* drawable_;
 
     clip_container clips_;
 
@@ -183,7 +183,7 @@ class SpriteAnimator
 ///
 /// Typical usage with manual updates:
 /// \code
-///   nom::SpriteBatch sprite;
+///   nom::Sprite sprite;
 ///   nom::SpriteAnimator anim(sprite);
 ///
 ///   anim.add_clip(nom::SpriteAnimationClip("idle", 0, 3, 10.0f).set_loop(true));
