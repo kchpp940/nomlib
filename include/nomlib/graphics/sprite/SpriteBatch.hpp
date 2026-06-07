@@ -52,6 +52,20 @@ class SpriteBatch: public Sprite
     /// \todo Consider initializing sheet_id_ to -1..?
     SpriteBatch();
 
+    /// \brief Copy constructor.
+    ///
+    /// \remarks The entire sprite state (sheet, frame, texture, position,
+    /// size) and the embedded SpriteAnimator (clips, current clip, playback
+    /// state) are deep-copied from \p other.  The animator is automatically
+    /// rebound to the new SpriteBatch instance, so animations played on the
+    /// copy will drive the copy — not the original.
+    SpriteBatch( const SpriteBatch& other );
+
+    /// \brief Copy assignment operator.
+    ///
+    /// \remarks Same semantics as the copy constructor.
+    SpriteBatch& operator=( const SpriteBatch& other );
+
     /// Destructor.
     virtual ~SpriteBatch();
 

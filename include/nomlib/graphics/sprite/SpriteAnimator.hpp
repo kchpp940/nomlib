@@ -67,6 +67,23 @@ class SpriteAnimator
     /// \brief Construct an animator bound to an existing SpriteBatch.
     explicit SpriteAnimator( SpriteBatch& drawable );
 
+    /// \brief Copy constructor.
+    ///
+    /// \remarks All clips, playback state (current clip, frame position,
+    /// elapsed time, direction, completion flag) and timer are deep-copied
+    /// from \p other.  The target SpriteBatch pointer is NOT copied — the
+    /// new animator starts with no target and the caller must invoke
+    /// set_target() afterwards to attach it to a SpriteBatch.
+    SpriteAnimator( const SpriteAnimator& other );
+
+    /// \brief Copy assignment operator.
+    ///
+    /// \remarks Same semantics as the copy constructor: clips and playback
+    /// state are deep-copied, but the target SpriteBatch pointer is left
+    /// untouched — if you are replacing an already-bound animator you must
+    /// call set_target() afterwards to ensure the target remains correct.
+    SpriteAnimator& operator=( const SpriteAnimator& other );
+
     ~SpriteAnimator();
 
     SpriteAnimator* clone() const;

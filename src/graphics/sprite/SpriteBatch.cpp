@@ -39,6 +39,42 @@ SpriteBatch::SpriteBatch() :
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
 }
 
+SpriteBatch::SpriteBatch( const SpriteBatch& other ) :
+  Sprite( other ),
+  offsets( other.offsets ),
+  sprite_sheet( other.sprite_sheet ),
+  sheet_id_( other.sheet_id_ ),
+  animator_( other.animator_ )
+{
+  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
+
+  // Re-bind the copied animator to *this*, not to &other.
+  this->animator_.set_target( *this );
+
+  // Re-sync rendering state for the new object.
+  this->update();
+}
+
+SpriteBatch& SpriteBatch::operator=( const SpriteBatch& other )
+{
+  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
+
+  if( this != &other ) {
+    Sprite::operator=( other );
+    this->offsets = other.offsets;
+    this->sprite_sheet = other.sprite_sheet;
+    this->sheet_id_ = other.sheet_id_;
+    this->animator_ = other.animator_;
+
+    // Re-bind the assigned animator to *this* (the copy leaves drawable_
+    // alone, so even if we were already bound we must refresh the target).
+    this->animator_.set_target( *this );
+
+    this->update();
+  }
+  return *this;
+}
+
 SpriteBatch::~SpriteBatch()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);

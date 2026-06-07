@@ -65,6 +65,57 @@ SpriteAnimator::SpriteAnimator( SpriteBatch& drawable ) :
                       nom::NOM_LOG_PRIORITY_VERBOSE );
 }
 
+SpriteAnimator::SpriteAnimator( const SpriteAnimator& other ) :
+  drawable_(nullptr),
+  clips_(other.clips_),
+  state_(other.state_),
+  current_clip_name_(other.current_clip_name_),
+  elapsed_time_(other.elapsed_time_),
+  logical_frame_(other.logical_frame_),
+  direction_(other.direction_),
+  completion_fired_(other.completion_fired_),
+  timer_(other.timer_)
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER,
+                      nom::NOM_LOG_PRIORITY_VERBOSE );
+
+  // Re-resolve the current clip iterator into our own (copied) clips_ map.
+  // Iterators from the source animator would be dangling inside us.
+  if( !this->current_clip_name_.empty() ) {
+    auto itr = this->clips_.find( this->current_clip_name_ );
+    this->current_clip_ = ( itr != this->clips_.end() ) ? itr : this->clips_.end();
+  } else {
+    this->current_clip_ = this->clips_.end();
+  }
+}
+
+SpriteAnimator& SpriteAnimator::operator=( const SpriteAnimator& other )
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER,
+                      nom::NOM_LOG_PRIORITY_VERBOSE );
+
+  if( this != &other ) {
+    // Preserve our own target SpriteBatch; only copy clips and playback state.
+    this->clips_ = other.clips_;
+    this->state_ = other.state_;
+    this->current_clip_name_ = other.current_clip_name_;
+    this->elapsed_time_ = other.elapsed_time_;
+    this->logical_frame_ = other.logical_frame_;
+    this->direction_ = other.direction_;
+    this->completion_fired_ = other.completion_fired_;
+    this->timer_ = other.timer_;
+
+    // Re-resolve the current clip iterator into our own clips_ map.
+    if( !this->current_clip_name_.empty() ) {
+      auto itr = this->clips_.find( this->current_clip_name_ );
+      this->current_clip_ = ( itr != this->clips_.end() ) ? itr : this->clips_.end();
+    } else {
+      this->current_clip_ = this->clips_.end();
+    }
+  }
+  return *this;
+}
+
 SpriteAnimator::~SpriteAnimator()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_RENDER,
