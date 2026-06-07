@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Forward declarations
 #include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/Event.hpp"
+#include "nomlib/graphics/ViewportManager.hpp"
 
 namespace nom {
 
@@ -72,21 +73,55 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
 
     case nom::Event::MOUSE_MOTION:
     {
-      // Mouse coordinates are already in logical space (converted by
-      // EventHandler using ViewportManager::window_to_logical).
-      this->ctx_->context()->ProcessMouseMove(  ev.motion.x,
-                                                ev.motion.y,
+      int mouse_x = ev.motion.x;
+      int mouse_y = ev.motion.y;
+
+      // Fallback: if the event coordinates are still raw window pixels
+      // (logical_coords == 0), convert via ViewportManager. This handles
+      // the case where UIContextEventHandler is called directly without
+      // going through EventHandler's coordinate conversion pipeline.
+      if( ev.motion.logical_coords == 0 ) {
+        ViewportManager* vp = this->ctx_->viewport_manager();
+        if( vp != nullptr ) {
+          Point2i logical = vp->window_to_logical(Point2i(mouse_x, mouse_y));
+          mouse_x = logical.x;
+          mouse_y = logical.y;
+        }
+      }
+
+      this->ctx_->context()->ProcessMouseMove(  mouse_x,
+                                                mouse_y,
                                                 this->translate_key_modifiers(ev) );
     } break;
 
     case nom::Event::MOUSE_BUTTON_CLICK:
     {
+      if( ev.mouse.logical_coords == 0 ) {
+        ViewportManager* vp = this->ctx_->viewport_manager();
+        if( vp != nullptr ) {
+          Point2i logical = vp->window_to_logical(
+            Point2i(ev.mouse.x, ev.mouse.y));
+          this->ctx_->context()->ProcessMouseMove( logical.x, logical.y,
+                                                   this->translate_key_modifiers(ev) );
+        }
+      }
+
       this->ctx_->context()->ProcessMouseButtonDown(  this->translate_mouse_button(ev),
                                                       this->translate_key_modifiers(ev) );
     } break;
 
     case nom::Event::MOUSE_BUTTON_RELEASE:
     {
+      if( ev.mouse.logical_coords == 0 ) {
+        ViewportManager* vp = this->ctx_->viewport_manager();
+        if( vp != nullptr ) {
+          Point2i logical = vp->window_to_logical(
+            Point2i(ev.mouse.x, ev.mouse.y));
+          this->ctx_->context()->ProcessMouseMove( logical.x, logical.y,
+                                                   this->translate_key_modifiers(ev) );
+        }
+      }
+
       this->ctx_->context()->ProcessMouseButtonUp(  this->translate_mouse_button(ev),
                                                     this->translate_key_modifiers(ev) );
     } break;

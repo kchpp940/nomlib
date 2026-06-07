@@ -605,6 +605,7 @@ void EventHandler::process_event(const SDL_Event* ev)
       event.motion.y_rel = ev->motion.yrel;
       event.motion.state = ev->motion.state;
       event.motion.window_id = ev->motion.windowID;
+      event.motion.logical_coords = 0;
 
       if( this->viewport_manager_ != nullptr ) {
         Point2i logical = this->viewport_manager_->window_to_logical(
@@ -617,6 +618,8 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.motion.x_rel = NOM_SCAST(int32, event.motion.x_rel / scale.x);
           event.motion.y_rel = NOM_SCAST(int32, event.motion.y_rel / scale.y);
         }
+
+        event.motion.logical_coords = 1;
       }
 
       this->push_event(event);
@@ -626,8 +629,10 @@ void EventHandler::process_event(const SDL_Event* ev)
     case SDL_MOUSEBUTTONDOWN:
     {
       Point2i mouse_pos(ev->button.x, ev->button.y);
+      uint8 coords_converted = 0;
       if( this->viewport_manager_ != nullptr ) {
         mouse_pos = this->viewport_manager_->window_to_logical(mouse_pos);
+        coords_converted = 1;
       }
 
       switch (ev->button.button)
@@ -646,6 +651,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -662,6 +668,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -678,6 +685,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -694,6 +702,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -710,6 +719,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -721,8 +731,10 @@ void EventHandler::process_event(const SDL_Event* ev)
     case SDL_MOUSEBUTTONUP:
     {
       Point2i mouse_pos(ev->button.x, ev->button.y);
+      uint8 coords_converted = 0;
       if( this->viewport_manager_ != nullptr ) {
         mouse_pos = this->viewport_manager_->window_to_logical(mouse_pos);
+        coords_converted = 1;
       }
 
       switch ( ev->button.button )
@@ -741,6 +753,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -757,6 +770,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -773,6 +787,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -789,6 +804,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -805,6 +821,7 @@ void EventHandler::process_event(const SDL_Event* ev)
           event.mouse.state = ev->button.state;
           event.mouse.clicks = ev->button.clicks;
           event.mouse.window_id = ev->button.windowID;
+          event.mouse.logical_coords = coords_converted;
           this->push_event(event);
           break;
         }
@@ -1212,6 +1229,7 @@ Event create_mouse_button_click(uint8 button, uint8 clicks, uint32 window_id)
   result.mouse.state = InputState::PRESSED;
   result.mouse.clicks = clicks;
   result.mouse.window_id = window_id;
+  result.mouse.logical_coords = 0;
 
   return result;
 }
@@ -1225,6 +1243,7 @@ Event create_mouse_button_release(uint8 button, uint8 clicks, uint32 window_id)
   result.mouse.state = InputState::RELEASED;
   result.mouse.clicks = clicks;
   result.mouse.window_id = window_id;
+  result.mouse.logical_coords = 0;
 
   return result;
 }

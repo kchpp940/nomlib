@@ -167,6 +167,14 @@ struct MouseMotionEvent
   /// SDL_BUTTON_RMASK, SDL_BUTTON_X1MASK, SDL_BUTTON_X2MASK.
   uint8 state;
 
+  /// \brief Whether x, y, x_rel, y_rel are in logical (true) or raw
+  ///        window-pixel (false) coordinates.
+  ///
+  /// Set by EventHandler when a ViewportManager is bound and coordinate
+  /// conversion has been applied. Consumers that require logical coordinates
+  /// should check this flag and perform their own conversion if it is false.
+  uint8 logical_coords;
+
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
 };
@@ -203,6 +211,14 @@ struct MouseButtonEvent
   ///
   /// \remarks One (1) for single-click, two (2) for double-click, and so on.
   uint8 clicks;
+
+  /// \brief Whether x, y are in logical (true) or raw window-pixel (false)
+  ///        coordinates.
+  ///
+  /// Set by EventHandler when a ViewportManager is bound and coordinate
+  /// conversion has been applied. Consumers that require logical coordinates
+  /// should check this flag and perform their own conversion if it is false.
+  uint8 logical_coords;
 
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
