@@ -41,7 +41,9 @@ ViewportManager::ViewportManager() :
   logical_size_( Size2i::zero ),
   output_size_( Size2i::zero ),
   viewport_( IntRect::zero ),
-  scale_( Point2f( 1.0f, 1.0f ) )
+  scale_( Point2f( 1.0f, 1.0f ) ),
+  renderer_( nullptr ),
+  on_change_( nullptr )
 {
   // NOM_LOG_TRACE( NOM );
 }
@@ -129,6 +131,18 @@ ViewportManager::logical_to_window(const Point2i& logical_pos) const
 }
 
 void
+ViewportManager::set_renderer(Renderer* renderer)
+{
+  this->renderer_ = renderer;
+}
+
+void
+ViewportManager::set_on_change_callback(OnChangeCallback cb)
+{
+  this->on_change_ = std::move(cb);
+}
+
+void
 ViewportManager::recalculate()
 {
   if( this->logical_size_ == Size2i::zero ||
@@ -137,29 +151,38 @@ ViewportManager::recalculate()
     this->scale_ = Point2f( 1.0f, 1.0f );
     this->viewport_ = IntRect( 0, 0, this->output_size_.w,
                                this->output_size_.h );
-    return;
+  }
+  else
+  {
+    real32 scale_x = NOM_SCAST( real32, this->output_size_.w ) /
+                     NOM_SCAST( real32, this->logical_size_.w );
+    real32 scale_y = NOM_SCAST( real32, this->output_size_.h ) /
+                     NOM_SCAST( real32, this->logical_size_.h );
+
+    real32 min_scale = nom::minimum( scale_x, scale_y );
+
+    this->scale_.x = min_scale;
+    this->scale_.y = min_scale;
+
+    int viewport_w = NOM_SCAST( int,
+      this->logical_size_.w * min_scale );
+    int viewport_h = NOM_SCAST( int,
+      this->logical_size_.h * min_scale );
+
+    int viewport_x = ( this->output_size_.w - viewport_w ) / 2;
+    int viewport_y = ( this->output_size_.h - viewport_h ) / 2;
+
+    this->viewport_ = IntRect( viewport_x, viewport_y,
+                               viewport_w, viewport_h );
   }
 
-  real32 scale_x = NOM_SCAST( real32, this->output_size_.w ) /
-                   NOM_SCAST( real32, this->logical_size_.w );
-  real32 scale_y = NOM_SCAST( real32, this->output_size_.h ) /
-                   NOM_SCAST( real32, this->logical_size_.h );
+  if( this->renderer_ != nullptr ) {
+    this->apply_to_renderer(this->renderer_);
+  }
 
-  real32 min_scale = nom::minimum( scale_x, scale_y );
-
-  this->scale_.x = min_scale;
-  this->scale_.y = min_scale;
-
-  int viewport_w = NOM_SCAST( int,
-    this->logical_size_.w * min_scale );
-  int viewport_h = NOM_SCAST( int,
-    this->logical_size_.h * min_scale );
-
-  int viewport_x = ( this->output_size_.w - viewport_w ) / 2;
-  int viewport_y = ( this->output_size_.h - viewport_h ) / 2;
-
-  this->viewport_ = IntRect( viewport_x, viewport_y,
-                             viewport_w, viewport_h );
+  if( this->on_change_ != nullptr ) {
+    this->on_change_(*this);
+  }
 }
 
 void

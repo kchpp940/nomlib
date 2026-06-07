@@ -126,6 +126,10 @@ RenderWindow::create( const std::string& window_title, const Point2i& pos,
   // (garbage) away.
   this->fill(Color4i::Transparent);
 
+  // Bind the renderer to the viewport manager so logical size changes
+  // automatically apply SDL_RenderSetScale / SetViewport.
+  this->viewport_manager_.set_renderer(this);
+
   // Initialize viewport manager with the initial window size
   this->viewport_manager_.on_window_resized(res, this->renderer());
 

@@ -454,7 +454,27 @@ void UIContext::set_size(const Size2i& dims)
 
 void UIContext::set_viewport_manager(ViewportManager* viewport)
 {
+  if( this->viewport_manager_ != nullptr ) {
+    this->viewport_manager_->set_on_change_callback(nullptr);
+  }
+
   this->viewport_manager_ = viewport;
+
+  if( this->viewport_manager_ != nullptr ) {
+    this->viewport_manager_->set_on_change_callback(
+      [this](const ViewportManager& vp) {
+        if( this->context_ != nullptr && vp.logical_size() != Size2i::zero ) {
+          this->context_->SetDimensions(
+            Rocket::Core::Vector2i(vp.context_size().w, vp.context_size().h) );
+        }
+      });
+
+    if( this->context_ != nullptr && viewport->logical_size() != Size2i::zero ) {
+      this->context_->SetDimensions(
+        Rocket::Core::Vector2i(viewport->context_size().w,
+                               viewport->context_size().h) );
+    }
+  }
 }
 
 ViewportManager* UIContext::viewport_manager() const

@@ -29,6 +29,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef NOMLIB_GRAPHICS_VIEWPORT_MANAGER_HPP
 #define NOMLIB_GRAPHICS_VIEWPORT_MANAGER_HPP
 
+#include <functional>
+
 #include "nomlib/config.hpp"
 #include "nomlib/math/Rect.hpp"
 #include "nomlib/math/Point2.hpp"
@@ -57,6 +59,12 @@ class ViewportManager
   public:
     typedef ViewportManager self_type;
 
+    /// \brief Callback invoked whenever the viewport state changes.
+    ///
+    /// Fired after ::recalculate completes -- logical size, output size,
+    /// viewport rect, or scale factor have all been updated.
+    typedef std::function<void(const self_type&)> OnChangeCallback;
+
     ViewportManager();
 
     ~ViewportManager();
@@ -65,6 +73,9 @@ class ViewportManager
     ///
     /// This is the resolution your game logic works in. The viewport
     /// will be calculated to maintain this aspect ratio.
+    ///
+    /// If an output size and renderer are already bound, the new state
+    /// is applied to the renderer and the change callback fires.
     void set_logical_size(const Size2i& logical_size);
 
     /// \brief Get the fixed virtual (logical) resolution.
@@ -95,15 +106,33 @@ class ViewportManager
     /// \brief Convert a logical coordinate to window-pixel coordinates.
     Point2i logical_to_window(const Point2i& logical_pos) const;
 
+    /// \brief Bind a renderer for automatic state application.
+    ///
+    /// When set, changes to logical size or window resize automatically
+    /// apply the new viewport and scale to this renderer via
+    /// ::apply_to_renderer. Pass nullptr to unbind.
+    void set_renderer(Renderer* renderer);
+
+    /// \brief Register a callback for viewport state changes.
+    ///
+    /// The callback is fired after any recalculation completes -- both
+    /// from ::set_logical_size (when output_size is already known) and
+    /// from ::on_window_resized.
+    ///
+    /// Typical use: UIContext registers here to call SetDimensions on
+    /// the libRocket context whenever the logical size changes.
+    void set_on_change_callback(OnChangeCallback cb);
+
     /// \brief Notify the manager that the output window has been resized.
     ///
-    /// Recalculates the letterbox viewport and scale factor, and applies
-    /// the new state to the provided SDL_Renderer (viewport + scale).
+    /// Recalculates the letterbox viewport and scale factor, applies
+    /// the new state to the bound renderer (if any), and fires the
+    /// change callback.
     ///
     /// \param output_size The new window size in pixels.
-    /// \param renderer    Pointer to the SDL_Renderer to apply state to;
-    ///                    may be nullptr to skip SDL state application.
-    void on_window_resized(const Size2i& output_size, SDL_Renderer* renderer);
+    /// \param renderer    Optional pointer to SDL_Renderer to apply state
+    ///                    to; overrides the bound renderer for this call.
+    void on_window_resized(const Size2i& output_size, SDL_Renderer* renderer = nullptr);
 
     /// \brief Notify the manager that the output window has been resized.
     ///
@@ -112,7 +141,8 @@ class ViewportManager
 
     /// \brief Apply the current viewport and scale to the SDL renderer.
     ///
-    /// This is called automatically by ::on_window_resized, but may be
+    /// This is called automatically by ::on_window_resized and by
+    /// ::set_logical_size (when a renderer is bound), but may be
     /// invoked manually if the rendering context has been changed.
     void apply_to_renderer(SDL_Renderer* renderer) const;
 
@@ -120,7 +150,8 @@ class ViewportManager
     void apply_to_renderer(Renderer* renderer) const;
 
   private:
-    /// \brief Recalculate viewport and scale from stored sizes.
+    /// \brief Recalculate viewport and scale from stored sizes,
+    ///        apply to bound renderer if present, and fire the change callback.
     void recalculate();
 
     /// \brief Fixed virtual resolution.
@@ -134,6 +165,12 @@ class ViewportManager
 
     /// \brief Rendering scale factor applied to the SDL renderer.
     Point2f scale_;
+
+    /// \brief Non-owning pointer to the renderer for automatic state application.
+    Renderer* renderer_ = nullptr;
+
+    /// \brief Optional callback fired after every recalculation.
+    OnChangeCallback on_change_;
 };
 
 } // namespace nom
