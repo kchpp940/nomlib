@@ -76,11 +76,11 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
       int mouse_x = ev.motion.x;
       int mouse_y = ev.motion.y;
 
-      // Fallback: if the event coordinates are still raw window pixels
-      // (logical_coords == 0), convert via ViewportManager. This handles
-      // the case where UIContextEventHandler is called directly without
-      // going through EventHandler's coordinate conversion pipeline.
-      if( ev.motion.logical_coords == 0 ) {
+      // Only trust coordinates that are explicitly marked as Logical.
+      // Any other value (WindowPixels, uninitialized memory, future enum
+      // entries) is treated as raw window pixels and converted via the
+      // ViewportManager as a fallback.
+      if( ev.motion.coord_space != MouseCoordinateSpace_Logical ) {
         ViewportManager* vp = this->ctx_->viewport_manager();
         if( vp != nullptr ) {
           Point2i logical = vp->window_to_logical(Point2i(mouse_x, mouse_y));
@@ -96,7 +96,7 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
 
     case nom::Event::MOUSE_BUTTON_CLICK:
     {
-      if( ev.mouse.logical_coords == 0 ) {
+      if( ev.mouse.coord_space != MouseCoordinateSpace_Logical ) {
         ViewportManager* vp = this->ctx_->viewport_manager();
         if( vp != nullptr ) {
           Point2i logical = vp->window_to_logical(
@@ -112,7 +112,7 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
 
     case nom::Event::MOUSE_BUTTON_RELEASE:
     {
-      if( ev.mouse.logical_coords == 0 ) {
+      if( ev.mouse.coord_space != MouseCoordinateSpace_Logical ) {
         ViewportManager* vp = this->ctx_->viewport_manager();
         if( vp != nullptr ) {
           Point2i logical = vp->window_to_logical(

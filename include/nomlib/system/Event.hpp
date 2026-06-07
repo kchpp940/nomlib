@@ -113,6 +113,25 @@ struct WindowEvent
   uint32 window_id;
 };
 
+/// \brief Coordinate space of the mouse position values stored in an event.
+///
+/// Consumers (e.g. UIContextEventHandler) check this field to decide whether
+/// coordinate conversion via ViewportManager is needed.
+enum MouseCoordinateSpace : uint8
+{
+  /// \brief Raw window-pixel coordinates, relative to window top-left.
+  ///
+  /// This is the default state for freshly-constructed events and for
+  /// events created outside the EventHandler pipeline.
+  MouseCoordinateSpace_WindowPixels = 0,
+
+  /// \brief Logical (virtual) resolution coordinates.
+  ///
+  /// Set by EventHandler when a ViewportManager is bound and has
+  /// applied the letterbox offset subtraction and inverse scaling.
+  MouseCoordinateSpace_Logical = 1,
+};
+
 /// \brief A structure containing information on a keyboard event.
 struct KeyboardEvent
 {
@@ -167,16 +186,17 @@ struct MouseMotionEvent
   /// SDL_BUTTON_RMASK, SDL_BUTTON_X1MASK, SDL_BUTTON_X2MASK.
   uint8 state;
 
-  /// \brief Whether x, y, x_rel, y_rel are in logical (true) or raw
-  ///        window-pixel (false) coordinates.
-  ///
-  /// Set by EventHandler when a ViewportManager is bound and coordinate
-  /// conversion has been applied. Consumers that require logical coordinates
-  /// should check this flag and perform their own conversion if it is false.
-  uint8 logical_coords;
-
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
+
+  /// \brief The coordinate space of x, y, x_rel, y_rel.
+  ///
+  /// Always explicitly initialized; consumers should check this value
+  /// and only treat coordinates as logical when exactly equal to
+  /// MouseCoordinateSpace_Logical. Any other value (including
+  /// uninitialized memory patterns that happen to match neither enum
+  /// constant) should be treated as raw window pixels.
+  MouseCoordinateSpace coord_space;
 };
 
 /// \brief A structure containing information on a mouse button event.
@@ -212,16 +232,17 @@ struct MouseButtonEvent
   /// \remarks One (1) for single-click, two (2) for double-click, and so on.
   uint8 clicks;
 
-  /// \brief Whether x, y are in logical (true) or raw window-pixel (false)
-  ///        coordinates.
-  ///
-  /// Set by EventHandler when a ViewportManager is bound and coordinate
-  /// conversion has been applied. Consumers that require logical coordinates
-  /// should check this flag and perform their own conversion if it is false.
-  uint8 logical_coords;
-
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
+
+  /// \brief The coordinate space of x, y.
+  ///
+  /// Always explicitly initialized; consumers should check this value
+  /// and only treat coordinates as logical when exactly equal to
+  /// MouseCoordinateSpace_Logical. Any other value (including
+  /// uninitialized memory patterns that happen to match neither enum
+  /// constant) should be treated as raw window pixels.
+  MouseCoordinateSpace coord_space;
 };
 
 /// \brief A structure containing information on a mouse wheel event.
