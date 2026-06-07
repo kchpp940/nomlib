@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/graphics/DisplayMode.hpp>
 #include <nomlib/graphics/RenderWindow.hpp>
 #include <nomlib/graphics/Renderer.hpp>
+#include <nomlib/graphics/ViewportManager.hpp>
 #include <nomlib/graphics/IDrawable.hpp>
 #include <nomlib/graphics/Gradient.hpp>
 #include <nomlib/graphics/Image.hpp>
@@ -56,8 +57,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/graphics/sprite/Sprite.hpp>
 #include <nomlib/graphics/sprite/SpriteBatch.hpp>
 #include <nomlib/graphics/sprite/SpriteSheet.hpp>
-#include <nomlib/graphics/sprite/SpriteAnimationClip.hpp>
-#include <nomlib/graphics/sprite/SpriteAnimator.hpp>
 #include <nomlib/graphics/Cursor.hpp>
 #include <nomlib/graphics/graphics_helpers.hpp>
 

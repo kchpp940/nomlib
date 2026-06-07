@@ -41,6 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/graphics/DisplayMode.hpp"
 #include "nomlib/graphics/Renderer.hpp"
 #include "nomlib/graphics/Image.hpp"
+#include "nomlib/graphics/ViewportManager.hpp"
 #include "nomlib/system/SDL_helpers.hpp"
 #include "nomlib/core/clock.hpp"
 #include "nomlib/system/File.hpp"
@@ -368,6 +369,15 @@ class RenderWindow: public Renderer
     /// to one (1) on success, or a negative number on failure.
     static int num_video_displays();
 
+    /// \brief Get the viewport manager for this window.
+    ///
+    /// The ViewportManager centralizes logical resolution, letterbox
+    /// viewport, render scale, and mouse coordinate conversion.
+    ViewportManager& viewport_manager();
+
+    /// \brief Get the viewport manager for this window (const overload).
+    const ViewportManager& viewport_manager() const;
+
   private:
     /// \brief  Set a new nom::RenderWindow as the active rendering context; we must
     ///         always have a context active at any given time for generating
@@ -389,6 +399,9 @@ class RenderWindow: public Renderer
 
     /// Toggle window & full-screen states
     bool fullscreen_;
+
+    /// \brief Unified viewport, logical resolution, and scale manager.
+    ViewportManager viewport_manager_;
 };
 
 namespace priv {

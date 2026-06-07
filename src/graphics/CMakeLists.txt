@@ -28,6 +28,9 @@ if( NOM_BUILD_GRAPHICS_UNIT )
         ${SRC_DIR}/graphics/Renderer.cpp
         ${INC_DIR}/graphics/Renderer.hpp
 
+        ${SRC_DIR}/graphics/ViewportManager.cpp
+        ${INC_DIR}/graphics/ViewportManager.hpp
+
         ${SRC_DIR}/graphics/RendererInfo.cpp
         ${INC_DIR}/graphics/RendererInfo.hpp
 
@@ -88,12 +91,6 @@ if( NOM_BUILD_GRAPHICS_UNIT )
         # FIXME: This depend on serializers
         ${SRC_DIR}/graphics/sprite/SpriteSheet.cpp
         ${INC_DIR}/graphics/sprite/SpriteSheet.hpp
-
-        ${SRC_DIR}/graphics/sprite/SpriteAnimationClip.cpp
-        ${INC_DIR}/graphics/sprite/SpriteAnimationClip.hpp
-
-        ${SRC_DIR}/graphics/sprite/SpriteAnimator.cpp
-        ${INC_DIR}/graphics/sprite/SpriteAnimator.hpp
 
         # TODO: Relocate to graphics
         ${SRC_DIR}/math/Transformable.cpp

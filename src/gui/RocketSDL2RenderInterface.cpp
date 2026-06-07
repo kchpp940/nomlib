@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Forward declarations
 #include "nomlib/graphics/RenderWindow.hpp"
+#include "nomlib/graphics/ViewportManager.hpp"
 
 // Private headers
 #include "nomlib/graphics/Image.hpp"
@@ -138,8 +139,13 @@ RenderGeometry( Rocket::Core::Vertex* vertices, int num_vertices, int* indices,
 
   // Support for independent resolution scale -- SDL2 logical viewport -- we
   // translate positioning coordinates in respect to the current scale
-  Point2f scale;
-  SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
+  Point2f scale( 1.0f, 1.0f );
+  ViewportManager* vp = &this->window_->viewport_manager();
+  if( vp != nullptr && vp->logical_size() != Size2i::zero ) {
+    scale = vp->scale();
+  } else {
+    SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
+  }
 
   // SDL uses shaders that we need to disable here
   if( RocketSDL2RenderInterface::ctx_ ) {
@@ -236,10 +242,20 @@ void RocketSDL2RenderInterface::SetScissorRegion(int x, int y, int width, int he
   Point2f scale;    // drawing scale
   IntRect viewport; // viewport dimensions
   Size2i output;    // rendering output dimensions
-  SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
 
-  viewport = this->window_->viewport();
-  output = this->window_->output_size();
+  ViewportManager* vp = &this->window_->viewport_manager();
+  if( vp != nullptr && vp->logical_size() != Size2i::zero )
+  {
+    scale = vp->scale();
+    viewport = vp->viewport();
+    output = vp->output_size();
+  }
+  else
+  {
+    SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
+    viewport = this->window_->viewport();
+    output = this->window_->output_size();
+  }
 
   viewport.x = viewport.x * scale.x;
   viewport.y = viewport.y * scale.y;

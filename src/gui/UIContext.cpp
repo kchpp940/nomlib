@@ -40,6 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Private headers
 #include "nomlib/graphics/RenderWindow.hpp"
+#include "nomlib/graphics/ViewportManager.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
 namespace nom {
@@ -423,16 +424,23 @@ void UIContext::set_size(const Size2i& dims)
   Point2f scale( 1.0f, 1.0f );
   Size2i res(Size2i::zero);
 
-  nom::RocketSDL2RenderInterface* target =
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
-                      Rocket::Core::GetRenderInterface() );
-  NOM_ASSERT( target != nullptr );
-
-  const RenderWindow* context = target->window_;
-  NOM_ASSERT( context != nullptr );
-  if( target && context )
+  if( this->viewport_manager_ != nullptr )
   {
-    SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
+    scale = this->viewport_manager_->scale();
+  }
+  else
+  {
+    nom::RocketSDL2RenderInterface* target =
+      NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
+                        Rocket::Core::GetRenderInterface() );
+    NOM_ASSERT( target != nullptr );
+
+    const RenderWindow* context = target->window_;
+    NOM_ASSERT( context != nullptr );
+    if( target && context )
+    {
+      SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
+    }
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is
@@ -442,6 +450,16 @@ void UIContext::set_size(const Size2i& dims)
   res.h = dims.h / scale.y;
 
   this->context_->SetDimensions( Rocket::Core::Vector2i(res.w, res.h) );
+}
+
+void UIContext::set_viewport_manager(ViewportManager* viewport)
+{
+  this->viewport_manager_ = viewport;
+}
+
+ViewportManager* UIContext::viewport_manager() const
+{
+  return this->viewport_manager_;
 }
 
 void UIContext::set_event_handler(nom::EventHandler& evt_handler)

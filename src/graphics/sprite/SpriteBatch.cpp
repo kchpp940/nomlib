@@ -28,36 +28,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/graphics/sprite/SpriteBatch.hpp"
 
-// Private headers
-#include "nomlib/core/unique_ptr.hpp"
+// Forward declarations
+#include "nomlib/graphics/Texture.hpp"
 
 namespace nom {
 
 SpriteBatch::SpriteBatch() :
-  Sprite()
+  sheet_id_(0)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
-}
-
-SpriteBatch::SpriteBatch( const SpriteBatch& other ) :
-  Sprite( other )
-{
-  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
-}
-
-SpriteBatch& SpriteBatch::operator=( const SpriteBatch& other )
-{
-  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
-
-  if( this != &other ) {
-    Sprite::operator=( other );
-  }
-  return *this;
 }
 
 SpriteBatch::~SpriteBatch()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_RENDER, NOM_LOG_PRIORITY_VERBOSE);
+}
+
+void SpriteBatch::set_sprite_sheet(const SpriteSheet& sheet)
+{
+  IntRect dims;
+
+  this->sprite_sheet = sheet;
+
+  dims = this->sprite_sheet.dimensions(0);
+
+  Sprite::set_size( dims.size() );
+
+  this->set_frame(0);
+
+  this->update();
 }
 
 ObjectTypeInfo SpriteBatch::type() const
@@ -68,6 +67,67 @@ ObjectTypeInfo SpriteBatch::type() const
 SpriteBatch* SpriteBatch::clone() const
 {
   return( new SpriteBatch(*this) );
+}
+
+int32 SpriteBatch::frame() const
+{
+  return this->sheet_id_;
+}
+
+int32 SpriteBatch::frames() const
+{
+  return this->sprite_sheet.frames();
+}
+
+void SpriteBatch::set_frame(int32 id)
+{
+  this->sheet_id_ = id;
+
+  this->update();
+}
+
+void SpriteBatch::draw(IDrawable::RenderTarget& target) const
+{
+  if( this->frame() >= 0 )
+  {
+    Sprite::draw(target);
+  }
+}
+
+void SpriteBatch::draw(IDrawable::RenderTarget& target, real64 angle) const
+{
+  if( this->frame() >= 0 )
+  {
+    Sprite::draw(target, angle);
+  }
+}
+
+// Private scope
+
+void SpriteBatch::update()
+{
+  int scale_factor = 1;
+
+  if( this->texture_ != nullptr ) {
+    scale_factor = this->texture_->scale_factor();
+  }
+
+  if( this->frame() >= 0 ) {
+
+    Sprite::set_position( this->position() );
+
+    IntRect dims = this->sprite_sheet.dimensions( this->frame() );
+
+    this->offsets.x = dims.x * scale_factor;
+    this->offsets.y = dims.y * scale_factor;
+    this->offsets.w = dims.w * scale_factor;
+    this->offsets.h = dims.h * scale_factor;
+
+    Sprite::set_size( Size2i(offsets.w, offsets.h) );
+    if( this->texture_ != nullptr ) {
+      this->texture_->set_bounds(this->offsets);
+    }
+  }
 }
 
 } // namespace nom
