@@ -49,6 +49,35 @@ NullAudioEngineCaps::~NullAudioEngineCaps()
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 }
 
+void NullAudioEngineCaps::init(void* driver)
+{
+  (void)driver;
+}
+
+bool NullAudioEngineCaps::valid() const
+{
+  return true;
+}
+
+uint32 NullAudioEngineCaps::caps() const
+{
+  return CAPS_UNDEFINED;
+}
+
+void NullAudioEngineCaps::set_cap(uint32 format)
+{
+  (void)format;
+}
+
+bool NullAudioEngineCaps::connected() const
+{
+  return false;
+}
+
+void NullAudioEngineCaps::close()
+{
+}
+
 uint32
 NullAudioEngineCaps::channel_format(uint32 num_channels, uint32 channel_format)
 {

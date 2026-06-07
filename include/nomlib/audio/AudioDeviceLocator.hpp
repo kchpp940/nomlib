@@ -35,8 +35,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
-// Forward declarations
-class IAudioDevice;
+// Import into nom namespace for convenience (historical code expected these
+// types at this level).
+using audio::IAudioDevice;
+using audio::NullAudioDevice;
+
 namespace audio {
   class IOAudioEngine;
 }

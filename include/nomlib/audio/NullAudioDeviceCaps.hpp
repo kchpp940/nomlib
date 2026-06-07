@@ -47,6 +47,14 @@ class NullAudioEngineCaps: public IOAudioEngine
     NullAudioEngineCaps();
     virtual ~NullAudioEngineCaps();
 
+    virtual void init(void* driver) override;
+    virtual bool valid() const override;
+
+    virtual uint32 caps() const override;
+    virtual void set_cap(uint32 format) override;
+
+    virtual bool connected() const override;
+
     virtual
     uint32 channel_format(uint32 num_channels, uint32 channel_format) override;
 
@@ -90,6 +98,7 @@ class NullAudioEngineCaps: public IOAudioEngine
 
     virtual void suspend() override;
     virtual void resume() override;
+    virtual void close() override;
 
     virtual AudioMixerGroup* mixer() override;
     virtual const AudioMixerGroup* mixer() const override;
