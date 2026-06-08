@@ -256,13 +256,12 @@ void AudioMixer::resume_engine()
 void AudioMixer::reset()
 {
   NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO,
-                "AudioMixer: resetting — releasing ",
+                "AudioMixer: resetting — stopping ",
                 this->sources_.size(), " source(s)" );
 
   for(auto* buffer : this->sources_) {
     if(buffer != nullptr && this->valid()) {
       this->engine_->stop(buffer);
-      this->engine_->free_buffer(buffer);
     }
   }
   this->sources_.clear();

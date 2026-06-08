@@ -141,16 +141,20 @@ class AudioMixer
     void suspend();
     void resume_engine();
 
-    /// \brief Stop and free every registered source, reset all bus states
-    ///        to defaults, and detach the engine pointer.
+    /// \brief Stop every registered source, clear the tracking list, reset
+    ///        all bus states to defaults, and detach the engine pointer.
     ///
-    /// Does **not** call engine->close() — ownership and lifetime of the
-    /// engine belong to the IAudioDevice provider that created it. Callers
-    /// (AudioDeviceLocator::detach_current_provider) are responsible for
-    /// invoking provider::close() after mixer::reset().
-    ///
-    /// Called by AudioDeviceLocator when the provider is detached or
-    /// replaced, so no stale sources remain bound to a defunct engine.
+    /// Ownership model:
+    /// - sources_ tracks **non-owning references** to SoundBuffer objects
+    ///   that are currently routed through this mixer.
+    /// - SoundBuffer lifetime is managed by whoever created it: actions own
+    ///   internally-created buffers (free via audio::free_buffer in their
+    ///   release()), callers own externally-passed buffers.
+    /// - This method does **not** call engine_->free_buffer() and does
+    ///   **not** delete any SoundBuffer — it only stops playback and
+    ///   forgets the references.
+    /// - Does **not** call engine->close() either — that belongs to the
+    ///   IAudioDevice provider that owns the engine.
     void reset();
 
     /// \brief Close the engine directly.

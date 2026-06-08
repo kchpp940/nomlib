@@ -44,6 +44,15 @@ namespace nom {
 
 const char* PlayAudioSource::DEBUG_CLASS_NAME = "[PlayAudioSource]:";
 
+namespace {
+
+inline bool mixer_valid(audio::AudioMixer* m)
+{
+  return (m != nullptr && m->valid());
+}
+
+} // namespace (anonymous)
+
 PlayAudioSource::
 PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
   : mixer_(nullptr)
@@ -102,7 +111,9 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
 
     } // end for TOTAL_NUM_BUFFERS loop
 
-    this->current_buffer_ = this->audible_.begin();
+    if(!this->audible_.empty()) {
+      this->current_buffer_ = this->audible_.begin();
+    }
   }
   NOM_DUMP(this->audible_.size());
 
@@ -164,7 +175,9 @@ PlayAudioSource(audio::AudioMixer* mixer, const char* filename,
 
     } // end for TOTAL_NUM_BUFFERS loop
 
-    this->current_buffer_ = this->audible_.begin();
+    if(!this->audible_.empty()) {
+      this->current_buffer_ = this->audible_.begin();
+    }
   }
   NOM_DUMP(this->audible_.size());
 
@@ -185,19 +198,38 @@ std::unique_ptr<IActionObject> PlayAudioSource::clone() const
 IActionObject::FrameState
 PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
 {
+  (void)b;
+  (void)c;
+
   real32 delta_time = t;
   auto status = this->status();
   const real32 duration = d;
   const auto speed = this->speed();
 
-  auto& itr = this->current_buffer_;
-  if(*itr == nullptr || (*itr)->samples == nullptr) {
+  if( this->audible_.empty() ) {
     status = FrameState::COMPLETED;
     this->set_status(status);
     return status;
   }
 
-  uint32 audio_state = audio::state(*itr, this->mixer_ ? this->mixer_->engine() : nullptr);
+  if( !mixer_valid(this->mixer_) ) {
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_AUDIO,
+                  DEBUG_CLASS_NAME,
+                  "audio mixer no longer valid — device was detached or switched; "
+                  "marking action completed." );
+    status = FrameState::COMPLETED;
+    this->set_status(status);
+    return status;
+  }
+
+  auto& itr = this->current_buffer_;
+  if(itr == this->audible_.end() || *itr == nullptr || (*itr)->samples == nullptr) {
+    status = FrameState::COMPLETED;
+    this->set_status(status);
+    return status;
+  }
+
+  uint32 audio_state = audio::state(*itr, this->mixer_->engine());
 
   if(delta_time > (duration / speed)) {
     delta_time = duration / speed;
@@ -222,24 +254,20 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
                  (*itr)->samples_read, "input_pos:", this->input_pos_);
   }
 
-  if(this->mixer_ != nullptr) {
-    this->mixer_->queue_buffer(*itr);
-  }
+  this->mixer_->queue_buffer(*itr);
 
   ++this->current_buffer_;
   if(this->current_buffer_ == (this->audible_.end() - 1)) {
     this->current_buffer_ = this->audible_.begin();
   }
 
-  audio_state = audio::state((*itr), this->mixer_ ? this->mixer_->engine() : nullptr);
+  audio_state = audio::state((*itr), this->mixer_->engine());
 
   if(delta_time < (duration / speed)) {
     if(audio_state != audio::AUDIO_STATE_PLAYING) {
 
       NOM_LOG_INFO(NOM_LOG_CATEGORY_TEST, "play!");
-      if(this->mixer_ != nullptr) {
-        this->mixer_->play((*this->audible_.begin()), this->bus_);
-      }
+      this->mixer_->play((*this->audible_.begin()), this->bus_);
     }
 
     status = FrameState::PLAYING;
@@ -255,6 +283,12 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
 
 IActionObject::FrameState PlayAudioSource::next_frame(real32 delta_time)
 {
+  if( !mixer_valid(this->mixer_) ) {
+    auto status = FrameState::COMPLETED;
+    this->set_status(status);
+    return status;
+  }
+
   delta_time = this->timer_.to_seconds();
   this->first_frame(delta_time);
 
@@ -263,6 +297,12 @@ IActionObject::FrameState PlayAudioSource::next_frame(real32 delta_time)
 
 IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 {
+  if( !mixer_valid(this->mixer_) ) {
+    auto status = FrameState::COMPLETED;
+    this->set_status(status);
+    return status;
+  }
+
   delta_time = this->timer_.to_seconds();
   this->first_frame(delta_time);
 
@@ -271,34 +311,57 @@ IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 
 void PlayAudioSource::pause(real32 delta_time)
 {
+  (void)delta_time;
+
+  if( !mixer_valid(this->mixer_) || this->audible_.empty() ) {
+    return;
+  }
+
   auto itr = this->current_buffer_;
+  if(itr == this->audible_.end()) {
+    return;
+  }
 
   this->timer_.pause();
-  if(this->mixer_ != nullptr) {
-    this->mixer_->pause(*itr);
-  }
+  this->mixer_->pause(*itr);
 }
 
 void PlayAudioSource::resume(real32 delta_time)
 {
+  (void)delta_time;
+
+  if( !mixer_valid(this->mixer_) || this->audible_.empty() ) {
+    return;
+  }
+
   auto itr = this->current_buffer_;
+  if(itr == this->audible_.end()) {
+    return;
+  }
 
   this->timer_.unpause();
-  if(this->mixer_ != nullptr) {
-    this->mixer_->resume(*itr);
-  }
+  this->mixer_->resume(*itr);
 }
 
 void PlayAudioSource::rewind(real32 delta_time)
 {
+  (void)delta_time;
+
+  if( this->audible_.empty() ) {
+    return;
+  }
+
   auto itr = this->current_buffer_;
+  if(itr == this->audible_.end()) {
+    return;
+  }
 
   this->elapsed_frames_ = 0.0f;
   this->timer_.stop();
   this->set_status(FrameState::PLAYING);
 
   if((*itr) != nullptr) {
-    if(this->mixer_ != nullptr) {
+    if( mixer_valid(this->mixer_) ) {
       this->mixer_->stop(*itr);
     }
     (*itr)->samples_read = 0;
@@ -307,21 +370,24 @@ void PlayAudioSource::rewind(real32 delta_time)
 
 void PlayAudioSource::release()
 {
-  auto itr = this->current_buffer_;
-
-  if(*itr != nullptr) {
-    auto num_buffers = this->audible_.size();
-
-    NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
-
-    auto audible_end = this->audible_.end();
-    for(auto buf_itr = this->audible_.begin();
-        buf_itr != audible_end; ++buf_itr)
-    {
-      audio::free_buffer((*buf_itr), this->mixer_ ? this->mixer_->engine() : nullptr);
-    }
-    this->audible_.clear();
+  if( this->audible_.empty() ) {
+    return;
   }
+
+  auto num_buffers = this->audible_.size();
+
+  NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
+
+  audio::IOAudioEngine* engine =
+    (this->mixer_ != nullptr) ? this->mixer_->engine() : nullptr;
+
+  auto audible_end = this->audible_.end();
+  for(auto buf_itr = this->audible_.begin();
+      buf_itr != audible_end; ++buf_itr)
+  {
+    audio::free_buffer((*buf_itr), engine);
+  }
+  this->audible_.clear();
 }
 
 // Private scope
@@ -342,7 +408,6 @@ void PlayAudioSource::last_frame(real32 delta_time)
 {
   NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                "END at", delta_time);
-  auto itr = this->current_buffer_;
 
   this->timer_.stop();
   this->input_pos_ = 0;
