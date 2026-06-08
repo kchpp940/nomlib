@@ -84,7 +84,22 @@ FadeAudioGainBy::~FadeAudioGainBy()
 
 std::unique_ptr<IActionObject> FadeAudioGainBy::clone() const
 {
-  return( nom::make_unique<self_type>( self_type(*this) ) );
+  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
+  if( cloned_obj != nullptr ) {
+
+    cloned_obj->set_status(FrameState::PLAYING);
+    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
+    cloned_obj->elapsed_frames_ = 0.0f;
+    cloned_obj->timer_.stop();
+
+    cloned_obj->audible_ = nullptr;
+
+    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+
+    return std::move(cloned_obj);
+  } else {
+    return nullptr;
+  }
 }
 
 IActionObject::FrameState
@@ -102,6 +117,13 @@ FadeAudioGainBy::update(real32 t, uint8 b, int16 c, real32 d)
   // The current displacement value of this frame
   real32 gain = 0.0f;
   real32 displacement = 0.0f;
+
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
+  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   // Clamp values to stay within bounds of the initial value
   if(c1 > b1) {
@@ -159,6 +181,7 @@ FadeAudioGainBy::update(real32 t, uint8 b, int16 c, real32 d)
     this->last_frame(delta_time);
 
     this->set_status(FrameState::COMPLETED);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
     status = this->status();
   }
 
@@ -187,34 +210,42 @@ IActionObject::FrameState FadeAudioGainBy::prev_frame(real32 delta_time)
 
 void FadeAudioGainBy::pause(real32 delta_time)
 {
-  // audio::pause(this->audible_, this->impl_);
-  this->timer_.pause();
+  IActionObject::pause(delta_time);
+
+  if(this->audible_ != nullptr) {
+    audio::pause(this->audible_, this->impl_);
+  }
 }
 
 void FadeAudioGainBy::resume(real32 delta_time)
 {
-  // audio::resume(this->audible_, this->impl_);
-  this->timer_.unpause();
+  IActionObject::resume(delta_time);
+
+  if(this->audible_ != nullptr) {
+    audio::resume(this->audible_, this->impl_);
+  }
 }
 
 void FadeAudioGainBy::rewind(real32 delta_time)
 {
-  // ...Reset the animation...
-  this->elapsed_frames_ = 0.0f;
-  this->timer_.stop();
-  this->set_status(FrameState::PLAYING);
+  IActionObject::rewind(delta_time);
 
   if(this->audible_ != nullptr) {
     audio::set_volume(this->audible_, this->impl_, this->initial_volume_);
+    audio::stop(this->audible_, this->impl_);
   }
-
-  // audio::stop(this->audible_, this->impl_);
 }
 
 void FadeAudioGainBy::release()
 {
-  audio::free_buffer(this->audible_, this->impl_);
-  this->audible_ = nullptr;
+  if(this->audible_ != nullptr) {
+    audio::free_buffer(this->audible_, this->impl_);
+    this->audible_ = nullptr;
+  }
+
+  this->impl_ = nullptr;
+
+  IActionObject::release();
 }
 
 // Private scope

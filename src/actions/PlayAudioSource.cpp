@@ -127,7 +127,25 @@ PlayAudioSource::~PlayAudioSource()
 
 std::unique_ptr<IActionObject> PlayAudioSource::clone() const
 {
-  return( nom::make_unique<self_type>( self_type(*this) ) );
+  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
+  if( cloned_obj != nullptr ) {
+
+    cloned_obj->set_status(FrameState::PLAYING);
+    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
+    cloned_obj->elapsed_frames_ = 0.0f;
+    cloned_obj->timer_.stop();
+    cloned_obj->curr_frame_ = 0;
+    cloned_obj->input_pos_ = 0;
+
+    cloned_obj->fp_ = nullptr;
+    cloned_obj->audible_.clear();
+
+    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+
+    return std::move(cloned_obj);
+  } else {
+    return nullptr;
+  }
 }
 
 IActionObject::FrameState
@@ -138,10 +156,18 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
   const real32 duration = d;
   const auto speed = this->speed();
 
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
+  this->set_lifecycle_state(LifecycleState::RUNNING);
+
   auto& itr = this->current_buffer_;
   if(*itr == nullptr || (*itr)->samples == nullptr) {
     status = FrameState::COMPLETED;
     this->set_status(status);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
     return status;
   }
 
@@ -198,6 +224,7 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
     this->last_frame(delta_time);
     status = FrameState::COMPLETED;
     this->set_status(status);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return status;
@@ -231,68 +258,59 @@ IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 
 void PlayAudioSource::pause(real32 delta_time)
 {
+  IActionObject::pause(delta_time);
+
   auto itr = this->current_buffer_;
-
-  this->timer_.pause();
-#if 0
-  audio::pause((*itr), this->impl_);
-
-  if(this->audible_) {
-    this->audible_->elapsed_seconds = this->timer_.ticks();
+  if(itr != this->audible_.end() && *itr != nullptr) {
+    audio::pause((*itr), this->impl_);
   }
-#endif
 }
 
 void PlayAudioSource::resume(real32 delta_time)
 {
-  auto itr = this->current_buffer_;
+  IActionObject::resume(delta_time);
 
-  this->timer_.unpause();
-#if 0
-  if(this->audible_) {
-    this->audible_->elapsed_seconds = this->timer_.ticks();
+  auto itr = this->current_buffer_;
+  if(itr != this->audible_.end() && *itr != nullptr) {
+    audio::resume((*itr), this->impl_);
   }
-#endif
-  audio::resume((*itr), this->impl_);
 }
 
 void PlayAudioSource::rewind(real32 delta_time)
 {
-  auto itr = this->current_buffer_;
+  IActionObject::rewind(delta_time);
 
-  // ...Reset the animation...
-  this->elapsed_frames_ = 0.0f;
-  this->timer_.stop();
-  this->set_status(FrameState::PLAYING);
+  this->curr_frame_ = 0;
+  this->input_pos_ = 0;
+  this->current_buffer_ = this->audible_.begin();
 
-  if((*itr) != nullptr) {
-    audio::stop((*itr), this->impl_);
-    (*itr)->samples_read = 0;
+  for(auto itr = this->audible_.begin(); itr != this->audible_.end(); ++itr) {
+    if((*itr) != nullptr) {
+      audio::stop((*itr), this->impl_);
+      (*itr)->samples_read = 0;
+    }
   }
 }
 
 void PlayAudioSource::release()
 {
-  auto itr = this->current_buffer_;
-
-  if(*itr != nullptr) {
-    // audio::stop((*itr), this->impl_);
-
-    auto num_buffers = this->audible_.size();
-
-    NOM_LOG_DEBUG(NOM_LOG_CATEGORY_TEST, "processed_buffers:", num_buffers);
-
-    auto audible_end = this->audible_.end();
-    for(auto itr = this->audible_.begin();
-        itr != audible_end; ++itr)
-    {
+  auto audible_end = this->audible_.end();
+  for(auto itr = this->audible_.begin(); itr != audible_end; ++itr)
+  {
+    if(*itr != nullptr) {
       audio::free_buffer((*itr), this->impl_);
     }
-  #if 0
-    audio::free_buffer(this->audible_, this->impl_);
-    this->audible_ = nullptr;
-  #endif
   }
+  this->audible_.clear();
+
+  if(this->fp_ != nullptr) {
+    delete this->fp_;
+    this->fp_ = nullptr;
+  }
+
+  this->impl_ = nullptr;
+
+  IActionObject::release();
 }
 
 // Private scope

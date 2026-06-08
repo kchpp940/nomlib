@@ -35,13 +35,6 @@ set(  NOM_SYSTEM_SOURCE
       ${INC_DIR}/system/ResourceCache.hpp
       ${SRC_DIR}/system/ResourceFile.cpp
       ${INC_DIR}/system/ResourceFile.hpp
-      ${SRC_DIR}/system/ResourceManifest.cpp
-      ${INC_DIR}/system/ResourceManifest.hpp
-      ${SRC_DIR}/system/SearchPath.cpp
-      ${INC_DIR}/system/SearchPath.hpp
-      ${INC_DIR}/system/IResourceTypeLoader.hpp
-      ${SRC_DIR}/system/CachedResourceLoader.cpp
-      ${INC_DIR}/system/CachedResourceLoader.hpp
 
       ${SRC_DIR}/system/SDLApp.cpp
       ${INC_DIR}/system/SDLApp.hpp
@@ -96,11 +89,7 @@ if( SDL2_TTF_FOUND )
 endif( SDL2_TTF_FOUND )
 
 # Common on all platforms
-# NOTE: nomlib-system intentionally does NOT depend on nomlib-serializers.
-# That would create a reverse dependency from a lower layer into a higher
-# layer. JSON parsing for SearchPath / ResourceManifest / CachedResourceLoader
-# is provided by nomlib-serializers::ResourceLoaderHelpers instead.
-set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math nomlib-ptree
+set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math
       # FIXME: Needed only by nom::init and nom::quit
       ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY} )
 

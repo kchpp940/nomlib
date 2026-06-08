@@ -21,51 +21,5 @@
     ],
 
     "path": "Resources/tests/gui/"
-  },
-
-  "manifest":
-  {
-    "icon": {
-      "path": "icon.png",
-      "type": "Graphic"
-    },
-
-    "cursors_sheet": {
-      "path": "cursors.json",
-      "type": "SpriteSheet"
-    },
-
-    "cursors_texture": {
-      "path": "cursors.png",
-      "type": "Graphic"
-    },
-
-    "board_outline": {
-      "path": "boardoutline.png",
-      "type": "Graphic"
-    }
-  },
-
-  "gui_manifest":
-  {
-    "font_delicious_bold": {
-      "path": "Delicious-Bold.otf",
-      "type": "TrueTypeFont"
-    },
-
-    "font_opensans_regular": {
-      "path": "OpenSans-Regular.ttf",
-      "type": "TrueTypeFont"
-    },
-
-    "font_opensans_bold": {
-      "path": "OpenSans-Bold.ttf",
-      "type": "TrueTypeFont"
-    },
-
-    "doc_messagebox": {
-      "path": "messagebox.rml",
-      "type": "GuiDocument"
-    }
   }
 }

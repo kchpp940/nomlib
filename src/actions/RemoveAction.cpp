@@ -54,6 +54,11 @@ std::unique_ptr<IActionObject> RemoveAction::clone() const
   auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
   if( cloned_obj != nullptr ) {
 
+    cloned_obj->set_status(FrameState::PLAYING);
+    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
+    cloned_obj->elapsed_frames_ = 0.0f;
+    cloned_obj->timer_.stop();
+
     if( this->action_ != nullptr ) {
       cloned_obj->action_ = this->action_->clone();
     }
@@ -70,6 +75,13 @@ std::unique_ptr<IActionObject> RemoveAction::clone() const
 
 IActionObject::FrameState RemoveAction::next_frame(real32 delta_time)
 {
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
+  this->set_lifecycle_state(LifecycleState::RUNNING);
+
   if( this->action_ != nullptr ) {
 
     std::string action_id = this->action_->name();
@@ -85,6 +97,7 @@ IActionObject::FrameState RemoveAction::next_frame(real32 delta_time)
   }
 
   this->set_status(FrameState::COMPLETED);
+  this->set_lifecycle_state(LifecycleState::FINISHED);
   return this->status();
 }
 
@@ -96,17 +109,20 @@ IActionObject::FrameState RemoveAction::prev_frame(real32 delta_time)
 
 void RemoveAction::pause(real32 delta_time)
 {
-  // Not supported
+  // Not supported - instantaneous action
+  IActionObject::pause(delta_time);
 }
 
 void RemoveAction::resume(real32 delta_time)
 {
-  // Not supported
+  // Not supported - instantaneous action
+  IActionObject::resume(delta_time);
 }
 
 void RemoveAction::rewind(real32 delta_time)
 {
-  // Not supported
+  // Not supported - instantaneous action
+  IActionObject::rewind(delta_time);
 }
 
 void RemoveAction::release()
@@ -116,6 +132,8 @@ void RemoveAction::release()
   }
 
   this->action_.reset();
+
+  IActionObject::release();
 }
 
 } // namespace nom

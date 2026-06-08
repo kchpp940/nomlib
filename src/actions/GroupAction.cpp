@@ -109,6 +109,13 @@ GroupAction::update(real32 delta_time, uint32 direction)
 {
   std::string action_id = "action";
 
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
+  this->set_lifecycle_state(LifecycleState::RUNNING);
+
   // Program flow is structured to never call back here after the actions are
   // finished -- this serves only as a reminder to the intended flow.
   if( this->status() == FrameState::COMPLETED ) {
@@ -155,6 +162,7 @@ GroupAction::update(real32 delta_time, uint32 direction)
                       "Finished at:", Timer::to_seconds( nom::ticks() ),
                       "[num_completed]:", this->num_completed_ );
       this->set_status(FrameState::COMPLETED);
+      this->set_lifecycle_state(LifecycleState::FINISHED);
       return this->status();
     } else {
       this->set_status(FrameState::PLAYING);
@@ -177,6 +185,8 @@ IActionObject::FrameState GroupAction::prev_frame(real32 delta_time)
 
 void GroupAction::pause(real32 delta_time)
 {
+  IActionObject::pause(delta_time);
+
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
     IActionObject* action = (*itr).action.get();
@@ -188,6 +198,8 @@ void GroupAction::pause(real32 delta_time)
 
 void GroupAction::resume(real32 delta_time)
 {
+  IActionObject::resume(delta_time);
+
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
     IActionObject* action = (*itr).action.get();
@@ -199,8 +211,9 @@ void GroupAction::resume(real32 delta_time)
 
 void GroupAction::rewind(real32 delta_time)
 {
+  IActionObject::rewind(delta_time);
+
   this->num_completed_ = 0;
-  this->set_status(FrameState::PLAYING);
 
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
@@ -221,6 +234,8 @@ void GroupAction::release()
       action->release();
     }
   } // end for loop
+
+  IActionObject::release();
 }
 
 void GroupAction::set_speed(real32 speed)

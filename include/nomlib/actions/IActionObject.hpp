@@ -59,6 +59,22 @@ class IActionObject
       PLAYING,
     };
 
+    /// \brief The lifecycle state of the action, used for consistent
+    ///        state transitions in pause/resume/rewind/release.
+    enum LifecycleState
+    {
+      /// The action is freshly constructed or rewound, ready to start.
+      IDLE,
+      /// The action is currently executing (timer running).
+      RUNNING,
+      /// The action has been paused.
+      PAUSED,
+      /// The action has completed its execution.
+      FINISHED,
+      /// The action has released its external resources and is invalid.
+      RELEASED,
+    };
+
     IActionObject();
 
     virtual ~IActionObject();
@@ -86,6 +102,11 @@ class IActionObject
     /// \see nom::IActionObject::timing_curve_func
     const IActionObject::timing_curve_func& timing_curve() const;
 
+    /// \brief Get the current lifecycle state of the action.
+    ///
+    /// \see nom::IActionObject::LifecycleState
+    IActionObject::LifecycleState lifecycle_state() const;
+
     /// \brief Set the unique identifier of the action.
     void set_name(const std::string& action_id);
 
@@ -97,12 +118,20 @@ class IActionObject
     /// \see nom::IActionObject::timing_curve_func
     virtual void set_timing_curve(const IActionObject::timing_curve_func& mode);
 
-    /// \brief Create a deep copy instance of the action.
+    /// \brief Create a deep copy instance of the action in its initial state.
     ///
-    /// \remarks A cloned instance is created using the action's attributes
-    /// at the time of construction. External resources of the action --
-    /// i.e.: nom::Sprite -- are not modified, and you may need to reset the
-    /// state appropriately if the action has been ran previously.
+    /// \returns A new action instance with:
+    ///   - Construction parameters fully copied
+    ///   - Shared target objects (Sprite, SpriteBatch, etc.) keep shared ownership
+    ///   - All runtime state (timer, elapsed_frames, iterators, initial_* values)
+    ///     reset to defaults as if freshly constructed
+    ///   - Name suffixed with "_cloned" to avoid key collision in ActionPlayer
+    ///
+    /// \note External target objects (sprites, audio buffers) are NOT deep-copied;
+    ///       the cloned action shares them with the original via shared_ptr /
+    ///       observer pointer semantics.  Owned resources (e.g. internally
+    ///       allocated audio buffers, file handles) MUST be cloned or
+    ///       re-acquired by the derived action.
     virtual std::unique_ptr<IActionObject> clone() const = 0;
 
     /// \brief Play the action forward in time by one time step.
@@ -112,6 +141,9 @@ class IActionObject
     /// \note <b>This method should not normally need to be called externally!
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
+    ///
+    /// \post If the action reaches its end, FrameState::COMPLETED is returned
+    ///       and lifecycle_state() becomes FINISHED.
     ///
     /// \see nom::DispatchQueue
     virtual IActionObject::FrameState next_frame(real32 delta_time) = 0;
@@ -125,12 +157,13 @@ class IActionObject
     /// debugging</b>
     ///
     /// \remarks Not all actions are reversible -- see the action's
-    /// documentation for its implementation details.
+    /// documentation for its implementation details.  Non-reversible actions
+    /// should behave identically to next_frame().
     ///
     /// \see nom::ReversedAction
     virtual IActionObject::FrameState prev_frame(real32 delta_time) = 0;
 
-    /// \brief Freeze the action's internal state.
+    /// \brief Freeze the action's internal state and any held external resources.
     ///
     /// \param delta_time Reserved for application-defined implementations.
     ///
@@ -138,10 +171,14 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
+    /// \post lifecycle_state() == PAUSED
+    /// \post The internal timer is stopped; any playing audio / animation is
+    ///       also paused at the current position.
+    ///
     /// \see nom::DispatchQueue
-    virtual void pause(real32 delta_time) = 0;
+    virtual void pause(real32 delta_time);
 
-    /// \brief Resume the internal state of the action.
+    /// \brief Resume the internal state of the action from where it was paused.
     ///
     /// \param delta_time Reserved for application-defined implementations.
     ///
@@ -149,11 +186,13 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
+    /// \post lifecycle_state() == RUNNING (if the action was not already FINISHED)
+    ///
     /// \see nom::DispatchQueue
-    virtual void resume(real32 delta_time) = 0;
+    virtual void resume(real32 delta_time);
 
     /// \brief Reset the internal state of the action back to its initial
-    /// starting values.
+    /// starting values, making it safe to replay from the beginning.
     ///
     /// \param delta_time Reserved for application-defined implementations.
     ///
@@ -161,8 +200,16 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
+    /// \post lifecycle_state() == IDLE
+    /// \post Timer is reset; elapsed_frames_ is zero; all internal iterators
+    ///       and counters are at their construction defaults; "first frame"
+    ///       flags are cleared so that first_frame() will fire again on the
+    ///       next next_frame() call.
+    /// \post Target objects are restored to their recorded initial state
+    ///       (position, frame, volume, etc.) when applicable.
+    ///
     /// \see nom::RepeatForAction, nom::RepeatForeverAction
-    virtual void rewind(real32 delta_time) = 0;
+    virtual void rewind(real32 delta_time);
 
     /// \brief Free externally referenced resources held by the action.
     ///
@@ -170,8 +217,18 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
+    /// \details
+    ///   - shared_ptr-held targets (Sprite, SpriteBatch, ...): reference is released.
+    ///   - Action-owned raw resources (internally allocated SoundBuffers, file
+    ///     handles, etc.): explicitly freed / deleted.
+    ///   - Non-owning observer pointers: cleared to nullptr (NOT deleted).
+    ///
+    /// \post lifecycle_state() == RELEASED
+    /// \post Calling next_frame / prev_frame after release() is safe and
+    ///       immediately returns COMPLETED.
+    ///
     /// \see nom::RemoveAction
-    virtual void release() = 0;
+    virtual void release();
 
   protected:
     /// \brief Get the current state of the action.
@@ -189,6 +246,11 @@ class IActionObject
     /// \param state One of the IActionObject::FrameState enumeration values.
     void set_status(FrameState state);
 
+    /// \brief Set the lifecycle state of the action.
+    ///
+    /// \param state One of the IActionObject::LifecycleState enumeration values.
+    void set_lifecycle_state(LifecycleState state);
+
     /// \brief Internal frames counter.
     ///
     /// \remarks This is intended purely for debugging convenience.
@@ -204,6 +266,7 @@ class IActionObject
 
   private:
     FrameState status_ = FrameState::PLAYING;
+    LifecycleState lifecycle_state_ = LifecycleState::IDLE;
     std::string name_;
     real32 duration_ = 0.0f;
     real32 speed_ = 1.0f;

@@ -29,10 +29,109 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef NOMLIB_SERIALIZERS_SEARCH_PATH_HPP
 #define NOMLIB_SERIALIZERS_SEARCH_PATH_HPP
 
-/// \deprecated SearchPath has been moved to the system module.
-///             Include <nomlib/system/SearchPath.hpp> instead.
-///             This header is kept for backward compatibility.
+#include <memory>
+#include <string>
+#include <vector>
 
-#include "nomlib/system/SearchPath.hpp"
+#include "nomlib/config.hpp"
+
+namespace nom {
+
+// Forward declarations
+class IValueDeserializer;
+
+/// \brief Determine the directory location to use based on search prefixes
+///
+/// \todo Add an interface for using this class without a file.
+class SearchPath
+{
+  public:
+    typedef SearchPath self_type;
+
+    typedef self_type* raw_ptr;
+    typedef std::unique_ptr<self_type> unique_ptr;
+    typedef std::shared_ptr<self_type> shared_ptr;
+
+    /// \brief Default constructor; initialize the parser to NULL.
+    SearchPath();
+
+    /// \brief Destructor.
+    ~SearchPath();
+
+    /// \brief Get the resolved path.
+    const std::string& path();
+
+    /// \brief Set a custom parser.
+    ///
+    /// \remarks The default parser is JSON.
+    void set_deserializer( std::unique_ptr<IValueDeserializer> fp );
+
+    /// \brief Parse a file into memory.
+    ///
+    /// \param filename The absolute file path.
+    /// \param node     The top-level object to use in formation of the path;
+    /// defaults to an object member by name of "resources".
+    ///
+    /// \remarks The default parser is JSON, and can be changed using the
+    /// ::set_deserializer method.
+    bool load_file( const std::string& filename, const std::string& node = "resources" );
+
+  private:
+    /// \brief Parser object to use.
+    ///
+    /// \see nom::IValueDeserializer
+    std::unique_ptr<IValueDeserializer> fp_;
+
+    /// \brief List of path prefixes to scan through with the given path.
+    std::vector<std::string> search_prefix_;
+
+    /// \brief The resolved path.
+    std::string path_;
+};
+
+} // namespace nom
 
 #endif // include guard defined
+
+/// Common usage:
+///
+/// #include "nomlib/serializers.hpp"
+///
+/// int main( int argc, char** argv )
+/// {
+///   // Set the current working directory path to the path leading to this
+///   // executable file; used for unit tests that require file-system I/O.
+///   if( nom::init( argc, argv ) == false )
+///   {
+///     nom::DialogMessageBox( "Critical Error", "Could not initialize nomlib.", nom::MessageBoxType::NOM_DIALOG_ERROR );
+///     return NOM_EXIT_FAILURE;
+///   }
+///   atexit( nom::quit );
+///   return NOM_EXIT_SUCCESS;
+/// }
+///
+/// nom::SearchPath resources;
+/// resources.load_file( "resources.json" );
+///
+/// ```resources.json```
+/// (should generally be in the same directory as the executable)
+///
+/// \code
+/// {
+///   // Top-level object 'node'
+///   "resources":
+///   {
+///     // List of paths to search
+///     "search_prefix":
+///     [
+///       "./",
+///       "../../",
+///       "../../../"
+///     ],
+///     // The 'suffix' that is appended to each search prefix path during the
+///     // scan; the first full path that exists will be what is returned on a
+///     // call to ::path.
+///     "path": "Resources/tests/gui/librocket/nomlibTest/"
+///   }
+/// }
+/// \endcode

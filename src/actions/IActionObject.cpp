@@ -67,6 +67,11 @@ IActionObject::timing_curve_func& IActionObject::timing_curve() const
   return this->timing_curve_;
 }
 
+IActionObject::LifecycleState IActionObject::lifecycle_state() const
+{
+  return this->lifecycle_state_;
+}
+
 void IActionObject::set_name(const std::string& action_id)
 {
   this->name_ = action_id;
@@ -85,6 +90,38 @@ IActionObject::set_timing_curve(const IActionObject::timing_curve_func& mode)
   this->timing_curve_ = mode;
 }
 
+void IActionObject::pause(real32 delta_time)
+{
+  (void)delta_time;
+  if( this->lifecycle_state_ == LifecycleState::RUNNING ) {
+    this->timer_.pause();
+    this->lifecycle_state_ = LifecycleState::PAUSED;
+  }
+}
+
+void IActionObject::resume(real32 delta_time)
+{
+  (void)delta_time;
+  if( this->lifecycle_state_ == LifecycleState::PAUSED ) {
+    this->timer_.unpause();
+    this->lifecycle_state_ = LifecycleState::RUNNING;
+  }
+}
+
+void IActionObject::rewind(real32 delta_time)
+{
+  (void)delta_time;
+  this->elapsed_frames_ = 0.0f;
+  this->timer_.stop();
+  this->status_ = FrameState::PLAYING;
+  this->lifecycle_state_ = LifecycleState::IDLE;
+}
+
+void IActionObject::release()
+{
+  this->lifecycle_state_ = LifecycleState::RELEASED;
+}
+
 // Protected scope
 
 IActionObject::FrameState IActionObject::status() const
@@ -100,6 +137,11 @@ void IActionObject::set_duration(real32 seconds)
 void IActionObject::set_status(FrameState state)
 {
   this->status_ = state;
+}
+
+void IActionObject::set_lifecycle_state(LifecycleState state)
+{
+  this->lifecycle_state_ = state;
 }
 
 } // namespace nom

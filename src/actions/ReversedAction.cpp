@@ -55,6 +55,9 @@ std::unique_ptr<IActionObject> ReversedAction::clone() const
   if( cloned_obj != nullptr ) {
 
     cloned_obj->set_status(FrameState::PLAYING);
+    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
+    cloned_obj->elapsed_frames_ = 0.0f;
+    cloned_obj->timer_.stop();
 
     if( this->action_ != nullptr ) {
       cloned_obj->action_ = this->action_->clone();
@@ -72,11 +75,21 @@ std::unique_ptr<IActionObject> ReversedAction::clone() const
 
 IActionObject::FrameState ReversedAction::next_frame(real32 delta_time)
 {
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
   if( this->action_ != nullptr ) {
+    this->set_lifecycle_state(LifecycleState::RUNNING);
     this->set_status( this->action_->prev_frame(delta_time) );
+    if( this->status() == FrameState::COMPLETED ) {
+      this->set_lifecycle_state(LifecycleState::FINISHED);
+    }
   } else {
     // No action to reverse!
     this->set_status(FrameState::COMPLETED);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return this->status();
@@ -84,12 +97,21 @@ IActionObject::FrameState ReversedAction::next_frame(real32 delta_time)
 
 IActionObject::FrameState ReversedAction::prev_frame(real32 delta_time)
 {
-  if( this->action_ != nullptr ) {
-    this->set_status( this->action_->next_frame(delta_time) );
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
     return this->status();
+  }
+
+  if( this->action_ != nullptr ) {
+    this->set_lifecycle_state(LifecycleState::RUNNING);
+    this->set_status( this->action_->next_frame(delta_time) );
+    if( this->status() == FrameState::COMPLETED ) {
+      this->set_lifecycle_state(LifecycleState::FINISHED);
+    }
   } else {
     // No action to reverse!
     this->set_status(FrameState::COMPLETED);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return this->status();
@@ -97,6 +119,8 @@ IActionObject::FrameState ReversedAction::prev_frame(real32 delta_time)
 
 void ReversedAction::pause(real32 delta_time)
 {
+  IActionObject::pause(delta_time);
+
   if( this->action_ != nullptr ) {
     this->action_->pause(delta_time);
   }
@@ -104,6 +128,8 @@ void ReversedAction::pause(real32 delta_time)
 
 void ReversedAction::resume(real32 delta_time)
 {
+  IActionObject::resume(delta_time);
+
   if( this->action_ != nullptr ) {
     this->action_->resume(delta_time);
   }
@@ -111,7 +137,7 @@ void ReversedAction::resume(real32 delta_time)
 
 void ReversedAction::rewind(real32 delta_time)
 {
-  this->set_status(FrameState::PLAYING);
+  IActionObject::rewind(delta_time);
 
   if( this->action_ != nullptr ) {
     this->action_->rewind(delta_time);
@@ -125,6 +151,8 @@ void ReversedAction::release()
   }
 
   this->action_.reset();
+
+  IActionObject::release();
 }
 
 void ReversedAction::set_speed(real32 speed)

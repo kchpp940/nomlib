@@ -44,7 +44,7 @@ using namespace nom;
 const std::string APP_NAME = "nomlib: audio";
 
 // File resource paths
-// SearchPath res;  // Replaced by CachedResourceLoader below
+SearchPath res;
 
 /// \remarks See program usage by passing --help
 struct AppFlags
@@ -158,13 +158,10 @@ NOM_IGNORED_VARS_ENDL();
 
   ActionPlayer audio_player;
 
-  CachedResourceLoader res_loader;
-
-  // Load JSON config using the serializers-layer helper. This keeps
-  // nomlib-system free of an upward dependency on nomlib-serializers.
-  if( nom::load_resource_config( res_loader, RES_FILENAME ) == false ) {
+  if(res.load_file(RES_FILENAME, "resources") == false) {
     NOM_LOG_CRIT(NOM_LOG_CATEGORY_APPLICATION,
-                 "Could not load resource config from:", RES_FILENAME);
+                 "Could not resolve the resources path from given input:",
+                 RES_FILENAME);
     exit(NOM_EXIT_FAILURE);
   }
 
@@ -173,13 +170,7 @@ NOM_IGNORED_VARS_ENDL();
   }
 
   if(args.audio_input.length() < 1) {
-    // Leave empty — we will load the default sound through the
-    // CachedResourceLoader via audio::load_sound_buffer_from_resource after
-    // the audio device is initialized. This keeps all manifest lookups and
-    // path resolution inside the audio module's adapter layer.
-  } else {
-    // User-supplied external file path (command-line -i) — this bypasses the
-    // resource manifest entirely by design.
+    args.audio_input = res.path() + "sinewave_1s-900.wav";
   }
 
   // Fatal error; if we are not able to complete this step, it means that
@@ -222,27 +213,11 @@ NOM_IGNORED_VARS_ENDL();
   master_gain = args.audio_volume;
   audio::set_volume(master_gain, dev);
 
-  // Load the audio buffer — either from the user-supplied command-line path
-  // or (preferred) from the resource manifest via the audio adapter layer.
-  if( args.audio_input.length() > 0 ) {
-    buffer = audio::create_buffer(args.audio_input, dev);
-    if(audio::valid_buffer(buffer, dev) == false) {
-      NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not load audio samples from:", args.audio_input);
-      return NOM_EXIT_FAILURE;
-    }
-  } else {
-    // Load the default test sound through the unified resource loader.
-    // The audio module's adapter helper handles loader registration,
-    // manifest lookup, path resolution, and caching — all routed through
-    // the CachedResourceLoader's load<T>() pipeline.
-    buffer = nom::audio::load_sound_buffer_from_resource(
-      res_loader, dev, "sinewave_1s" );
-    if( buffer == nullptr || audio::valid_buffer(buffer, dev) == false ) {
-      NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not load audio buffer for manifest ID: sinewave_1s");
-      return NOM_EXIT_FAILURE;
-    }
+  buffer = audio::create_buffer(args.audio_input, dev);
+  if(audio::valid_buffer(buffer, dev) == false) {
+    NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
+                "Could not load audio samples from:", args.audio_input);
+    return NOM_EXIT_FAILURE;
   }
 
   // TODO(jeff): Implement per-buffer gain level passing via command line
@@ -253,26 +228,8 @@ NOM_IGNORED_VARS_ENDL();
   audio::set_velocity(buffer, dev, audio_velocity);
   // audio::set_state(buffer, dev, audio::AUDIO_STATE_LOOPING);
 #if 1
-  // Create the PlayAudioSource action either from a user-supplied path
-  // (command-line -i) or by manifest ID through the audio adapter.
-  // The adapter factory (create_play_audio_action) internally routes
-  // through CachedResourceLoader::load<std::string>() so the resolved path
-  // enters the cache, type-validation, and release machinery just like
-  // any other resource — no raw resolve_path() call here.
-  std::unique_ptr<IActionObject> playback_action;
-
-  if( args.audio_input.length() > 0 ) {
-    playback_action =
-      nom::create_action<PlayAudioSource>(dev, args.audio_input.c_str());
-  } else {
-    playback_action =
-      nom::audio::create_play_audio_action(res_loader, dev, "sinewave_1s");
-    if( playback_action == nullptr ) {
-      NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
-                  "Could not create PlayAudioSource for manifest ID: sinewave_1s");
-      return NOM_EXIT_FAILURE;
-    }
-  }
+  auto playback_action =
+    nom::create_action<PlayAudioSource>(dev, args.audio_input.c_str());
 #else
   auto playback_action =
     nom::create_action<FadeAudioGainBy>(dev, buffer, ACTION_FADE_DISPLACEMENT,

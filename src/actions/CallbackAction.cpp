@@ -63,12 +63,32 @@ CallbackAction::~CallbackAction()
 
 std::unique_ptr<IActionObject> CallbackAction::clone() const
 {
-  return( nom::make_unique<self_type>( self_type(*this) ) );
+  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
+  if( cloned_obj != nullptr ) {
+
+    cloned_obj->set_status(FrameState::PLAYING);
+    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
+    cloned_obj->elapsed_frames_ = 0.0f;
+    cloned_obj->timer_.stop();
+
+    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+
+    return std::move(cloned_obj);
+  } else {
+    return nullptr;
+  }
 }
 
 IActionObject::FrameState CallbackAction::next_frame(real32 delta_time)
 {
   delta_time = ( Timer::to_seconds( this->timer_.ticks() ) );
+
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
+  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   if( this->timer_.started() == false ) {
     this->timer_.start();
@@ -94,6 +114,7 @@ IActionObject::FrameState CallbackAction::next_frame(real32 delta_time)
     }
 
     this->set_status(FrameState::COMPLETED);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
 
   } else if( delta_time < (this->duration() / this->speed() ) ) {
 
@@ -107,6 +128,7 @@ IActionObject::FrameState CallbackAction::next_frame(real32 delta_time)
 
   } else {
     this->set_status(FrameState::COMPLETED);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
@@ -124,22 +146,23 @@ IActionObject::FrameState CallbackAction::prev_frame(real32 delta_time)
 
 void CallbackAction::pause(real32 delta_time)
 {
-  // Not supported
+  IActionObject::pause(delta_time);
 }
 
 void CallbackAction::resume(real32 delta_time)
 {
-  // Not supported
+  IActionObject::resume(delta_time);
 }
 
 void CallbackAction::rewind(real32 delta_time)
 {
-  // Not supported
+  IActionObject::rewind(delta_time);
 }
 
 void CallbackAction::release()
 {
-  this->action_.~function();
+  this->action_ = nullptr;
+  IActionObject::release();
 }
 
 } // namespace nom

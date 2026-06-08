@@ -86,7 +86,24 @@ AnimateTexturesAction::~AnimateTexturesAction()
 
 std::unique_ptr<IActionObject> AnimateTexturesAction::clone() const
 {
-  return( nom::make_unique<self_type>( self_type(*this) ) );
+  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
+  if( cloned_obj != nullptr ) {
+
+    cloned_obj->set_status(FrameState::PLAYING);
+    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
+    cloned_obj->elapsed_frames_ = 0.0f;
+    cloned_obj->timer_.stop();
+    cloned_obj->initial_frame_ = 0;
+    cloned_obj->last_delta_ = 0.0f;
+    cloned_obj->next_frame_ = cloned_obj->frames_.begin();
+    cloned_obj->last_frame_ = cloned_obj->frames_.empty() ? cloned_obj->frames_.end() : (cloned_obj->frames_.end() - 1);
+
+    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+
+    return std::move(cloned_obj);
+  } else {
+    return nullptr;
+  }
 }
 
 IActionObject::FrameState
@@ -104,6 +121,13 @@ AnimateTexturesAction::update(real32 t, real32 b, real32 c, real32 d)
   // The computed texture frame to show next
   real32 displacement(0.0f);
   uint32 displacement_as_integer = 0;
+
+  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
+    this->set_status(FrameState::COMPLETED);
+    return this->status();
+  }
+
+  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   // Clamp delta values that go beyond maximal duration
   if( delta_time > (duration / this->speed() ) ) {
@@ -175,6 +199,7 @@ AnimateTexturesAction::update(real32 t, real32 b, real32 c, real32 d)
   } else {
     this->last_frame(delta_time);
     this->set_status(FrameState::COMPLETED);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return this->status();
@@ -202,24 +227,22 @@ IActionObject::FrameState AnimateTexturesAction::prev_frame(real32 delta_time)
 
 void AnimateTexturesAction::pause(real32 delta_time)
 {
-  this->timer_.pause();
+  IActionObject::pause(delta_time);
 }
 
 void AnimateTexturesAction::resume(real32 delta_time)
 {
-  this->timer_.unpause();
+  IActionObject::resume(delta_time);
 }
 
 void AnimateTexturesAction::rewind(real32 delta_time)
 {
-  this->elapsed_frames_ = 0.0f;
+  IActionObject::rewind(delta_time);
+
   this->initial_frame_ = 0;
   this->next_frame_ = (this->frames_.begin() + this->initial_frame_);
   this->last_frame_ = (this->frames_.end() - 1);
   this->last_delta_ = 0.0f;
-  this->timer_.stop();
-
-  this->set_status(FrameState::PLAYING);
 
   auto curr_frame = this->next_frame_;
   NOM_ASSERT( curr_frame != this->frames_.end() );
@@ -240,6 +263,7 @@ void AnimateTexturesAction::release()
   }
 
   this->drawable_.reset();
+  IActionObject::release();
 }
 
 // Private scope

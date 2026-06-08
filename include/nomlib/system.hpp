@@ -57,10 +57,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/system/resource_types.hpp>
 #include <nomlib/system/ResourceFile.hpp>
 #include <nomlib/system/ResourceCache.hpp>
-#include <nomlib/system/ResourceManifest.hpp>
-#include <nomlib/system/SearchPath.hpp>
-#include <nomlib/system/IResourceTypeLoader.hpp>
-#include <nomlib/system/CachedResourceLoader.hpp>
 
 #include <nomlib/system/ColorDatabase.hpp>
 
