@@ -9,5 +9,13 @@
     ],
 
     "path": "Resources/tests/audio/ALAudioTest/"
+  },
+
+  "manifest":
+  {
+    "sinewave_1s": {
+      "path": "sinewave_1s-900.wav",
+      "type": "Audio"
+    }
   }
 }

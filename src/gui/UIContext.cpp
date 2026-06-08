@@ -433,14 +433,6 @@ void UIContext::set_size(const Size2i& dims)
   if( target && context )
   {
     SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
-
-    // Keep the fallback ViewportManager in sync for cases where no
-    // external ViewportManager is bound.
-    SDL_Rect vp;
-    SDL_RenderGetViewport( context->renderer(), &vp );
-    this->viewport_mgr_fallback_.viewport = IntRect(vp.x, vp.y, vp.w, vp.h);
-    this->viewport_mgr_fallback_.scale = scale;
-    this->viewport_mgr_fallback_.bound = true;
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is
@@ -450,27 +442,6 @@ void UIContext::set_size(const Size2i& dims)
   res.h = dims.h / scale.y;
 
   this->context_->SetDimensions( Rocket::Core::Vector2i(res.w, res.h) );
-}
-
-ViewportManager& UIContext::viewport_manager()
-{
-  if( this->viewport_mgr_ != nullptr ) {
-    return *this->viewport_mgr_;
-  }
-  return this->viewport_mgr_fallback_;
-}
-
-const ViewportManager& UIContext::viewport_manager() const
-{
-  if( this->viewport_mgr_ != nullptr ) {
-    return *this->viewport_mgr_;
-  }
-  return this->viewport_mgr_fallback_;
-}
-
-void UIContext::set_viewport_manager(ViewportManager* vm)
-{
-  this->viewport_mgr_ = vm;
 }
 
 void UIContext::set_event_handler(nom::EventHandler& evt_handler)

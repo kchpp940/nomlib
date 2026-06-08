@@ -17,8 +17,6 @@ set(  NOM_SYSTEM_SOURCE
 
       ${SRC_DIR}/system/EventHandler.cpp
       ${INC_DIR}/system/EventHandler.hpp
-      ${SRC_DIR}/system/ViewportManager.cpp
-      ${INC_DIR}/system/ViewportManager.hpp
       ${SRC_DIR}/system/JoystickEventHandler.cpp
       ${INC_DIR}/system/JoystickEventHandler.hpp
       ${SRC_DIR}/system/GameControllerEventHandler.cpp
@@ -37,6 +35,13 @@ set(  NOM_SYSTEM_SOURCE
       ${INC_DIR}/system/ResourceCache.hpp
       ${SRC_DIR}/system/ResourceFile.cpp
       ${INC_DIR}/system/ResourceFile.hpp
+      ${SRC_DIR}/system/ResourceManifest.cpp
+      ${INC_DIR}/system/ResourceManifest.hpp
+      ${SRC_DIR}/system/SearchPath.cpp
+      ${INC_DIR}/system/SearchPath.hpp
+      ${INC_DIR}/system/IResourceTypeLoader.hpp
+      ${SRC_DIR}/system/CachedResourceLoader.cpp
+      ${INC_DIR}/system/CachedResourceLoader.hpp
 
       ${SRC_DIR}/system/SDLApp.cpp
       ${INC_DIR}/system/SDLApp.hpp
@@ -91,7 +96,7 @@ if( SDL2_TTF_FOUND )
 endif( SDL2_TTF_FOUND )
 
 # Common on all platforms
-set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math
+set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math nomlib-ptree nomlib-serializers
       # FIXME: Needed only by nom::init and nom::quit
       ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY} )
 

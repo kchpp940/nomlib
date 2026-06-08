@@ -40,7 +40,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/math/Rect.hpp"
 #include "nomlib/graphics/RendererInfo.hpp"
 #include "nomlib/system/SDL_helpers.hpp"
-#include "nomlib/system/ViewportManager.hpp"
 
 namespace nom {
 
@@ -98,27 +97,6 @@ class Renderer
 
     /// Get the current viewport dimensions
     const IntRect viewport ( void ) const;
-
-    /// \brief Access the ViewportManager tracking this renderer's logical
-    ///        viewport state.
-    ///
-    /// The ViewportManager is automatically synchronized when calling
-    /// set_logical_size, set_scale, set_viewport, or sync_viewport. It is
-    /// the single source of truth for mouse coordinate conversion; share
-    /// this reference with EventHandler::bind_viewport_manager and
-    /// UI contexts to keep all coordinate-space consumers in sync.
-    ///
-    /// \see nom::ViewportManager, nom::EventHandler::bind_viewport_manager
-    ViewportManager& viewport_manager();
-    const ViewportManager& viewport_manager() const;
-
-    /// \brief Refresh the cached ViewportManager state from SDL.
-    ///
-    /// Re-queries SDL for the current render scale and viewport, then
-    /// updates the internal ViewportManager. Call this after any direct
-    /// SDL_RenderSet* calls that bypass the Renderer wrapper API, or after
-    /// window resize events that SDL handles automatically.
-    void sync_viewport();
 
     /// Obtain the blending mode used for drawing
     const SDL_BlendMode blend_mode ( void ) const;
@@ -233,15 +211,6 @@ class Renderer
     /// This is automatically released after the attached nom::RenderWindow has been
     /// destroyed.
     std::unique_ptr<SDL_Renderer, void(*)(SDL_Renderer*)> renderer_;
-
-    /// \brief Cached logical viewport state (letterbox offset + scale).
-    ///
-    /// This is the single source of truth for mouse coordinate conversion
-    /// across the engine. Updated by sync_viewport() whenever the renderer
-    /// configuration changes.
-    ///
-    /// \see nom::Renderer::sync_viewport, nom::Renderer::viewport_manager
-    ViewportManager viewport_mgr_;
 };
 
 

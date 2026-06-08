@@ -35,7 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Forward declarations
 #include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/Event.hpp"
-#include "nomlib/system/ViewportManager.hpp"
 
 namespace nom {
 
@@ -76,18 +75,8 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
 
     case nom::Event::MOUSE_MOTION:
     {
-      int mx = ev.motion.x;
-      int my = ev.motion.y;
-
-      if( ev.motion.coord_space == MOUSE_COORD_WINDOW ) {
-        const ViewportManager& vm = this->ctx_->viewport_manager();
-        Point2i logical = vm.to_logical(Point2i(mx, my));
-        mx = logical.x;
-        my = logical.y;
-      }
-
-      this->ctx_->context()->ProcessMouseMove(  mx,
-                                                my,
+      this->ctx_->context()->ProcessMouseMove(  ev.motion.x,
+                                                ev.motion.y,
                                                 this->translate_key_modifiers(ev) );
     } break;
 

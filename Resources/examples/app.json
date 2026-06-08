@@ -21,5 +21,23 @@
     ],
 
     "path": "Resources/tests/gui/"
+  },
+
+  "manifest":
+  {
+    "icon": {
+      "path": "icon.png",
+      "type": "Graphic"
+    },
+
+    "cursors_sheet": {
+      "path": "cursors.json",
+      "type": "Graphic"
+    },
+
+    "board_outline": {
+      "path": "boardoutline.png",
+      "type": "Graphic"
+    }
   }
 }

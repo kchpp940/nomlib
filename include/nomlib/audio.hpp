@@ -51,4 +51,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   #include <nomlib/audio/libsndfile/SoundFileWriter.hpp>
 #endif
 
+#include <nomlib/audio/ResourceLoaders.hpp>
+
 #endif // include guard defined

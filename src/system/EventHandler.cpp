@@ -57,621 +57,12 @@ static_assert(  nom::MouseButton::X2_MOUSE_BUTTON ==
 
 namespace nom {
 
-// ---------------------------------------------------------------------------
-// event_watcher
-// ---------------------------------------------------------------------------
-
+// Forward declarations
 struct event_watcher
 {
   event_filter callback = nullptr;
   void* data1 = nullptr;
 };
-
-// ---------------------------------------------------------------------------
-// EventConverter — platform event to nom::Event translation
-// ---------------------------------------------------------------------------
-
-bool EventHandler::EventConverter::convert_quit(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_QUIT ) return false;
-  out.type = Event::QUIT_EVENT;
-  out.timestamp = ev->quit.timestamp;
-  out.quit.data1 = nullptr;
-  out.quit.data2 = nullptr;
-  return true;
-}
-
-namespace {
-
-WindowEvent::EventType window_event_type(uint8 sdl_window_event)
-{
-  switch( sdl_window_event )
-  {
-    default:                        return WindowEvent::NONE;
-    case SDL_WINDOWEVENT_SHOWN:     return WindowEvent::SHOWN;
-    case SDL_WINDOWEVENT_HIDDEN:    return WindowEvent::HIDDEN;
-    case SDL_WINDOWEVENT_EXPOSED:   return WindowEvent::EXPOSED;
-    case SDL_WINDOWEVENT_MOVED:     return WindowEvent::MOVED;
-    case SDL_WINDOWEVENT_RESIZED:   return WindowEvent::RESIZED;
-    case SDL_WINDOWEVENT_SIZE_CHANGED: return WindowEvent::SIZE_CHANGED;
-    case SDL_WINDOWEVENT_MINIMIZED: return WindowEvent::MINIMIZED;
-    case SDL_WINDOWEVENT_MAXIMIZED: return WindowEvent::MAXIMIZED;
-    case SDL_WINDOWEVENT_RESTORED:  return WindowEvent::RESTORED;
-    case SDL_WINDOWEVENT_ENTER:     return WindowEvent::MOUSE_FOCUS_GAINED;
-    case SDL_WINDOWEVENT_LEAVE:     return WindowEvent::MOUSE_FOCUS_LOST;
-    case SDL_WINDOWEVENT_FOCUS_GAINED: return WindowEvent::KEYBOARD_FOCUS_GAINED;
-    case SDL_WINDOWEVENT_FOCUS_LOST:   return WindowEvent::KEYBOARD_FOCUS_LOST;
-    case SDL_WINDOWEVENT_CLOSE:     return WindowEvent::CLOSE;
-  }
-}
-
-} // namespace
-
-bool EventHandler::EventConverter::convert_window(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_WINDOWEVENT ) return false;
-
-  auto wtype = window_event_type(ev->window.event);
-  if( wtype == WindowEvent::NONE ) return false;
-
-  out.type = Event::WINDOW_EVENT;
-  out.timestamp = ev->window.timestamp;
-  out.window.event = wtype;
-  out.window.data1 = ev->window.data1;
-  out.window.data2 = ev->window.data2;
-  out.window.window_id = ev->window.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_key(const SDL_Event* ev, Event& out)
-{
-  if( ev->type == SDL_KEYDOWN ) {
-    out.type = Event::KEY_PRESS;
-  } else if( ev->type == SDL_KEYUP ) {
-    out.type = Event::KEY_RELEASE;
-  } else {
-    return false;
-  }
-  out.timestamp = ev->key.timestamp;
-  out.key.scan_code = ev->key.keysym.scancode;
-  out.key.sym = ev->key.keysym.sym;
-  out.key.mod = ev->key.keysym.mod;
-  out.key.state = ev->key.state;
-  out.key.repeat = ev->key.repeat;
-  out.key.window_id = ev->key.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_mouse_motion(
-    const SDL_Event* ev, Event& out, const CoordinateSpaceConverter* cvt)
-{
-  if( ev->type != SDL_MOUSEMOTION ) return false;
-  out.type = Event::MOUSE_MOTION;
-  out.timestamp = ev->motion.timestamp;
-  out.motion.id = ev->motion.which;
-
-  Point2i pos(ev->motion.x, ev->motion.y);
-  Point2i delta(ev->motion.xrel, ev->motion.yrel);
-  const bool converted = (cvt != nullptr && cvt->is_active());
-  if( converted ) {
-    pos = cvt->to_logical(pos);
-    delta = cvt->to_logical_delta(delta);
-  }
-  out.motion.x = pos.x;
-  out.motion.y = pos.y;
-  out.motion.x_rel = delta.x;
-  out.motion.y_rel = delta.y;
-  out.motion.coord_space = converted ? MOUSE_COORD_LOGICAL : MOUSE_COORD_WINDOW;
-
-  out.motion.state = ev->motion.state;
-  out.motion.window_id = ev->motion.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_mouse_button(
-    const SDL_Event* ev, Event& out, const CoordinateSpaceConverter* cvt)
-{
-  Event::EventType etype;
-  if( ev->type == SDL_MOUSEBUTTONDOWN ) {
-    etype = Event::MOUSE_BUTTON_CLICK;
-  } else if( ev->type == SDL_MOUSEBUTTONUP ) {
-    etype = Event::MOUSE_BUTTON_RELEASE;
-  } else {
-    return false;
-  }
-
-  uint8 button = ev->button.button;
-  if( button != SDL_BUTTON_LEFT && button != SDL_BUTTON_MIDDLE &&
-      button != SDL_BUTTON_RIGHT && button != SDL_BUTTON_X1 &&
-      button != SDL_BUTTON_X2 ) {
-    return false;
-  }
-
-  out.type = etype;
-  out.timestamp = ev->button.timestamp;
-  out.mouse.id = ev->button.which;
-
-  Point2i pos(ev->button.x, ev->button.y);
-  const bool converted = (cvt != nullptr && cvt->is_active());
-  if( converted ) {
-    pos = cvt->to_logical(pos);
-  }
-  out.mouse.x = pos.x;
-  out.mouse.y = pos.y;
-  out.mouse.coord_space = converted ? MOUSE_COORD_LOGICAL : MOUSE_COORD_WINDOW;
-
-  out.mouse.button = button;
-  out.mouse.state = ev->button.state;
-  out.mouse.clicks = ev->button.clicks;
-  out.mouse.window_id = ev->button.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_mouse_wheel(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_MOUSEWHEEL ) return false;
-  out.type = Event::MOUSE_WHEEL;
-  out.timestamp = ev->wheel.timestamp;
-  out.wheel.id = ev->wheel.which;
-  out.wheel.x = ev->wheel.x;
-  out.wheel.y = ev->wheel.y;
-  out.wheel.window_id = ev->wheel.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_finger(const SDL_Event* ev, Event& out)
-{
-  if( ev->type == SDL_FINGERMOTION ) {
-    out.type = Event::FINGER_MOTION;
-  } else if( ev->type == SDL_FINGERDOWN ) {
-    out.type = Event::FINGER_PRESS;
-  } else if( ev->type == SDL_FINGERUP ) {
-    out.type = Event::FINGER_RELEASE;
-  } else {
-    return false;
-  }
-  out.timestamp = ev->tfinger.timestamp;
-  out.touch.id = ev->tfinger.touchId;
-  out.touch.finger.id = ev->tfinger.fingerId;
-  out.touch.x = ev->tfinger.x;
-  out.touch.y = ev->tfinger.y;
-  out.touch.dx = ev->tfinger.dx;
-  out.touch.dy = ev->tfinger.dy;
-  out.touch.pressure = ev->tfinger.pressure;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_gesture(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_MULTIGESTURE ) return false;
-  out.type = Event::MULTI_FINGER_GESTURE;
-  out.timestamp = ev->mgesture.timestamp;
-  out.gesture.id = ev->mgesture.touchId;
-  out.gesture.dTheta = ev->mgesture.dTheta;
-  out.gesture.dDist = ev->mgesture.dDist;
-  out.gesture.x = ev->mgesture.x;
-  out.gesture.y = ev->mgesture.y;
-  out.gesture.num_fingers = ev->mgesture.numFingers;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_drop(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_DROPFILE ) return false;
-  out.type = Event::DROP_FILE;
-  out.timestamp = ev->drop.timestamp;
-  out.drop.file_path = ev->drop.file;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_text_input(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_TEXTINPUT ) return false;
-  out.type = Event::TEXT_INPUT;
-  out.timestamp = ev->text.timestamp;
-  nom::copy_string(ev->text.text, out.text.text);
-  out.text.window_id = ev->text.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_text_editing(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_TEXTEDITING ) return false;
-  out.type = Event::TEXT_EDITING;
-  out.timestamp = ev->edit.timestamp;
-  out.edit.start = ev->edit.start;
-  out.edit.length = ev->edit.length;
-  nom::copy_string(ev->edit.text, out.edit.text);
-  out.edit.window_id = ev->edit.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_render_targets_reset(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_RENDER_TARGETS_RESET ) return false;
-  out.type = Event::RENDER_TARGETS_RESET;
-  out.timestamp = ev->common.timestamp;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_user(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_USEREVENT ) return false;
-  out.type = Event::USER_EVENT;
-  out.timestamp = ev->user.timestamp;
-  out.user.code = ev->user.code;
-  out.user.data1 = ev->user.data1;
-  out.user.data2 = ev->user.data2;
-  out.user.window_id = ev->user.windowID;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_joystick_device(const SDL_Event* ev, Event& out)
-{
-  if( ev->type == SDL_JOYDEVICEADDED ) {
-    out.type = Event::JOYSTICK_ADDED;
-    out.timestamp = ev->jdevice.timestamp;
-    out.jdevice.id = ev->jdevice.which;
-    return true;
-  } else if( ev->type == SDL_JOYDEVICEREMOVED ) {
-    out.type = Event::JOYSTICK_REMOVED;
-    out.timestamp = ev->jdevice.timestamp;
-    out.jdevice.id = ev->jdevice.which;
-    return true;
-  }
-  return false;
-}
-
-bool EventHandler::EventConverter::convert_joystick_button(const SDL_Event* ev, Event& out)
-{
-  if( ev->type == SDL_JOYBUTTONDOWN ) {
-    out.type = Event::JOYSTICK_BUTTON_PRESS;
-  } else if( ev->type == SDL_JOYBUTTONUP ) {
-    out.type = Event::JOYSTICK_BUTTON_RELEASE;
-  } else {
-    return false;
-  }
-  out.timestamp = ev->jbutton.timestamp;
-  out.jbutton.id = ev->jbutton.which;
-  out.jbutton.button = ev->jbutton.button;
-  out.jbutton.state = ev->jbutton.state;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_joystick_axis(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_JOYAXISMOTION ) return false;
-  out.type = Event::JOYSTICK_AXIS_MOTION;
-  out.timestamp = ev->jaxis.timestamp;
-  out.jaxis.id = ev->jaxis.which;
-  out.jaxis.axis = ev->jaxis.axis;
-  out.jaxis.value = ev->jaxis.value;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_joystick_hat(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_JOYHATMOTION ) return false;
-  out.type = Event::JOYSTICK_HAT_MOTION;
-  out.timestamp = ev->jhat.timestamp;
-  out.jhat.id = ev->jhat.which;
-  out.jhat.hat = ev->jhat.hat;
-  out.jhat.value = ev->jhat.value;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_controller_device(const SDL_Event* ev, Event& out)
-{
-  if( ev->type == SDL_CONTROLLERDEVICEADDED ) {
-    out.type = Event::GAME_CONTROLLER_ADDED;
-    out.timestamp = ev->cdevice.timestamp;
-    out.cdevice.id = ev->cdevice.which;
-    return true;
-  } else if( ev->type == SDL_CONTROLLERDEVICEREMOVED ) {
-    out.type = Event::GAME_CONTROLLER_REMOVED;
-    out.timestamp = ev->cdevice.timestamp;
-    out.cdevice.id = ev->cdevice.which;
-    return true;
-  } else if( ev->type == SDL_CONTROLLERDEVICEREMAPPED ) {
-    // NOTE: REMAPPED events are handled exclusively by
-    // DeviceLifecycleManager::handle_device_event, which refreshes the
-    // controller's internal mapping and dispatches the event using the
-    // (possibly refreshed) instance ID. Processing here would risk
-    // double-dispatching or using a stale ID.
-    return false;
-  }
-  return false;
-}
-
-bool EventHandler::EventConverter::convert_controller_button(const SDL_Event* ev, Event& out)
-{
-  if( ev->type == SDL_CONTROLLERBUTTONDOWN ) {
-    out.type = Event::GAME_CONTROLLER_BUTTON_PRESS;
-  } else if( ev->type == SDL_CONTROLLERBUTTONUP ) {
-    out.type = Event::GAME_CONTROLLER_BUTTON_RELEASE;
-  } else {
-    return false;
-  }
-  out.timestamp = ev->cbutton.timestamp;
-  out.cbutton.id = ev->cbutton.which;
-  out.cbutton.button = ev->cbutton.button;
-  out.cbutton.state = ev->cbutton.state;
-  return true;
-}
-
-bool EventHandler::EventConverter::convert_controller_axis(const SDL_Event* ev, Event& out)
-{
-  if( ev->type != SDL_CONTROLLERAXISMOTION ) return false;
-  out.type = Event::GAME_CONTROLLER_AXIS_MOTION;
-  out.timestamp = ev->caxis.timestamp;
-  out.caxis.id = ev->caxis.which;
-  out.caxis.axis = ev->caxis.axis;
-  out.caxis.value = ev->caxis.value;
-  return true;
-}
-
-// ---------------------------------------------------------------------------
-// DeviceLifecycleManager — joystick / game controller lifecycle
-// ---------------------------------------------------------------------------
-
-EventHandler::DeviceLifecycleManager::DeviceLifecycleManager() = default;
-EventHandler::DeviceLifecycleManager::~DeviceLifecycleManager() = default;
-
-bool EventHandler::DeviceLifecycleManager::enable_joystick(EventHandler& owner)
-{
-  (void)owner;
-  if( nom::init_joystick_subsystem() == false ) {
-    return false;
-  }
-  this->handler = new JoystickEventHandler();
-  if( this->handler == nullptr ) {
-    nom::set_error(nom::OUT_OF_MEMORY_ERR);
-    return false;
-  }
-  this->type = SDL_JOYSTICK_EVENT_HANDLER;
-  return true;
-}
-
-bool EventHandler::DeviceLifecycleManager::enable_game_controller(EventHandler& owner)
-{
-  (void)owner;
-  if( nom::init_game_controller_subsystem() == false ) {
-    return false;
-  }
-  this->handler = new GameControllerEventHandler();
-  if( this->handler == nullptr ) {
-    nom::set_error(nom::OUT_OF_MEMORY_ERR);
-    return false;
-  }
-  this->type = GAME_CONTROLLER_EVENT_HANDLER;
-  return true;
-}
-
-void EventHandler::DeviceLifecycleManager::disable_joystick(EventHandler& owner)
-{
-  (void)owner;
-  if( this->type == SDL_JOYSTICK_EVENT_HANDLER ) {
-    auto evt_handler = static_cast<JoystickEventHandler*>(this->handler);
-    NOM_DELETE_PTR(evt_handler);
-    this->type = NO_EVENT_HANDLER;
-    nom::shutdown_joystick_subsystem();
-  } else if( this->type == NO_EVENT_HANDLER ) {
-    // Nothing to do
-  } else {
-    NOM_ASSERT_INVALID_PATH();
-  }
-  this->handler = nullptr;
-}
-
-void EventHandler::DeviceLifecycleManager::disable_game_controller(EventHandler& owner)
-{
-  (void)owner;
-  if( this->type == GAME_CONTROLLER_EVENT_HANDLER ) {
-    auto evt_handler = static_cast<GameControllerEventHandler*>(this->handler);
-    NOM_DELETE_PTR(evt_handler);
-    this->type = NO_EVENT_HANDLER;
-    nom::shutdown_game_controller_subsystem();
-  } else if( this->type == NO_EVENT_HANDLER ) {
-    // Nothing to do
-  } else {
-    NOM_ASSERT_INVALID_PATH();
-  }
-  this->handler = nullptr;
-}
-
-void EventHandler::DeviceLifecycleManager::shutdown(EventHandler& owner)
-{
-  if( this->type == SDL_JOYSTICK_EVENT_HANDLER ) {
-    this->disable_joystick(owner);
-  } else if( this->type == GAME_CONTROLLER_EVENT_HANDLER ) {
-    this->disable_game_controller(owner);
-  }
-}
-
-bool EventHandler::DeviceLifecycleManager::handle_device_event(
-    const SDL_Event* ev, EventHandler& owner)
-{
-  if( this->handler == nullptr ) return false;
-
-  if( this->type == SDL_JOYSTICK_EVENT_HANDLER ) {
-
-    auto evt_handler = static_cast<JoystickEventHandler*>(this->handler);
-    NOM_ASSERT(evt_handler != nullptr);
-
-    if( ev->type == SDL_JOYDEVICEADDED ) {
-      Event dev_event;
-      if( EventConverter::convert_joystick_device(ev, dev_event) ) {
-        auto dev_index = dev_event.jdevice.id;
-        auto joy_dev = evt_handler->add_joystick(dev_index);
-        if( joy_dev != nullptr ) {
-          auto dev_id = joy_dev->device_id();
-          NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                        "Registered joystick instance ID",
-                        dev_id, "for", joy_dev->name() );
-        } else {
-          NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                        "Failed to register joystick:", nom::error() );
-        }
-        return true;
-      }
-    } else if( ev->type == SDL_JOYDEVICEREMOVED ) {
-      Event dev_event;
-      if( EventConverter::convert_joystick_device(ev, dev_event) ) {
-        auto dev_id = dev_event.jdevice.id;
-        if( evt_handler->remove_joystick(dev_id) == true ) {
-          NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                        "Removing registered instance ID", dev_id );
-        } else {
-          NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                        "Failed to remove registered instance ID:",
-                        nom::error() );
-        }
-        return true;
-      }
-    }
-
-  } else if( this->type == GAME_CONTROLLER_EVENT_HANDLER ) {
-
-    auto evt_handler = static_cast<GameControllerEventHandler*>(this->handler);
-    NOM_ASSERT(evt_handler != nullptr);
-
-    if( ev->type == SDL_CONTROLLERDEVICEADDED ) {
-      Event dev_event;
-      if( EventConverter::convert_controller_device(ev, dev_event) ) {
-        auto dev_index = dev_event.cdevice.id;
-        auto joy_dev = evt_handler->add_joystick(dev_index);
-        if( joy_dev != nullptr ) {
-          auto dev_id = joy_dev->device_id();
-          NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                        "Registered game controller instance ID",
-                        dev_id, "for", joy_dev->name() );
-        } else {
-          NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                        "Failed to register game controller:", nom::error() );
-        }
-        return true;
-      }
-    } else if( ev->type == SDL_CONTROLLERDEVICEREMOVED ) {
-      Event dev_event;
-      if( EventConverter::convert_controller_device(ev, dev_event) ) {
-        auto dev_id = dev_event.cdevice.id;
-        if( evt_handler->remove_joystick(dev_id) == true ) {
-          NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                        "Removing registered instance ID", dev_id );
-        } else {
-          NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
-                        "Failed to remove registered instance ID:",
-                        nom::error() );
-        }
-        return true;
-      }
-    } else if( ev->type == SDL_CONTROLLERDEVICEREMAPPED ) {
-      Event dev_event;
-      if( EventConverter::convert_controller_device(ev, dev_event) ) {
-        auto old_id = dev_event.cdevice.id;
-        JoystickID new_id = evt_handler->remap_joystick(old_id);
-        if( new_id != -1 ) {
-          if( new_id != old_id ) {
-            NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                          "Game controller remapped instance ID",
-                          old_id, "→", new_id );
-            dev_event.cdevice.id = new_id;
-          }
-          owner.dispatcher_.dispatch(dev_event, owner);
-        } else {
-          NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
-                        "Game controller instance ID", old_id,
-                        "remap failed; device no longer in pool" );
-        }
-        return true;
-      }
-    }
-  }
-
-  (void)owner;
-  return false;
-}
-
-// ---------------------------------------------------------------------------
-// EventDispatcher — unified queue + watcher dispatch
-// ---------------------------------------------------------------------------
-
-EventHandler::EventDispatcher::EventDispatcher() = default;
-EventHandler::EventDispatcher::~EventDispatcher() = default;
-
-void EventHandler::EventDispatcher::dispatch(const Event& ev, EventHandler& owner)
-{
-  owner.events_.emplace_back(ev);
-
-  nom::size_type num_events = owner.events_.size();
-  if( num_events > this->max_events_count ) {
-    this->max_events_count = num_events;
-  }
-
-  auto& evt_watch = owner.event_watchers_;
-  for( auto itr = evt_watch.begin(); itr != evt_watch.end(); ++itr ) {
-    if( (*itr)->callback != nullptr ) {
-      (*itr)->callback.operator()(ev, (*itr)->data1);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// CoordinateSpaceConverter — mouse window → logical coordinate translation
-// ---------------------------------------------------------------------------
-
-EventHandler::CoordinateSpaceConverter::CoordinateSpaceConverter() = default;
-EventHandler::CoordinateSpaceConverter::~CoordinateSpaceConverter() = default;
-
-bool EventHandler::CoordinateSpaceConverter::is_active() const
-{
-  return (this->viewport_mgr != nullptr && this->viewport_mgr->bound)
-         || this->scale_bound
-         || static_cast<bool>(this->converter);
-}
-
-Point2i
-EventHandler::CoordinateSpaceConverter::to_logical(const Point2i& window_pos) const
-{
-  if( this->viewport_mgr != nullptr && this->viewport_mgr->bound ) {
-    return this->viewport_mgr->to_logical(window_pos);
-  }
-  if( this->scale_bound ) {
-    const float sx = (this->scale_x > 0.0f) ? this->scale_x : 1.0f;
-    const float sy = (this->scale_y > 0.0f) ? this->scale_y : 1.0f;
-    return Point2i( static_cast<int>(window_pos.x / sx),
-                    static_cast<int>(window_pos.y / sy) );
-  }
-  if( this->converter ) {
-    return this->converter(window_pos);
-  }
-  return window_pos;
-}
-
-Point2i
-EventHandler::CoordinateSpaceConverter::to_logical_delta(
-    const Point2i& window_delta) const
-{
-  if( this->viewport_mgr != nullptr && this->viewport_mgr->bound ) {
-    return this->viewport_mgr->to_logical_delta(window_delta);
-  }
-  if( this->scale_bound ) {
-    const float sx = (this->scale_x > 0.0f) ? this->scale_x : 1.0f;
-    const float sy = (this->scale_y > 0.0f) ? this->scale_y : 1.0f;
-    return Point2i( static_cast<int>(window_delta.x / sx),
-                    static_cast<int>(window_delta.y / sy) );
-  }
-  if( this->converter ) {
-    Point2i origin = this->converter(Point2i(0, 0));
-    Point2i shifted = this->converter(window_delta);
-    return Point2i(shifted.x - origin.x, shifted.y - origin.y);
-  }
-  return window_delta;
-}
-
-// ---------------------------------------------------------------------------
-// EventHandler — public API
-// ---------------------------------------------------------------------------
 
 EventHandler::EventHandler()
 {
@@ -689,10 +80,14 @@ EventHandler::~EventHandler()
     NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_APPLICATION,
                     "num_events:", this->num_events() );
     NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_APPLICATION,
-                    "max_events_count:", this->dispatcher_.max_events_count );
+                    "max_events_count:", max_events_count_ );
   }
 
-  this->device_mgr_.shutdown(*this);
+  if( this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER ) {
+    this->disable_joystick_polling();
+  } else if( this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER ) {
+    this->disable_game_controller_polling();
+  }
 }
 
 nom::size_type EventHandler::num_events() const
@@ -707,43 +102,105 @@ nom::size_type EventHandler::num_event_watchers() const
 
 JoystickEventHandler* EventHandler::joystick_event_handler() const
 {
-  return static_cast<JoystickEventHandler*>(this->device_mgr_.handler);
+  auto result = (JoystickEventHandler*)this->joystick_event_handler_;
+
+  return result;
 }
 
 GameControllerEventHandler* EventHandler::game_controller_event_handler() const
 {
-  return static_cast<GameControllerEventHandler*>(this->device_mgr_.handler);
+  auto result = (GameControllerEventHandler*)this->joystick_event_handler_;
+
+  return result;
 }
 
 EventHandler::JoystickHandlerType
 EventHandler::joystick_event_type() const
 {
-  return this->device_mgr_.type;
+  return this->joystick_event_type_;
 }
 
 bool EventHandler::enable_joystick_polling()
 {
-  return this->device_mgr_.enable_joystick(*this);
+  if( nom::init_joystick_subsystem() == false ) {
+    return false;
+  }
+
+  this->joystick_event_handler_ = new JoystickEventHandler();
+  if( this->joystick_event_handler_ == nullptr ) {
+    nom::set_error(nom::OUT_OF_MEMORY_ERR);
+    return false;
+  }
+
+  this->joystick_event_type_ = SDL_JOYSTICK_EVENT_HANDLER;
+
+  return true;
 }
 
 bool EventHandler::enable_game_controller_polling()
 {
-  return this->device_mgr_.enable_game_controller(*this);
+  if( nom::init_game_controller_subsystem() == false ) {
+    return false;
+  }
+
+  this->joystick_event_handler_ = new GameControllerEventHandler();
+  if( this->joystick_event_handler_ == nullptr ) {
+    nom::set_error(nom::OUT_OF_MEMORY_ERR);
+    return false;
+  }
+
+  this->joystick_event_type_ = GAME_CONTROLLER_EVENT_HANDLER;
+
+  return true;
 }
 
 void EventHandler::disable_joystick_polling()
 {
-  this->device_mgr_.disable_joystick(*this);
+  if( this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER ) {
+
+    auto evt_handler = this->joystick_event_handler();
+    NOM_DELETE_PTR(evt_handler);
+
+    this->joystick_event_type_ = NO_EVENT_HANDLER;
+    nom::shutdown_joystick_subsystem();
+  } else if( this->joystick_event_type() == NO_EVENT_HANDLER ) {
+    // Nothing to do
+  } else {
+    // Possible memory leak
+    NOM_ASSERT_INVALID_PATH();
+  }
+
+  this->joystick_event_handler_ = nullptr;
 }
 
 void EventHandler::disable_game_controller_polling()
 {
-  this->device_mgr_.disable_game_controller(*this);
+  if( this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER ) {
+
+    auto evt_handler = this->game_controller_event_handler();
+    NOM_DELETE_PTR(evt_handler);
+
+    this->joystick_event_type_ = NO_EVENT_HANDLER;
+    nom::shutdown_game_controller_subsystem();
+  } else if( this->joystick_event_type() == NO_EVENT_HANDLER ) {
+    // Nothing to do
+  } else {
+    // Possible memory leak
+    NOM_ASSERT_INVALID_PATH();
+  }
+
+  this->joystick_event_handler_ = nullptr;
 }
 
 bool EventHandler::poll_event(Event& ev)
 {
-  return this->pop_event(ev) ? true : false;
+  if( this->pop_event(ev) == true ) {
+    // Pending events
+    return true;
+  } else {
+    // No pending events in queue
+    return false;
+  }
 }
 
 void EventHandler::append_event_watch(const event_filter& filter, void* data)
@@ -754,6 +211,7 @@ void EventHandler::append_event_watch(const event_filter& filter, void* data)
 
   auto event_watch = nom::make_unique<event_watcher>();
   if( event_watch == nullptr ) {
+    // Err -- out of memory..??
     NOM_ASSERT_INVALID_PATH();
     return;
   }
@@ -787,43 +245,22 @@ void EventHandler::remove_event_watchers()
   this->event_watchers_.clear();
 }
 
-void EventHandler::set_mouse_coordinate_converter(const MouseCoordinateFn& fn)
-{
-  this->coord_converter_.converter = fn;
-}
-
-void EventHandler::bind_logical_viewport(float scale_x, float scale_y)
-{
-  this->coord_converter_.scale_x = (scale_x > 0.0f) ? scale_x : 1.0f;
-  this->coord_converter_.scale_y = (scale_y > 0.0f) ? scale_y : 1.0f;
-  this->coord_converter_.scale_bound = true;
-}
-
-void EventHandler::unbind_logical_viewport()
-{
-  this->coord_converter_.scale_x = 1.0f;
-  this->coord_converter_.scale_y = 1.0f;
-  this->coord_converter_.scale_bound = false;
-}
-
-bool EventHandler::has_logical_viewport() const
-{
-  return this->coord_converter_.is_active();
-}
-
-void EventHandler::bind_viewport_manager(ViewportManager* vm)
-{
-  this->coord_converter_.viewport_mgr = vm;
-}
-
-ViewportManager* EventHandler::viewport_manager() const
-{
-  return this->coord_converter_.viewport_mgr;
-}
-
 void EventHandler::push_event(const Event& ev)
 {
-  this->dispatcher_.dispatch(ev, *this);
+  nom::size_type num_events = 0;
+  this->events_.emplace_back(ev);
+
+  num_events = this->num_events();
+  if( num_events > this->max_events_count_ ) {
+    this->max_events_count_ = num_events;
+  }
+
+  auto& evt_watch = this->event_watchers_;
+  for( auto itr = evt_watch.begin(); itr != evt_watch.end(); ++itr ) {
+    if( (*itr)->callback != nullptr ) {
+      (*itr)->callback.operator()(ev, (*itr)->data1);
+    }
+  }
 }
 
 bool EventHandler::pop_event(Event& ev)
@@ -834,11 +271,23 @@ bool EventHandler::pop_event(Event& ev)
 
     this->process_events();
 
+    // TODO:
+    // Implement blocking mode logic; we must process events until one is
+    // triggered.
+    // if( block )
+    // {
+    //   while( this->events_.empty() )
+    //   {
+    //     this->process_events();
+    //   }
+    // }
+
     result = false;
   }
 
   if( this->events_.empty() == false ) {
 
+    // Leave a copy of the reference for end-user retrieval
     ev = this->events_.front();
 
     this->events_.pop_front();
@@ -848,15 +297,12 @@ bool EventHandler::pop_event(Event& ev)
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// EventHandler — event processing pipeline
-// ---------------------------------------------------------------------------
-
 void EventHandler::process_events()
 {
   int result = 1;
   SDL_Event ev;
 
+  // Enumerate events from all available input devices
   SDL_PumpEvents();
 
   while( result > 0 ) {
@@ -867,7 +313,10 @@ void EventHandler::process_events()
       NOM_ASSERT_INVALID_PATH();
     } else if( result > 0 ) {
 
-      if( this->device_mgr_.handler != nullptr ) {
+      // Enqueue retrieved events from underlying platform (SDL)
+
+      if( this->joystick_event_handler_ != nullptr ) {
+
         auto type = this->joystick_event_type();
         if( type == SDL_JOYSTICK_EVENT_HANDLER ) {
           this->process_joystick_event(&ev);
@@ -878,76 +327,784 @@ void EventHandler::process_events()
 
       this->process_event(&ev);
     }
-  }
+  } // end while
 }
 
 void EventHandler::process_event(const SDL_Event* ev)
 {
-  Event event;
-  bool converted = false;
+  switch(ev->type)
+  {
+    default: break;
 
-  // Keyboard
-  if( !converted ) converted = EventConverter::convert_key(ev, event);
+    case SDL_QUIT:
+    {
+      nom::Event event;
+      event.type = Event::QUIT_EVENT;
+      event.timestamp = ev->quit.timestamp;
+      // NOTE: user-defined fields
+      event.quit.data1 = nullptr;
+      event.quit.data2 = nullptr;
+      this->push_event(event);
+    } break;
 
-  // Mouse (with coordinate space conversion)
-  if( !converted ) converted = EventConverter::convert_mouse_motion(ev, event, &this->coord_converter_);
-  if( !converted ) converted = EventConverter::convert_mouse_button(ev, event, &this->coord_converter_);
-  if( !converted ) converted = EventConverter::convert_mouse_wheel(ev, event);
+    case SDL_WINDOWEVENT:
+    {
+      switch(ev->window.event)
+      {
+        case SDL_WINDOWEVENT_NONE:
+        default: break;
 
-  // Window / Quit
-  if( !converted ) converted = EventConverter::convert_quit(ev, event);
-  if( !converted ) converted = EventConverter::convert_window(ev, event);
+        case SDL_WINDOWEVENT_SHOWN:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::SHOWN;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Touch / Gesture
-  if( !converted ) converted = EventConverter::convert_finger(ev, event);
-  if( !converted ) converted = EventConverter::convert_gesture(ev, event);
+        case SDL_WINDOWEVENT_HIDDEN:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::HIDDEN;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Text
-  if( !converted ) converted = EventConverter::convert_text_input(ev, event);
-  if( !converted ) converted = EventConverter::convert_text_editing(ev, event);
+        case SDL_WINDOWEVENT_EXPOSED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::EXPOSED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Drag & drop
-  if( !converted ) converted = EventConverter::convert_drop(ev, event);
+        case SDL_WINDOWEVENT_MOVED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::MOVED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Render
-  if( !converted ) converted = EventConverter::convert_render_targets_reset(ev, event);
+        case SDL_WINDOWEVENT_RESIZED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::RESIZED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // User
-  if( !converted ) converted = EventConverter::convert_user(ev, event);
+        case SDL_WINDOWEVENT_SIZE_CHANGED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::SIZE_CHANGED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Joystick (non-lifecycle; lifecycle handled separately)
-  if( !converted ) converted = EventConverter::convert_joystick_button(ev, event);
-  if( !converted ) converted = EventConverter::convert_joystick_axis(ev, event);
-  if( !converted ) converted = EventConverter::convert_joystick_hat(ev, event);
+        case SDL_WINDOWEVENT_MINIMIZED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::MINIMIZED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Game controller (non-lifecycle; lifecycle handled separately)
-  if( !converted ) converted = EventConverter::convert_controller_button(ev, event);
-  if( !converted ) converted = EventConverter::convert_controller_axis(ev, event);
+        case SDL_WINDOWEVENT_MAXIMIZED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::MAXIMIZED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  // Joystick / controller device events (still need to be dispatched)
-  if( !converted ) converted = EventConverter::convert_joystick_device(ev, event);
-  if( !converted ) converted = EventConverter::convert_controller_device(ev, event);
+        case SDL_WINDOWEVENT_RESTORED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::RESTORED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
 
-  if( converted ) {
-    this->dispatcher_.dispatch(event, *this);
-  }
+        case SDL_WINDOWEVENT_ENTER:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::MOUSE_FOCUS_GAINED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_WINDOWEVENT_LEAVE:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::MOUSE_FOCUS_LOST;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_WINDOWEVENT_FOCUS_GAINED:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::KEYBOARD_FOCUS_GAINED;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_WINDOWEVENT_FOCUS_LOST:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::KEYBOARD_FOCUS_LOST;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_WINDOWEVENT_CLOSE:
+        {
+          Event event;
+          event.type = Event::WINDOW_EVENT;
+          event.timestamp = ev->window.timestamp;
+          event.window.event = WindowEvent::CLOSE;
+          event.window.data1 = ev->window.data1;
+          event.window.data2 = ev->window.data2;
+          event.window.window_id = ev->window.windowID;
+          this->push_event(event);
+          break;
+        }
+      } // end switch ev->window.event
+
+      break;
+    } // end case SDL_WINDOWEVENT
+
+    case SDL_SYSWMEVENT: break;
+
+    case SDL_KEYDOWN:
+    {
+      Event event;
+      event.type = Event::KEY_PRESS;
+      event.timestamp = ev->key.timestamp;
+      event.key.scan_code = ev->key.keysym.scancode;
+      event.key.sym = ev->key.keysym.sym;
+      event.key.mod = ev->key.keysym.mod;
+      event.key.state = ev->key.state;
+      event.key.repeat = ev->key.repeat;
+      event.key.window_id = ev->key.windowID;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_KEYUP:
+    {
+      Event event;
+      event.type = Event::KEY_RELEASE;
+      event.timestamp = ev->key.timestamp;
+      event.key.scan_code = ev->key.keysym.scancode;
+      event.key.sym = ev->key.keysym.sym;
+      event.key.mod = ev->key.keysym.mod;
+      event.key.state = ev->key.state;
+      event.key.repeat = ev->key.repeat;
+      event.key.window_id = ev->key.windowID;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_MOUSEMOTION:
+    {
+      Event event;
+      event.type = Event::MOUSE_MOTION;
+      event.timestamp = ev->motion.timestamp;
+      event.motion.id = ev->motion.which;
+      event.motion.x = ev->motion.x;
+      event.motion.y = ev->motion.y;
+      event.motion.x_rel = ev->motion.xrel;
+      event.motion.y_rel = ev->motion.yrel;
+      event.motion.state = ev->motion.state;
+      event.motion.window_id = ev->motion.windowID;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_MOUSEBUTTONDOWN:
+    {
+      switch (ev->button.button)
+      {
+        default: break;
+
+        case SDL_BUTTON_LEFT:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_CLICK;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::LEFT_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_MIDDLE:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_CLICK;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::MIDDLE_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_RIGHT:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_CLICK;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::RIGHT_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_X1:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_CLICK;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::X1_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_X2:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_CLICK;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::X2_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+      } // end switch ev->button.button
+
+      break;
+    } // end switch SDL_MOUSEBUTTONDOWN
+
+    case SDL_MOUSEBUTTONUP:
+    {
+      switch ( ev->button.button )
+      {
+        default: break;
+
+        case SDL_BUTTON_LEFT:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_RELEASE;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::LEFT_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_MIDDLE:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_RELEASE;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::MIDDLE_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_RIGHT:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_RELEASE;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::RIGHT_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_X1:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_RELEASE;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::X1_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+
+        case SDL_BUTTON_X2:
+        {
+          Event event;
+          event.type = Event::MOUSE_BUTTON_RELEASE;
+          event.timestamp = ev->button.timestamp;
+          event.mouse.id = ev->button.which;
+          event.mouse.x = ev->button.x;
+          event.mouse.y = ev->button.y;
+          event.mouse.button = MouseButton::X2_MOUSE_BUTTON;
+          event.mouse.state = ev->button.state;
+          event.mouse.clicks = ev->button.clicks;
+          event.mouse.window_id = ev->button.windowID;
+          this->push_event(event);
+          break;
+        }
+      } // end switch ev->button.button
+
+      break;
+    } // end switch SDL_MOUSEBUTTONUP
+
+    case SDL_MOUSEWHEEL:
+    {
+      Event event;
+      event.type = Event::MOUSE_WHEEL;
+      event.timestamp = ev->wheel.timestamp;
+      event.wheel.id = ev->wheel.which;
+      event.wheel.x = ev->wheel.x;
+      event.wheel.y = ev->wheel.y;
+      event.wheel.window_id = ev->wheel.windowID;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_FINGERMOTION:
+    {
+      Event event;
+      event.type = Event::FINGER_MOTION;
+      event.timestamp = ev->tfinger.timestamp;
+      event.touch.id = ev->tfinger.touchId;
+      event.touch.finger.id = ev->tfinger.fingerId;
+      event.touch.x = ev->tfinger.x;
+      event.touch.y = ev->tfinger.y;
+      event.touch.dx = ev->tfinger.dx;
+      event.touch.dy = ev->tfinger.dy;
+      event.touch.pressure = ev->tfinger.pressure;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_FINGERDOWN:
+    {
+      Event event;
+      event.type = Event::FINGER_PRESS;
+      event.timestamp = ev->tfinger.timestamp;
+      event.touch.id = ev->tfinger.touchId;
+      event.touch.finger.id = ev->tfinger.fingerId;
+      event.touch.x = ev->tfinger.x;
+      event.touch.y = ev->tfinger.y;
+      event.touch.dx = ev->tfinger.dx;
+      event.touch.dy = ev->tfinger.dy;
+      event.touch.pressure = ev->tfinger.pressure;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_FINGERUP:
+    {
+      Event event;
+      event.type = Event::FINGER_RELEASE;
+      event.timestamp = ev->tfinger.timestamp;
+      event.touch.id = ev->tfinger.touchId;
+      event.touch.finger.id = ev->tfinger.fingerId;
+      event.touch.x = ev->tfinger.x;
+      event.touch.y = ev->tfinger.y;
+      event.touch.dx = ev->tfinger.dx;
+      event.touch.dy = ev->tfinger.dy;
+      event.touch.pressure = ev->tfinger.pressure;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_MULTIGESTURE:
+    {
+      Event event;
+      event.type = Event::MULTI_FINGER_GESTURE;
+      event.timestamp = ev->mgesture.timestamp;
+      event.gesture.id = ev->mgesture.touchId;
+      event.gesture.dTheta = ev->mgesture.dTheta;
+      event.gesture.dDist = ev->mgesture.dDist;
+      event.gesture.x = ev->mgesture.x;
+      event.gesture.y = ev->mgesture.y;
+      event.gesture.num_fingers = ev->mgesture.numFingers;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_DROPFILE:
+    {
+      Event event;
+      event.type = Event::DROP_FILE;
+      event.timestamp = nom::ticks();
+      event.drop.file_path = ev->drop.file;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_TEXTINPUT:
+    {
+      Event event;
+      event.type = Event::TEXT_INPUT;
+      event.timestamp = ev->text.timestamp;
+      nom::copy_string(ev->text.text, event.text.text);
+      event.text.window_id = ev->text.windowID;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_TEXTEDITING:
+    {
+      Event event;
+      event.type = Event::TEXT_EDITING;
+      event.timestamp = ev->edit.timestamp;
+      event.edit.start = ev->edit.start;
+      event.edit.length = ev->edit.length;
+      nom::copy_string(ev->edit.text, event.edit.text);
+      event.edit.window_id = ev->edit.windowID;
+      this->push_event(event);
+      break;
+    }
+
+    case SDL_RENDER_TARGETS_RESET:
+    {
+      Event event;
+      event.type = Event::RENDER_TARGETS_RESET;
+      event.timestamp = nom::ticks();
+    } break;
+
+// NOTE: Not available until the release of SDL 2.0.4
+#if 0
+    case SDL_RENDER_DEVICE_RESET:
+    {
+      Event event;
+      event.type = Event::RENDER_DEVICE_RESET;
+      event.timestamp = nom::ticks();
+    } break;
+#endif
+    case SDL_USEREVENT:
+    {
+      nom::Event event;
+      event.type = Event::USER_EVENT;
+      event.timestamp = ev->user.timestamp;
+      event.user.code = ev->user.code;
+      event.user.data1 = ev->user.data1;
+      event.user.data2 = ev->user.data2;
+      event.user.window_id = ev->user.windowID;
+      this->push_event(event);
+    } break;
+  } // end switch event->type
 }
 
 void EventHandler::process_joystick_event(const SDL_Event* ev)
 {
   NOM_ASSERT(this->joystick_event_type() == SDL_JOYSTICK_EVENT_HANDLER);
-  this->device_mgr_.handle_device_event(ev, *this);
+
+  auto evt_handler = this->joystick_event_handler();
+  NOM_ASSERT(evt_handler != nullptr);
+
+  switch(ev->type)
+  {
+    default: break;
+
+    case SDL_JOYDEVICEADDED:
+    {
+      Event event;
+      event.type = Event::JOYSTICK_ADDED;
+      event.timestamp = ev->jdevice.timestamp;
+      event.jdevice.id = ev->jdevice.which;
+      this->push_event(event);
+
+      auto dev_index = event.jdevice.id;
+      auto joy_dev = evt_handler->add_joystick(dev_index);
+      if( joy_dev != nullptr ) {
+        auto dev_id = joy_dev->device_id();
+        NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                      "Registered joystick instance ID",
+                      dev_id, "for", joy_dev->name() );
+      } else {
+        NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                      "Failed to register joystick:", nom::error() );
+      }
+    } break;
+
+    // IMPORTANT: The joystick device state is invalid by the time we get this
+    // message!
+    case SDL_JOYDEVICEREMOVED:
+    {
+      Event event;
+      event.type = Event::JOYSTICK_REMOVED;
+      event.timestamp = ev->jdevice.timestamp;
+      event.jdevice.id = ev->jdevice.which;
+      this->push_event(event);
+
+      auto dev_id = event.jdevice.id;
+      if( evt_handler->remove_joystick(dev_id) == true ) {
+        NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                      "Removing registered instance ID", dev_id );
+      } else {
+        NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                      "Failed to remove registered instance ID:",
+                      nom::error() );
+      }
+    } break;
+
+    case SDL_JOYBUTTONDOWN:
+    {
+      Event event;
+      event.type = Event::JOYSTICK_BUTTON_PRESS;
+      event.timestamp = ev->jbutton.timestamp;
+      event.jbutton.id = ev->jbutton.which;
+      event.jbutton.button = ev->jbutton.button;
+      event.jbutton.state = ev->jbutton.state;
+      this->push_event(event);
+    } break;
+
+    case SDL_JOYBUTTONUP:
+    {
+      Event event;
+      event.type = Event::JOYSTICK_BUTTON_RELEASE;
+      event.timestamp = ev->jbutton.timestamp;
+      event.jbutton.id = ev->jbutton.which;
+      event.jbutton.button = ev->jbutton.button;
+      event.jbutton.state = ev->jbutton.state;
+      this->push_event(event);
+    } break;
+
+    case SDL_JOYAXISMOTION:
+    {
+      Event event;
+      event.type = Event::JOYSTICK_AXIS_MOTION;
+      event.timestamp = ev->jaxis.timestamp;
+      event.jaxis.id = ev->jaxis.which;
+      event.jaxis.axis = ev->jaxis.axis;
+      event.jaxis.value = ev->jaxis.value;
+      this->push_event(event);
+    } break;
+
+    case SDL_JOYHATMOTION:
+    {
+      Event event;
+      event.type = Event::JOYSTICK_HAT_MOTION;
+      event.timestamp = ev->jhat.timestamp;
+      event.jhat.id = ev->jhat.which;
+      event.jhat.hat = ev->jhat.hat;
+      event.jhat.value = ev->jhat.value;
+      this->push_event(event);
+    } break;
+  }
 }
 
 void EventHandler::process_game_controller_event(const SDL_Event* ev)
 {
   NOM_ASSERT(this->joystick_event_type() == GAME_CONTROLLER_EVENT_HANDLER);
-  this->device_mgr_.handle_device_event(ev, *this);
-}
 
-// ---------------------------------------------------------------------------
-// Event queue flushing
-// ---------------------------------------------------------------------------
+  auto evt_handler = this->game_controller_event_handler();
+  NOM_ASSERT(evt_handler != nullptr);
+
+  switch(ev->type)
+  {
+    default: break;
+
+    case SDL_CONTROLLERAXISMOTION:
+    {
+      Event event;
+      event.type = Event::GAME_CONTROLLER_AXIS_MOTION;
+      event.timestamp = ev->caxis.timestamp;
+      event.caxis.id = ev->caxis.which;
+      event.caxis.axis = ev->caxis.axis;
+      event.caxis.value = ev->caxis.value;
+      this->push_event(event);
+    } break;
+
+    case SDL_CONTROLLERBUTTONDOWN:
+    {
+      Event event;
+      event.type = Event::GAME_CONTROLLER_BUTTON_PRESS;
+      event.timestamp = ev->cbutton.timestamp;
+      event.cbutton.id = ev->cbutton.which;
+      event.cbutton.button = ev->cbutton.button;
+      event.cbutton.state = ev->cbutton.state;
+      this->push_event(event);
+    } break;
+
+    case SDL_CONTROLLERBUTTONUP:
+    {
+      Event event;
+      event.type = Event::GAME_CONTROLLER_BUTTON_RELEASE;
+      event.timestamp = ev->cbutton.timestamp;
+      event.cbutton.id = ev->cbutton.which;
+      event.cbutton.button = ev->cbutton.button;
+      event.cbutton.state = ev->cbutton.state;
+      this->push_event(event);
+    } break;
+
+    case SDL_CONTROLLERDEVICEADDED:
+    {
+      Event event;
+      event.type = Event::GAME_CONTROLLER_ADDED;
+      event.timestamp = ev->cdevice.timestamp;
+      event.cdevice.id = ev->cdevice.which;
+      this->push_event(event);
+
+      auto dev_index = event.cdevice.id;
+      auto joy_dev = evt_handler->add_joystick(dev_index);
+      if( joy_dev != nullptr ) {
+        auto dev_id = joy_dev->device_id();
+        NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                      "Registered game controller instance ID",
+                      dev_id, "for", joy_dev->name() );
+      } else {
+        NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                      "Failed to register game controller:", nom::error() );
+      }
+    } break;
+
+    // IMPORTANT: The joystick device state is invalid by the time we get this
+    // message!
+    case SDL_CONTROLLERDEVICEREMOVED:
+    {
+      Event event;
+      event.type = Event::GAME_CONTROLLER_REMOVED;
+      event.timestamp = ev->cdevice.timestamp;
+      event.cdevice.id = ev->cdevice.which;
+      this->push_event(event);
+
+      auto dev_id = event.cdevice.id;
+      if( evt_handler->remove_joystick(dev_id) == true ) {
+        NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                      "Removing registered instance ID", dev_id );
+      } else {
+        NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                      "Failed to remove registered instance ID:",
+                      nom::error() );
+      }
+    } break;
+
+    // TODO: I have no idea how this event is suppose to work ... we receive
+    // more than one of these events at a time -- which instance ID do we use??
+    case SDL_CONTROLLERDEVICEREMAPPED:
+    {
+      Event event;
+      event.type = Event::GAME_CONTROLLER_REMAPPED;
+      event.timestamp = ev->cdevice.timestamp;
+      event.cdevice.id = ev->cdevice.which;
+      this->push_event(event);
+    } break;
+  }
+}
 
 void EventHandler::flush_event(Event::EventType type)
 {
@@ -972,10 +1129,6 @@ void EventHandler::flush_events()
 {
   this->events_.clear();
 }
-
-// ---------------------------------------------------------------------------
-// Convenience event factory functions
-// ---------------------------------------------------------------------------
 
 Event create_key_press(int32 sym, uint16 mod, uint8 repeat)
 {
@@ -1014,7 +1167,6 @@ Event create_mouse_button_click(uint8 button, uint8 clicks, uint32 window_id)
   result.mouse.state = InputState::PRESSED;
   result.mouse.clicks = clicks;
   result.mouse.window_id = window_id;
-  result.mouse.coord_space = MOUSE_COORD_WINDOW;
 
   return result;
 }
@@ -1028,7 +1180,6 @@ Event create_mouse_button_release(uint8 button, uint8 clicks, uint32 window_id)
   result.mouse.state = InputState::RELEASED;
   result.mouse.clicks = clicks;
   result.mouse.window_id = window_id;
-  result.mouse.coord_space = MOUSE_COORD_WINDOW;
 
   return result;
 }

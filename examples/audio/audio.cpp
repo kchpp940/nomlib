@@ -44,7 +44,7 @@ using namespace nom;
 const std::string APP_NAME = "nomlib: audio";
 
 // File resource paths
-SearchPath res;
+// SearchPath res;  // Replaced by CachedResourceLoader below
 
 /// \remarks See program usage by passing --help
 struct AppFlags
@@ -158,11 +158,19 @@ NOM_IGNORED_VARS_ENDL();
 
   ActionPlayer audio_player;
 
-  if(res.load_file(RES_FILENAME, "resources") == false) {
+  CachedResourceLoader res_loader;
+
+  if(res_loader.load_search_paths(RES_FILENAME, "resources") == false) {
     NOM_LOG_CRIT(NOM_LOG_CATEGORY_APPLICATION,
                  "Could not resolve the resources path from given input:",
                  RES_FILENAME);
     exit(NOM_EXIT_FAILURE);
+  }
+
+  if(res_loader.load_manifest(RES_FILENAME, "manifest") == false) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_APPLICATION,
+                 "No manifest found in:", RES_FILENAME,
+                 "-- falling back to direct file paths");
   }
 
   if(parse_cmdline(argc, argv, args) != 0) {
@@ -170,7 +178,8 @@ NOM_IGNORED_VARS_ENDL();
   }
 
   if(args.audio_input.length() < 1) {
-    args.audio_input = res.path() + "sinewave_1s-900.wav";
+    args.audio_input =
+      res_loader.search_path().resolve( "sinewave_1s-900.wav" );
   }
 
   // Fatal error; if we are not able to complete this step, it means that

@@ -128,19 +128,29 @@ class App: public nom::SDLApp
       nom::uint32 render_flags = SDL_RENDERER_ACCELERATED;
       int render_driver = -1;
 
-      nom::SearchPath res, res_gui;
+      nom::CachedResourceLoader res_loader;
       std::string res_file = "app.json";
 
-      // Determine our resources path based on several possible locations;
-      // this is dependent upon the build environment
-      if( res.load_file(res_file,"resources") == false )
+      if( res_loader.load_search_paths( res_file, "resources" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                      "Could not determine the resource path for", res_file );
         return false;
       }
 
-      if( res_gui.load_file(res_file,"gui") == false )
+      if( res_loader.load_manifest( res_file, "manifest" ) == false )
+      {
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
+                      "Could not load resource manifest from", res_file );
+        return false;
+      }
+
+      res_loader.register_type_loader(
+        std::make_unique<nom::TextureLoader>() );
+
+      nom::SearchPath res_gui;
+
+      if( res_gui.load_file( res_file, "gui" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not determine the resource path for",
@@ -181,10 +191,11 @@ class App: public nom::SDLApp
           return false;
         }
 
-        if( this->window[idx].set_window_icon( res.path() + RESOURCE_ICON ) == false ) {
+        if( this->window[idx].set_window_icon(
+              res_loader.search_path().resolve( RESOURCE_ICON ) ) == false ) {
           nom::DialogMessageBox(  APP_NAME,
                                   "Could not load window icon: " +
-                                  res.path() + RESOURCE_ICON );
+                                  RESOURCE_ICON );
           return false;
         }
 
@@ -267,18 +278,21 @@ class App: public nom::SDLApp
 
       // Load a sprite sheet, using the sheet_filename as the base path to load
       // the image file from disk
-      if( sprite_frames.load_file(res.path() + RESOURCE_SPRITE_SHEET) == false ) {
+      if( sprite_frames.load_file(
+            res_loader.search_path().resolve( RESOURCE_SPRITE_SHEET ) ) == false ) {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load sprite sheet: " +
-                                res.path() + RESOURCE_SPRITE_SHEET );
+                                RESOURCE_SPRITE_SHEET );
         return false;
       }
 
-      if( this->sprite_tex.load( res.path() + sprite_frames.sheet_filename(), false, nom::Texture::Access::Streaming ) == false )
+      if( this->sprite_tex.load(
+            res_loader.search_path().resolve( sprite_frames.sheet_filename() ),
+            false, nom::Texture::Access::Streaming ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load sprite texture: " +
-                                res.path() + sprite_frames.sheet_filename() );
+                                sprite_frames.sheet_filename() );
         return false;
       }
 
@@ -295,11 +309,12 @@ class App: public nom::SDLApp
       // another texture source would be OK, too, if we didn't care about
       // preserving the original scale of the sprite here for testing purposes.
       // this->ani_sprite.set_texture( *this->sprite_tex.clone() );
-      if( ani_sprite_tex->load( res.path() + sprite_frames.sheet_filename() ) == false )
+      if( ani_sprite_tex->load(
+            res_loader.search_path().resolve( sprite_frames.sheet_filename() ) ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load sprite texture: " +
-                                res.path() + sprite_frames.sheet_filename() );
+                                sprite_frames.sheet_filename() );
         return false;
       }
 
@@ -327,10 +342,11 @@ class App: public nom::SDLApp
       if ( MAXIMUM_WINDOWS > 1 )
       {
         this->window[1].make_current();
-        if( this->background.load(res.path() + RESOURCE_STATIC_IMAGE) == false ) {
+        if( this->background.load(
+              res_loader.search_path().resolve( RESOURCE_STATIC_IMAGE ) ) == false ) {
           nom::DialogMessageBox(  APP_NAME,
                                   "Could not load image file: " +
-                                  res.path() + RESOURCE_STATIC_IMAGE );
+                                  RESOURCE_STATIC_IMAGE );
           return false;
         }
       }

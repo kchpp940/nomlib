@@ -89,6 +89,10 @@ if( NOM_BUILD_GRAPHICS_UNIT )
         ${SRC_DIR}/graphics/sprite/SpriteSheet.cpp
         ${INC_DIR}/graphics/sprite/SpriteSheet.hpp
 
+        # Resource type loaders (graphics module adapters)
+        ${SRC_DIR}/graphics/ResourceLoaders.cpp
+        ${INC_DIR}/graphics/ResourceLoaders.hpp
+
         # TODO: Relocate to graphics
         ${SRC_DIR}/math/Transformable.cpp
         ${INC_DIR}/math/Transformable.hpp

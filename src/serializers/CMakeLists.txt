@@ -33,7 +33,9 @@ set(  NOM_SERIALIZERS_SOURCE
       ${SRC_DIR}/serializers/RapidXmlSerializer.cpp
       ${INC_DIR}/serializers/RapidXmlSerializer.hpp
 
-      ${SRC_DIR}/serializers/SearchPath.cpp
+      # NOTE: SearchPath.hpp remains here as a backward-compatibility forward
+      # header to nomlib/system/SearchPath.hpp. The implementation was moved
+      # to the system module in the resource system refactoring.
       ${INC_DIR}/serializers/SearchPath.hpp
 
       ${INC_DIR}/serializers/serializers_config.hpp

@@ -362,7 +362,6 @@ NOM_LOG_ERR ( NOM, "Could not obtain a valid icon." );
 void RenderWindow::set_size ( int32 width, int32 height )
 {
   SDL_SetWindowSize ( this->window(), width, height );
-  this->sync_viewport();
 }
 
 void RenderWindow::set_position(const Point2i& window_pos)

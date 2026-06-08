@@ -19,6 +19,10 @@ set(  NOM_AUDIO_SOURCE
       ${INC_DIR}/audio/IAudioDevice.hpp
       ${INC_DIR}/audio/IOAudioEngine.hpp
 
+      # Resource type loaders (audio module adapters)
+      ${SRC_DIR}/audio/ResourceLoaders.cpp
+      ${INC_DIR}/audio/ResourceLoaders.hpp
+
       # ${SRC_DIR}/audio/AudioDeviceLocator.cpp
       # ${INC_DIR}/audio/AudioDeviceLocator.hpp
 
