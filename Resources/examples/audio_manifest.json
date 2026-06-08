@@ -15,7 +15,7 @@
       "type": "audio",
       "path": "sinewave_1s-900.wav",
       "tags": ["sfx", "test", "sine"],
-      "preload": "lazy"
+      "preload": "eager"
     },
     {
       "id": "sinewave_900hz_1s_chunk",

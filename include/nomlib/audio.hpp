@@ -52,5 +52,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include <nomlib/audio/ResourceLoader.hpp>
+#include <nomlib/audio/CachedResourceLoader.hpp>
 
 #endif // include guard defined

@@ -44,6 +44,7 @@ using namespace nom;
 const std::string APP_NAME = "nomlib: audio";
 
 ResourceManifest manifest;
+audio::CachedResourceLoader audio_loader;
 
 /// \remarks See program usage by passing --help
 struct AppFlags
@@ -216,8 +217,16 @@ NOM_IGNORED_VARS_ENDL();
   master_gain = args.audio_volume;
   audio::set_volume(master_gain, dev);
 
-  if( using_manifest_audio ) {
-    buffer = audio::load_audio( manifest, "sinewave_900hz_1s", dev );
+  audio_loader.set_manifest( manifest );
+
+  if( dev != nullptr ) {
+    audio_loader.set_engine( dev );
+    audio_loader.preload_eager();
+    audio_loader.dump();
+  }
+
+  if( using_manifest_audio && dev != nullptr ) {
+    buffer = audio_loader.get_audio( "sinewave_900hz_1s" );
   } else {
     buffer = audio::create_buffer(args.audio_input, dev);
   }

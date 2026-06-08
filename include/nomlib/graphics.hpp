@@ -59,5 +59,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <nomlib/graphics/Cursor.hpp>
 #include <nomlib/graphics/graphics_helpers.hpp>
 #include <nomlib/graphics/ResourceLoader.hpp>
+#include <nomlib/graphics/CachedResourceLoader.hpp>
 
 #endif // include guard defined

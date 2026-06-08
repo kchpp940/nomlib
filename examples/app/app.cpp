@@ -122,6 +122,7 @@ class App: public nom::SDLApp
       int render_driver = -1;
 
       nom::ResourceManifest manifest;
+      nom::CachedResourceLoader res_loader;
       std::string manifest_file = "app_manifest.json";
 
       if( manifest.load_file( manifest_file ) == false )
@@ -130,8 +131,9 @@ class App: public nom::SDLApp
                      "Could not load resource manifest:", manifest_file );
         return false;
       }
+      res_loader.set_manifest( manifest );
 
-      manifest.dump();
+      res_loader.manifest().dump();
 
       if ( nom::set_hint ( SDL_HINT_RENDER_VSYNC, "0" ) == false )
       {
@@ -163,7 +165,7 @@ class App: public nom::SDLApp
           return false;
         }
 
-        if( this->window[idx].set_window_icon( manifest.resolve_path( "icon" ) ) == false ) {
+        if( this->window[idx].set_window_icon( res_loader.manifest().resolve_path( "icon" ) ) == false ) {
           nom::DialogMessageBox(  APP_NAME,
                                   "Could not load window icon from manifest id 'icon'" );
           return false;
@@ -186,7 +188,7 @@ class App: public nom::SDLApp
 
       SDLApp::set_event_handler(this->evt_handler);
 
-      std::string gui_base = manifest.base_path() + "tests/gui/";
+      std::string gui_base = res_loader.manifest().base_path() + "tests/gui/";
       Rocket::Core::FileInterface* fs =
         new nom::RocketFileInterface( gui_base );
 
@@ -211,21 +213,21 @@ class App: public nom::SDLApp
 
       this->desktop.set_event_handler(this->evt_handler);
 
-      if( nom::load_ui_font( manifest, "font_delicious_bold", this->desktop ) == false )
+      if( nom::load_ui_font( res_loader.manifest(), "font_delicious_bold", this->desktop ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_delicious_bold'" );
         return false;
       }
 
-      if( nom::load_ui_font( manifest, "font_opensans_regular", this->desktop ) == false )
+      if( nom::load_ui_font( res_loader.manifest(), "font_opensans_regular", this->desktop ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_opensans_regular'" );
         return false;
       }
 
-      if( nom::load_ui_font( manifest, "font_opensans_bold", this->desktop ) == false )
+      if( nom::load_ui_font( res_loader.manifest(), "font_opensans_bold", this->desktop ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_opensans_bold'" );
@@ -238,15 +240,17 @@ class App: public nom::SDLApp
 
       this->window[0].make_current();
 
-      nom::SpriteSheet sprite_frames;
+      res_loader.preload_eager();
+      res_loader.dump();
 
-      if( nom::load_spritesheet( manifest, "cursors_sheet", sprite_frames ) == false ) {
+      auto sprite_frames = res_loader.get_spritesheet( "cursors_sheet" );
+      if( sprite_frames == nullptr ) {
         nom::DialogMessageBox(  APP_NAME,
                                 "Could not load manifest spritesheet 'cursors_sheet'" );
         return false;
       }
 
-      if( nom::load_texture( manifest, "cursors_texture", this->sprite_tex,
+      if( nom::load_texture( res_loader.manifest(), "cursors_texture", this->sprite_tex,
                              false, nom::Texture::Access::Streaming ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,
@@ -255,27 +259,19 @@ class App: public nom::SDLApp
       }
 
       this->sprite.set_texture(sprite_tex);
-      this->sprite.set_sprite_sheet(sprite_frames);
+      this->sprite.set_sprite_sheet(*sprite_frames);
       this->sprite_tex.resize(nom::Texture::ResizeAlgorithm::scale2x);
       this->sprite.set_frame(1);
 
-      auto ani_sprite_tex =
-        std::make_shared<nom::Texture>();
+      auto ani_sprite_tex = res_loader.get_texture( "cursors_texture" );
       NOM_ASSERT(ani_sprite_tex != nullptr);
-
-      if( nom::load_texture( manifest, "cursors_texture", *ani_sprite_tex ) == false )
-      {
-        nom::DialogMessageBox(  APP_NAME,
-                                "Could not load manifest texture 'cursors_texture'" );
-        return false;
-      }
 
       this->ani_sprite =
         std::make_shared<nom::SpriteBatch>();
       NOM_ASSERT(this->ani_sprite != nullptr);
       this->ani_sprite->set_texture(ani_sprite_tex);
 
-      this->ani_sprite->set_sprite_sheet(sprite_frames);
+      this->ani_sprite->set_sprite_sheet(*sprite_frames);
       this->ani_sprite->set_frame(0);
 
       auto sprite_action =
@@ -292,7 +288,8 @@ class App: public nom::SDLApp
       if ( MAXIMUM_WINDOWS > 1 )
       {
         this->window[1].make_current();
-        if( nom::load_texture( manifest, "board_outline", this->background ) == false ) {
+        this->background = res_loader.get_texture( "board_outline" );
+        if( this->background == nullptr ) {
           nom::DialogMessageBox(  APP_NAME,
                                   "Could not load manifest texture 'board_outline'" );
           return false;
@@ -302,7 +299,7 @@ class App: public nom::SDLApp
       this->window[0].make_current();
 
       this->info_box[0].set_context(&this->desktop);
-      if( nom::load_ui_document( manifest, "ui_messagebox", this->desktop ) == nullptr )
+      if( nom::load_ui_document( res_loader.manifest(), "ui_messagebox", this->desktop ) == nullptr )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );
@@ -316,7 +313,7 @@ class App: public nom::SDLApp
       this->info_box[0].show();
 
       this->info_box[1].set_context(&this->desktop);
-      if( nom::load_ui_document( manifest, "ui_messagebox", this->desktop ) == nullptr )
+      if( nom::load_ui_document( res_loader.manifest(), "ui_messagebox", this->desktop ) == nullptr )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );
@@ -332,7 +329,7 @@ class App: public nom::SDLApp
       this->sprite.set_position( nom::Point2i(this->info_box[0].position().x - this->sprite.size().w, this->info_box[0].position().y) );
       this->ani_sprite->set_position( nom::Point2i(this->info_box[0].position().x + this->info_box[0].size().w + this->sprite.size().w, this->info_box[0].position().y) );
 
-      this->manifest_ = std::move(manifest);
+      this->res_loader_ = std::move(res_loader);
 
       return true;
     } // onInit
@@ -397,7 +394,7 @@ class App: public nom::SDLApp
         if ( MAXIMUM_WINDOWS > 1 )
         {
           this->window[1].fill ( nom::Color4i::Black );
-          this->background.draw ( this->window[1] );
+          this->background->draw ( this->window[1] );
         }
 
         if ( MAXIMUM_WINDOWS > 2 ) // Third window
@@ -663,7 +660,7 @@ class App: public nom::SDLApp
     nom::UIMessageBox info_box[2];
 
     /// Texture used as a static background image
-    nom::Texture background;
+    std::shared_ptr<nom::Texture> background;
 
     /// Our spiffy sprites
     nom::Texture sprite_tex;
@@ -677,7 +674,7 @@ class App: public nom::SDLApp
     int selected_font_size;
     nom::sint selected_text_string;
 
-    nom::ResourceManifest manifest_;
+    nom::CachedResourceLoader res_loader_;
 
     nom::sint select_font_size ( void )
     {
