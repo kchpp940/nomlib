@@ -219,6 +219,19 @@ class ActionPlayer
 
     typedef container_type::iterator container_iterator;
 
+    /// \brief Single authoritative removal path.
+    ///
+    /// Order of operations (important!):
+    ///   1. DispatchQueue::final_release_all() — derived vtable still intact,
+    ///      so subclass release() hooks run and actually free owned resources.
+    ///   2. Erase every name_index_ entry that points at this action id, so
+    ///      stale lookups by name can never resolve to a dangling id.
+    ///   3. Erase the entry from the primary actions_ map, which destroys the
+    ///      unique_ptr<DispatchQueue> and runs ~DispatchQueue.
+    ///
+    /// Does nothing if the id is not present (idempotent).
+    void remove_action_by_id(uint64 action_id);
+
     ActionPlayer::State player_state_;
 
     /// \brief Enqueued actions (primary storage).

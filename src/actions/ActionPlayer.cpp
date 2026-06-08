@@ -47,16 +47,22 @@ ActionPlayer::~ActionPlayer()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION, NOM_LOG_PRIORITY_VERBOSE);
 
-  // Deterministic teardown: for every action still in the map, call
-  // final_release() *before* the unique_ptr<DispatchQueue> destroys the
-  // queue.  This guarantees the derived vtable is still intact when
-  // release() runs, so owned resources (unique_ptr<ISoundFileReader>,
-  // manually-allocated SoundBuffers, ...) are actually freed.
+  // Deterministic teardown via the single authoritative removal path.
+  // Collect the ids first because remove_action_by_id() erases from actions_
+  // and we don't want to invalidate iterators mid-loop.
+  std::vector<uint64> ids;
+  ids.reserve(this->actions_.size());
   for( auto& kv : this->actions_ ) {
-    if( kv.second != nullptr ) {
-      kv.second->final_release_all();
-    }
+    ids.push_back(kv.first);
   }
+  for( uint64 action_id : ids ) {
+    this->remove_action_by_id(action_id);
+  }
+
+  // remove_action_by_id does not touch free_list_, so clear it explicitly.
+  // The iterators stored there are about to become invalid anyway when the
+  // map is fully emptied.
+  this->free_list_.clear();
 }
 
 bool ActionPlayer::idle() const
@@ -112,37 +118,24 @@ bool ActionPlayer::cancel_action(const std::string& action_name)
     return false;
   }
 
-  bool found_any = false;
-  auto range = this->name_index_.equal_range(action_name);
-
+  // Collect all ids currently registered under this name.  We copy them out
+  // first because remove_action_by_id() erases from name_index_ and would
+  // invalidate our iterators if we tried to erase while walking the range.
   std::vector<uint64> ids_to_erase;
-  ids_to_erase.reserve(this->name_index_.count(action_name));
+  auto range = this->name_index_.equal_range(action_name);
+  ids_to_erase.reserve(std::distance(range.first, range.second));
   for( auto itr = range.first; itr != range.second; ++itr ) {
     ids_to_erase.push_back(itr->second);
   }
 
+  bool found_any = false;
   for( uint64 action_id : ids_to_erase ) {
-    auto res = this->actions_.find(action_id);
-    if( res != this->actions_.end() ) {
-
-      // Final-release before erasing so the derived vtable is still intact
-      // when release() runs.
-      if( res->second != nullptr ) {
-        res->second->final_release_all();
-      }
-
-      this->actions_.erase(res);
+    // remove_action_by_id is idempotent and handles the case where the same
+    // id was registered under several names (duplicate call is a no-op).
+    auto before = this->actions_.size();
+    this->remove_action_by_id(action_id);
+    if( this->actions_.size() < before ) {
       found_any = true;
-    }
-
-    // Also remove all entries for this id from the secondary name index
-    auto name_range = this->name_index_.equal_range(action_name);
-    for( auto nitr = name_range.first; nitr != name_range.second; ) {
-      if( nitr->second == action_id ) {
-        nitr = this->name_index_.erase(nitr);
-      } else {
-        ++nitr;
-      }
     }
   }
 
@@ -161,14 +154,19 @@ void ActionPlayer::cancel_actions()
 {
   this->free_list_.clear();
 
-  // Final-release every enqueued action before clearing the map so that
-  // subclass release() hooks actually run (derived vtable is still alive).
+  // Iterate via a copied id list so remove_action_by_id() can erase from
+  // actions_ without invalidating our loop iterator.
+  std::vector<uint64> ids;
+  ids.reserve(this->actions_.size());
   for( auto& kv : this->actions_ ) {
-    if( kv.second != nullptr ) {
-      kv.second->final_release_all();
-    }
+    ids.push_back(kv.first);
+  }
+  for( uint64 action_id : ids ) {
+    this->remove_action_by_id(action_id);
   }
 
+  // Defensive: remove_action_by_id should have emptied both, but clear any
+  // stragglers in case of invariant breakage.
   this->name_index_.clear();
   this->actions_.clear();
 }
@@ -226,8 +224,10 @@ bool ActionPlayer::update(real32 delta_time)
   } // end for loop
 
 
-  // Erase the actions from the queue in LIFO order, keeping the secondary
-  // name_index_ in sync with the primary actions_ map.
+  // Erase the actions from the free list.  remove_action_by_id() handles the
+  // three-step teardown (final_release -> drop name index entries -> erase
+  // from actions_) in the correct order, and is idempotent so it's safe even
+  // if the same id somehow ended up in free_list_ twice.
   while( this->free_list_.empty() == false ) {
     auto res = this->free_list_.front();
     uint64 action_id = res->first;
@@ -235,25 +235,7 @@ bool ActionPlayer::update(real32 delta_time)
     NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_ACTION_PLAYER, DEBUG_CLASS_NAME,
                     "erasing action", "[action_id]:", action_id );
 
-    // Final-release BEFORE erasing from the map -- at this point the object
-    // is still fully alive so the derived release() hook dispatches correctly.
-    if( res->second != nullptr ) {
-      res->second->final_release_all();
-    }
-
-    // Look up and remove any name_index_ entries pointing to this id.
-    // We have to scan the whole multimap since name_index_ is keyed by name.
-    for( auto nitr = this->name_index_.begin();
-         nitr != this->name_index_.end(); )
-    {
-      if( nitr->second == action_id ) {
-        nitr = this->name_index_.erase(nitr);
-      } else {
-        ++nitr;
-      }
-    }
-
-    this->actions_.erase(res);
+    this->remove_action_by_id(action_id);
     this->free_list_.pop_front();
   }
 
@@ -267,6 +249,44 @@ bool ActionPlayer::update(real32 delta_time)
 }
 
 // Private scope
+
+void ActionPlayer::remove_action_by_id(uint64 action_id)
+{
+  auto res = this->actions_.find(action_id);
+  if( res == this->actions_.end() ) {
+    // Idempotent: nothing to do if the action is already gone (or never
+    // existed).  Also catch the case where cancel_actions(name) hit the same
+    // id twice through different name aliases, etc.
+    return;
+  }
+
+  // 1. Final-release while the object is still fully alive so the derived
+  //    vtable is intact and the virtual release() hook dispatches correctly.
+  if( res->second != nullptr ) {
+    res->second->final_release_all();
+  }
+
+  // 2. Drop *every* name_index_ entry that points at this id.  We scan the
+  //    whole multimap; in practice the number of concurrently-running actions
+  //    is small enough that this is fine, and correctness trumps micro-
+  //    optimisation here.  A more cache-friendly structure (e.g. a bimap or
+  //    an additional id->name reverse index) could be added later if profiling
+  //    shows this matters.
+  for( auto nitr = this->name_index_.begin();
+       nitr != this->name_index_.end(); )
+  {
+    if( nitr->second == action_id ) {
+      nitr = this->name_index_.erase(nitr);
+    } else {
+      ++nitr;
+    }
+  }
+
+  // 3. Erase from the primary map; this destroys the unique_ptr<DispatchQueue>
+  //    which runs ~DispatchQueue (a no-op in terms of resource release — all
+  //    the real work was already done in step 1).
+  this->actions_.erase(res);
+}
 
 bool ActionPlayer::
 run_action( const std::shared_ptr<IActionObject>& action,
@@ -295,11 +315,16 @@ run_action( const std::shared_ptr<IActionObject>& action,
     return false;
   }
 
-  // NOTE: This logging category is disabled by default
+  // If an action with this uid already exists, tear it down cleanly via the
+  // single authoritative removal path before we overwrite it.  Without this
+  // step the old DispatchQueue unique_ptr would simply be destroyed on
+  // operator=, which would skip final_release() and leak owned resources —
+  // and its name_index_ entries would also be left dangling.
   if( this->actions_.find(action_uid) != this->actions_.end() ) {
     NOM_LOG_WARN( NOM_LOG_CATEGORY_ACTION_PLAYER,
                   "Another action with the same uid exists -- overwriting",
                   "with uid=", action_uid, ", name=", action_name );
+    this->remove_action_by_id(action_uid);
   }
 
   // If the user assigned a name, register it in the secondary index so that
