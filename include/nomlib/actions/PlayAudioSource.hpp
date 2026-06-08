@@ -30,38 +30,40 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_ACTIONS_PLAY_AUDIO_SOURCE_HPP
 
 #include <memory>
+#include <vector>
+#include <string>
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
+#include "nomlib/audio/AudioMixer.hpp"
 
 namespace nom {
 namespace audio {
 
 // Forward declarations
-class IOAudioEngine;
 struct SoundBuffer;
 class ISoundFileReader;
 
 } // namespace audio
 
-/// \brief [TODO: Description]
-// TODO: Update comments!
+/// \brief Action for playing streaming audio from a file source.
+///
+/// This action dispatches playback through AudioMixer, ensuring stable
+/// music/sfx/voice control paths with proper bus volume application.
 class PlayAudioSource: public virtual IActionObject
 {
   public:
-    /// \brief Allow access into our private parts for unit testing.
     friend class ActionTest;
 
     typedef PlayAudioSource self_type;
 
-    /// \brief Default constructor; create the action from an audio file on
-    /// disk.
+    /// \brief Construct from an audio file, using the default SFX bus.
     PlayAudioSource(audio::IOAudioEngine* dev, const char* filename);
 
-    /// \brief Construct the action from a pre-initialized audio buffer.
-    // PlayAudioSource(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer);
+    /// \brief Construct from an audio file with a specific mixer bus.
+    PlayAudioSource(audio::AudioMixer* mixer, const char* filename,
+                    audio::AudioBus bus = audio::AUDIO_BUS_SFX);
 
-    /// \brief Destructor.
     virtual ~PlayAudioSource();
 
     virtual std::unique_ptr<IActionObject> clone() const override;
@@ -72,9 +74,6 @@ class PlayAudioSource: public virtual IActionObject
 
     virtual void pause(real32 delta_time) override;
 
-    /// \brief Resume logic for the animation object.
-    ///
-    /// \remarks Reserved for future implementation.
     virtual void resume(real32 delta_time) override;
 
     virtual void rewind(real32 delta_time) override;
@@ -84,23 +83,19 @@ class PlayAudioSource: public virtual IActionObject
   private:
     static const char* DEBUG_CLASS_NAME;
 
-    /// \brief Execute the alpha blending logic for the animation.
     IActionObject::FrameState update(real32 t, uint8 b, int16 c, real32 d);
 
     void first_frame(real32 delta_time);
     void last_frame(real32 delta_time);
 
-    /// \brief The initial alpha blending value.
-    // real32 initial_volume_;
-
-    /// \brief The total change in the alpha blending value.
-    // const real32 total_displacement_;
-
     nom::size_type curr_frame_ = 0;
 
-    audio::IOAudioEngine* impl_ = nullptr;
+    audio::AudioMixer* mixer_ = nullptr;
+    std::shared_ptr<audio::AudioMixer> owned_mixer_;
+    audio::AudioBus bus_ = audio::AUDIO_BUS_SFX;
 
-    audio::ISoundFileReader* fp_ = nullptr;
+    std::shared_ptr<audio::ISoundFileReader> fp_;
+    std::string filename_;
 
     typedef std::vector<audio::SoundBuffer*> audio_buffers;
     audio_buffers::iterator current_buffer_;

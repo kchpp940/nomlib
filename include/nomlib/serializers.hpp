@@ -44,6 +44,5 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Filesystem utilities
 #include <nomlib/serializers/SearchPath.hpp>
-#include <nomlib/serializers/ResourceManifest.hpp>
 
 #endif // include guard defined

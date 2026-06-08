@@ -29,36 +29,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifndef NOMLIB_AUDIO_AUDIO_DEVICE_LOCATOR_HPP
 #define NOMLIB_AUDIO_AUDIO_DEVICE_LOCATOR_HPP
 
+#include <memory>
+
 #include "nomlib/config.hpp"
 #include "nomlib/audio/NullAudioDevice.hpp"
 
 namespace nom {
 
 // Forward declarations
+namespace audio {
 class IAudioDevice;
+class NullAudioDevice;
+} // namespace audio
 
+/// \brief Service Locator pattern implementation for audio device access.
+///
+/// \see http://gameprogrammingpatterns.com/service-locator.html
 class AudioDeviceLocator
 {
   public:
     ~AudioDeviceLocator( void );
 
     static void initialize( void );
-    static IAudioDevice& audio_device( void );
-    static void set_provider( IAudioDevice* service );
+    static audio::IAudioDevice& audio_device( void );
+    static void set_provider( audio::IAudioDevice* service );
 
   private:
-    static IAudioDevice* audio_;
-    static NullAudioDevice null_audio_;
+    static audio::IAudioDevice* audio_;
+    static audio::NullAudioDevice null_audio_;
+    static audio::IAudioDevice* owned_provider_;
 };
 
 } // namespace nom
 
 #endif // include guard defined
-
-/// \class nom::AudioDeviceLocator
-/// \ingroup audio
-///
-/// Experimental interface (incomplete).
-///
-/// \see http://gameprogrammingpatterns.com/service-locator.html
-///

@@ -39,18 +39,23 @@ namespace audio {
 // Forward declarations
 struct SoundBuffer;
 
-// TODO(jeff): Add const to getters!
 class NullAudioEngineCaps: public IOAudioEngine
 {
   public:
     NullAudioEngineCaps();
     virtual ~NullAudioEngineCaps();
 
+    virtual void init(void* driver) override;
+    virtual bool valid() const override;
+    virtual uint32 caps() const override;
+    virtual void set_cap(uint32 format) override;
+    virtual bool connected() const override;
+
     virtual
     uint32 channel_format(uint32 num_channels, uint32 channel_format) override;
 
-    virtual bool valid_audio_buffer(SoundBuffer* buffer) override;
-    virtual bool valid_sound_buffer(SoundBuffer* buffer) override;
+    virtual bool valid_buffer(SoundBuffer* buffer) override;
+    virtual bool valid_source(SoundBuffer* buffer) override;
 
     virtual uint32 state(SoundBuffer* target) override;
     virtual real32 pitch(SoundBuffer* target) override;
@@ -66,8 +71,6 @@ class NullAudioEngineCaps: public IOAudioEngine
     virtual Point3f position(SoundBuffer* buffer) override;
     virtual real32 playback_position(SoundBuffer* buffer) override;
     virtual real32 playback_samples(SoundBuffer* buffer) override;
-
-    virtual void set_state(SoundBuffer* target, uint32 state) override;
 
     virtual void set_volume(real32 gain) override;
     virtual void set_position(const Point3f& p) override;
@@ -85,11 +88,14 @@ class NullAudioEngineCaps: public IOAudioEngine
     virtual void pause(SoundBuffer* target) override;
     virtual void resume(SoundBuffer* target) override;
 
-    virtual bool fill_audio_buffer(SoundBuffer* buffer) override;
-    virtual void free_buffer(SoundBuffer* buffer) override;
+    virtual bool push_buffer(SoundBuffer* buffer) override;
+    virtual bool queue_buffer(SoundBuffer* buffer) override;
 
     virtual void suspend() override;
     virtual void resume() override;
+    virtual void close() override;
+
+    virtual void free_buffer(SoundBuffer* buffer) override;
 };
 
 } // namespace audio

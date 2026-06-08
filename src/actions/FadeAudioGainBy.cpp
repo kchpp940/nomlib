@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/core/unique_ptr.hpp"
 #include "nomlib/math/math_helpers.hpp"
 #include "nomlib/audio/audio_defs.hpp"
+#include "nomlib/audio/IOAudioEngine.hpp"
 
 // Forward declarations
 #include "nomlib/audio/SoundBuffer.hpp"
@@ -40,40 +41,96 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
-// Static initializations
 const char* FadeAudioGainBy::DEBUG_CLASS_NAME = "[FadeAudioGainBy]:";
 
 FadeAudioGainBy::
 FadeAudioGainBy(audio::IOAudioEngine* dev, const char* filename, real32 delta,
                 real32 duration)
   : total_displacement_(delta)
+  , mixer_(nullptr)
+  , bus_(audio::AUDIO_BUS_SFX)
+  , filename_(filename ? filename : "")
+  , owns_buffer_(false)
+  , audible_(nullptr)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
 
-  this->impl_ = dev;
+  this->owned_mixer_.reset(new audio::AudioMixer(dev));
+  this->mixer_ = this->owned_mixer_.get();
+
   this->elapsed_frames_ = 0.0f;
-  this->audible_ = audio::create_buffer(filename, this->impl_);
-  // TODO(jeff): Validity check..?
+  this->audible_ = audio::create_buffer(filename,
+                                        this->mixer_ ? this->mixer_->engine() : nullptr);
+  this->owns_buffer_ = true;
 
   this->set_duration(duration);
-  this->initial_volume_ = audio::volume(this->audible_, dev);
+  this->initial_volume_ = audio::volume(this->audible_,
+                                        this->mixer_ ? this->mixer_->engine() : nullptr);
 }
 
 FadeAudioGainBy::
 FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
                 real32 delta, real32 duration)
   : total_displacement_(delta)
+  , mixer_(nullptr)
+  , bus_(audio::AUDIO_BUS_SFX)
+  , owns_buffer_(false)
+  , audible_(buffer)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
 
-  this->impl_ = dev;
+  this->owned_mixer_.reset(new audio::AudioMixer(dev));
+  this->mixer_ = this->owned_mixer_.get();
+
   this->elapsed_frames_ = 0.0f;
-  this->audible_ = buffer;
 
   this->set_duration(duration);
-  this->initial_volume_ = audio::volume(buffer, dev);
+  this->initial_volume_ = audio::volume(buffer,
+                                        this->mixer_ ? this->mixer_->engine() : nullptr);
+}
+
+FadeAudioGainBy::
+FadeAudioGainBy(audio::AudioMixer* mixer, const char* filename, real32 delta,
+                real32 duration, audio::AudioBus bus)
+  : total_displacement_(delta)
+  , mixer_(mixer)
+  , bus_(bus)
+  , filename_(filename ? filename : "")
+  , owns_buffer_(false)
+  , audible_(nullptr)
+{
+  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
+                     nom::NOM_LOG_PRIORITY_VERBOSE);
+
+  this->elapsed_frames_ = 0.0f;
+  this->audible_ = audio::create_buffer(filename,
+                                        this->mixer_ ? this->mixer_->engine() : nullptr);
+  this->owns_buffer_ = true;
+
+  this->set_duration(duration);
+  this->initial_volume_ = audio::volume(this->audible_,
+                                        this->mixer_ ? this->mixer_->engine() : nullptr);
+}
+
+FadeAudioGainBy::
+FadeAudioGainBy(audio::AudioMixer* mixer, audio::SoundBuffer* buffer,
+                real32 delta, real32 duration, audio::AudioBus bus)
+  : total_displacement_(delta)
+  , mixer_(mixer)
+  , bus_(bus)
+  , owns_buffer_(false)
+  , audible_(buffer)
+{
+  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
+                     nom::NOM_LOG_PRIORITY_VERBOSE);
+
+  this->elapsed_frames_ = 0.0f;
+
+  this->set_duration(duration);
+  this->initial_volume_ = audio::volume(buffer,
+                                        this->mixer_ ? this->mixer_->engine() : nullptr);
 }
 
 FadeAudioGainBy::~FadeAudioGainBy()
@@ -99,24 +156,19 @@ FadeAudioGainBy::update(real32 t, uint8 b, int16 c, real32 d)
   real32 b1 = b;
   real32 c1 = c;
 
-  // The current displacement value of this frame
   real32 gain = 0.0f;
   real32 displacement = 0.0f;
 
-  // Clamp values to stay within bounds of the initial value
   if(c1 > b1) {
     c1 = c1 - b1;
   } else {
     c1 = -b1;
   }
 
-  // Clamp delta values that go beyond the time duration bounds; this adds
-  // stability to variable time steps
   if(delta_time > (duration / speed)) {
     delta_time = duration / speed;
   }
 
-  // Apply speed scalar onto current frame time
   real32 frame_time = delta_time * speed;
 
   NOM_ASSERT(timing_mode != nullptr);
@@ -125,19 +177,17 @@ FadeAudioGainBy::update(real32 t, uint8 b, int16 c, real32 d)
       timing_mode.operator()(frame_time, b1, c1, duration);
   }
 
-  // Update our internal elapsed frames counter (diagnostics
   ++this->elapsed_frames_;
 
   if(this->audible_ != nullptr) {
-    // FIXME(jeff): The external audio API (us) for gain accepts values between
-    // 0..100 whereas the internal audio API (OpenAL) expects a value between
-    // 0..1
     displacement =
       nom::absolute_real32((gain / 1.0f) * 0.01f);
     displacement *= 100.0f;
-    audio::set_volume(this->audible_, this->impl_, displacement);
 
-    // Diagnostics
+    if(this->mixer_ != nullptr) {
+      this->mixer_->set_source_volume(this->audible_, displacement, this->bus_);
+    }
+
     NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                     "delta_time:", delta_time, "frame_time:", frame_time,
                     "[elapsed frames]:", this->elapsed_frames_ );
@@ -150,8 +200,6 @@ FadeAudioGainBy::update(real32 t, uint8 b, int16 c, real32 d)
     NOM_ASSERT(displacement >= audio::MIN_VOLUME);
   }
 
-  // Continue playing the animation only when we are inside our frame duration
-  // bounds; this adds stability to variable time steps
   if(delta_time < (duration / speed)) {
     this->set_status(FrameState::PLAYING);
     status = this->status();
@@ -187,34 +235,35 @@ IActionObject::FrameState FadeAudioGainBy::prev_frame(real32 delta_time)
 
 void FadeAudioGainBy::pause(real32 delta_time)
 {
-  // audio::pause(this->audible_, this->impl_);
   this->timer_.pause();
 }
 
 void FadeAudioGainBy::resume(real32 delta_time)
 {
-  // audio::resume(this->audible_, this->impl_);
   this->timer_.unpause();
 }
 
 void FadeAudioGainBy::rewind(real32 delta_time)
 {
-  // ...Reset the animation...
   this->elapsed_frames_ = 0.0f;
   this->timer_.stop();
   this->set_status(FrameState::PLAYING);
 
-  if(this->audible_ != nullptr) {
-    audio::set_volume(this->audible_, this->impl_, this->initial_volume_);
+  if(this->audible_ != nullptr && this->mixer_ != nullptr) {
+    this->mixer_->set_source_volume(this->audible_, this->initial_volume_, this->bus_);
   }
-
-  // audio::stop(this->audible_, this->impl_);
 }
 
 void FadeAudioGainBy::release()
 {
-  audio::free_buffer(this->audible_, this->impl_);
-  this->audible_ = nullptr;
+  if(this->audible_ != nullptr && this->owns_buffer_ == true) {
+    audio::free_buffer(this->audible_,
+                       this->mixer_ ? this->mixer_->engine() : nullptr);
+    this->audible_ = nullptr;
+    this->owns_buffer_ = false;
+  } else {
+    this->audible_ = nullptr;
+  }
 }
 
 // Private scope
@@ -227,22 +276,18 @@ void FadeAudioGainBy::first_frame(real32 delta_time)
     NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                  "BEGIN at", delta_time);
 
-    // ...Set the animation up...
     if(this->audible_ != nullptr) {
-      this->initial_volume_ = audio::volume(this->audible_, this->impl_);
+      this->initial_volume_ = audio::volume(this->audible_,
+                                            this->mixer_ ? this->mixer_->engine() : nullptr);
 
-      // Diagnostics
       NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION,
                    "initial_volume:", this->initial_volume_);
     }
-
-    // audio::play(this->audible_, this->impl_);
   }
 }
 
 void FadeAudioGainBy::last_frame(real32 delta_time)
 {
-  // audio::stop(this->audible_, this->impl_);
   this->timer_.stop();
 }
 

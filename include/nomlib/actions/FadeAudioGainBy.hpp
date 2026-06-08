@@ -2,7 +2,7 @@
 
   nomlib - C++11 cross-platform game engine
 
-Copyright (c) 2013, 2014, 2015, 2016 Jeffrey Carpenter <i8degrees@gmail.com> Carpenter <i8degrees@gmail.com>
+Copyright (c) 2013, 2014, 2015, 2016 Jeffrey Carpenter <i8degrees@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -30,39 +30,49 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_ACTIONS_FADE_AUDIO_GAIN_BY_HPP
 
 #include <memory>
+#include <string>
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
+#include "nomlib/audio/AudioMixer.hpp"
 
 namespace nom {
 namespace audio {
 
 // Forward declarations
-class IOAudioEngine;
 struct SoundBuffer;
 
 } // namespace audio
 
-/// \brief [TODO: Description]
-// TODO: Update comments!
+/// \brief Action for fading audio gain (volume) by a delta value over time.
+///
+/// This action dispatches volume changes through AudioMixer, ensuring
+/// proper bus volume application for stable music/sfx/voice control paths.
 class FadeAudioGainBy: public virtual IActionObject
 {
   public:
-    /// \brief Allow access into our private parts for unit testing.
     friend class ActionTest;
 
     typedef FadeAudioGainBy self_type;
 
-    /// \brief Default constructor; create the action from an audio file on
-    /// disk.
+    /// \brief Construct from an audio file, using the default SFX bus.
     FadeAudioGainBy(audio::IOAudioEngine* dev, const char* filename,
                     real32 delta, real32 duration);
 
-    /// \brief Construct the action from a pre-initialized audio buffer.
+    /// \brief Construct from a pre-initialized audio buffer, default SFX bus.
     FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
                     real32 delta, real32 duration);
 
-    /// \brief Destructor.
+    /// \brief Construct from an audio file with a specific mixer bus.
+    FadeAudioGainBy(audio::AudioMixer* mixer, const char* filename,
+                    real32 delta, real32 duration,
+                    audio::AudioBus bus = audio::AUDIO_BUS_SFX);
+
+    /// \brief Construct from a pre-initialized audio buffer with a specific bus.
+    FadeAudioGainBy(audio::AudioMixer* mixer, audio::SoundBuffer* buffer,
+                    real32 delta, real32 duration,
+                    audio::AudioBus bus = audio::AUDIO_BUS_SFX);
+
     virtual ~FadeAudioGainBy();
 
     virtual std::unique_ptr<IActionObject> clone() const override;
@@ -73,9 +83,6 @@ class FadeAudioGainBy: public virtual IActionObject
 
     virtual void pause(real32 delta_time) override;
 
-    /// \brief Resume logic for the animation object.
-    ///
-    /// \remarks Reserved for future implementation.
     virtual void resume(real32 delta_time) override;
 
     virtual void rewind(real32 delta_time) override;
@@ -85,21 +92,21 @@ class FadeAudioGainBy: public virtual IActionObject
   private:
     static const char* DEBUG_CLASS_NAME;
 
-    /// \brief Execute the alpha blending logic for the animation.
     IActionObject::FrameState update(real32 t, uint8 b, int16 c, real32 d);
 
     void first_frame(real32 delta_time);
     void last_frame(real32 delta_time);
 
-    /// \brief The initial alpha blending value.
     real32 initial_volume_;
 
-    /// \brief The total change in the alpha blending value.
     const real32 total_displacement_;
 
-    audio::IOAudioEngine* impl_ = nullptr;
+    audio::AudioMixer* mixer_ = nullptr;
+    std::shared_ptr<audio::AudioMixer> owned_mixer_;
+    audio::AudioBus bus_ = audio::AUDIO_BUS_SFX;
+    std::string filename_;
 
-    /// \brief The animation proxy object used to perform alpha blending on.
+    bool owns_buffer_ = false;
     audio::SoundBuffer* audible_ = nullptr;
 };
 

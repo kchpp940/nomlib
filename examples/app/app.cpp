@@ -72,6 +72,13 @@ const nom::Point2i INFO_BOX_ORIGINS[2] =  {
                                                         )
                                           };
 
+const std::string RESOURCE_ICON = "icon.png";
+
+const std::string RESOURCE_SPRITE_SHEET = "cursors.json";
+
+/// Copyright (c) 2013 Fielding Johnston. All rights reserved.
+const std::string RESOURCE_STATIC_IMAGE = "boardoutline.png";
+
 /// \brief Relative filename path to saved screen shot example
 ///
 /// Default path should resolve to the same directory as the app example
@@ -121,32 +128,39 @@ class App: public nom::SDLApp
       nom::uint32 render_flags = SDL_RENDERER_ACCELERATED;
       int render_driver = -1;
 
-      nom::ResourceManifest manifest;
-      nom::CachedResourceLoader res_loader;
-      nom::gui::CachedResourceLoader gui_res_loader;
-      std::string manifest_file = "app_manifest.json";
+      nom::SearchPath res, res_gui;
+      std::string res_file = "app.json";
 
-      if( manifest.load_file( manifest_file ) == false )
+      // Determine our resources path based on several possible locations;
+      // this is dependent upon the build environment
+      if( res.load_file(res_file,"resources") == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                     "Could not load resource manifest:", manifest_file );
+                     "Could not determine the resource path for", res_file );
         return false;
       }
-      res_loader.set_manifest( manifest );
-      gui_res_loader.set_manifest( manifest );
 
-      res_loader.manifest().dump();
+      if( res_gui.load_file(res_file,"gui") == false )
+      {
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
+                      "Could not determine the resource path for",
+                      res_file );
+        return false;
+      }
 
       if ( nom::set_hint ( SDL_HINT_RENDER_VSYNC, "0" ) == false )
       {
         NOM_LOG_INFO ( NOM, "Could not disable vertical refresh." );
       }
 
+      // Best quality is Nearest rescaling for low resolution artwork, such as
+      // our bitmap fonts!
       if ( nom::set_hint ( SDL_HINT_RENDER_SCALE_QUALITY, "Nearest" ) == false )
       {
         NOM_LOG_INFO ( NOM, "Could not set scale quality to " + std::string ( "nearest" ) );
       }
 
+      // Required as per our libRocket implementation
       render_driver = nom::available_render_driver("opengl");
       if( render_driver == -1 )
       {
@@ -167,9 +181,10 @@ class App: public nom::SDLApp
           return false;
         }
 
-        if( this->window[idx].set_window_icon( res_loader.manifest().resolve_path( "icon" ) ) == false ) {
+        if( this->window[idx].set_window_icon( res.path() + RESOURCE_ICON ) == false ) {
           nom::DialogMessageBox(  APP_NAME,
-                                  "Could not load window icon from manifest id 'icon'" );
+                                  "Could not load window icon: " +
+                                  res.path() + RESOURCE_ICON );
           return false;
         }
 
@@ -184,15 +199,21 @@ class App: public nom::SDLApp
         return false;
       }
 
+      // Allow for automatic rescaling of the output window based on aspect
+      // ratio (i.e.: handle fullscreen resizing); this will use letterboxing
+      // when the aspect ratio is greater than what is available, or side-bars
+      // when the aspect ratio is less than.
       this->window[0].set_logical_size( this->window[0].size() );
 
+      // Use no pixel unit scaling; this gives us one to one pixel ratio
       this->window[0].set_scale( nom::Point2f(1,1) );
 
       SDLApp::set_event_handler(this->evt_handler);
 
-      std::string gui_base = res_loader.manifest().base_path() + "tests/gui/";
+      // Initialize the core of libRocket; these are the core dependencies that
+      // libRocket depends on for successful initialization.
       Rocket::Core::FileInterface* fs =
-        new nom::RocketFileInterface( gui_base );
+        new nom::RocketFileInterface( res_gui.path() );
 
       Rocket::Core::SystemInterface* sys =
         new nom::RocketSDL2SystemInterface();
@@ -206,6 +227,8 @@ class App: public nom::SDLApp
       Rocket::Core::RenderInterface* renderer =
         new nom::RocketSDL2RenderInterface( &this->window[0] );
 
+      // Initialize libRocket's debugger as early as possible, so we get visual
+      // logging
       this->desktop.enable_debugger();
       if( this->desktop.create_context( "default", this->window[0].size(), renderer ) == false )
       {
@@ -215,72 +238,81 @@ class App: public nom::SDLApp
 
       this->desktop.set_event_handler(this->evt_handler);
 
-      gui_res_loader.set_context( &this->desktop );
-
-      if( gui_res_loader.get_font( "font_delicious_bold" ) == false )
+      if( this->desktop.load_font( "Delicious-Bold.otf" ) == false )
       {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not load manifest font 'font_delicious_bold'" );
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font file: Delicious-Bold.otf" );
         return false;
       }
 
-      if( gui_res_loader.get_font( "font_opensans_regular" ) == false )
+      if( this->desktop.load_font( "OpenSans-Regular.ttf" ) == false )
       {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not load manifest font 'font_opensans_regular'" );
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font file: OpenSans-Regular.ttf" );
         return false;
       }
 
-      if( gui_res_loader.get_font( "font_opensans_bold" ) == false )
+      if( this->desktop.load_font( "OpenSans-Bold.ttf" ) == false )
       {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not load manifest font 'font_opensans_bold'" );
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font file: OpenSans-Bold.ttf" );
         return false;
       }
 
+      // Load custom decorators for nomlib
       Rocket::Core::DecoratorInstancer* decorator0 = new nom::DecoratorInstancerFinalFantasyFrame();
       Rocket::Core::Factory::RegisterDecoratorInstancer("final-fantasy-theme", decorator0 );
       decorator0->RemoveReference();
 
       this->window[0].make_current();
 
-      res_loader.preload_eager();
-      res_loader.dump();
+      nom::SpriteSheet sprite_frames;
 
-      gui_res_loader.preload_eager();
-      gui_res_loader.dump();
-
-      auto sprite_frames = res_loader.get_spritesheet( "cursors_sheet" );
-      if( sprite_frames == nullptr ) {
+      // Load a sprite sheet, using the sheet_filename as the base path to load
+      // the image file from disk
+      if( sprite_frames.load_file(res.path() + RESOURCE_SPRITE_SHEET) == false ) {
         nom::DialogMessageBox(  APP_NAME,
-                                "Could not load manifest spritesheet 'cursors_sheet'" );
+                                "Could not load sprite sheet: " +
+                                res.path() + RESOURCE_SPRITE_SHEET );
         return false;
       }
 
-      if( nom::load_texture( res_loader.manifest(), "cursors_texture", this->sprite_tex,
-                             false, nom::Texture::Access::Streaming ) == false )
+      if( this->sprite_tex.load( res.path() + sprite_frames.sheet_filename(), false, nom::Texture::Access::Streaming ) == false )
       {
         nom::DialogMessageBox(  APP_NAME,
-                                "Could not load manifest texture 'cursors_texture'" );
+                                "Could not load sprite texture: " +
+                                res.path() + sprite_frames.sheet_filename() );
         return false;
       }
 
       this->sprite.set_texture(sprite_tex);
-      this->sprite.set_sprite_sheet(*sprite_frames);
+      this->sprite.set_sprite_sheet(sprite_frames);
       this->sprite_tex.resize(nom::Texture::ResizeAlgorithm::scale2x);
-      this->sprite.set_frame(1);
+      this->sprite.set_frame(1); // Left-pointing cursor hand
 
-      auto ani_sprite_tex = res_loader.get_texture( "cursors_texture" );
+      auto ani_sprite_tex =
+        std::make_shared<nom::Texture>();
       NOM_ASSERT(ani_sprite_tex != nullptr);
+
+      // Sharing the same texture for the animated sprite instead of loading
+      // another texture source would be OK, too, if we didn't care about
+      // preserving the original scale of the sprite here for testing purposes.
+      // this->ani_sprite.set_texture( *this->sprite_tex.clone() );
+      if( ani_sprite_tex->load( res.path() + sprite_frames.sheet_filename() ) == false )
+      {
+        nom::DialogMessageBox(  APP_NAME,
+                                "Could not load sprite texture: " +
+                                res.path() + sprite_frames.sheet_filename() );
+        return false;
+      }
 
       this->ani_sprite =
         std::make_shared<nom::SpriteBatch>();
       NOM_ASSERT(this->ani_sprite != nullptr);
       this->ani_sprite->set_texture(ani_sprite_tex);
 
-      this->ani_sprite->set_sprite_sheet(*sprite_frames);
+      // Use the same sprite sheet source for the animated sprite
+      this->ani_sprite->set_sprite_sheet(sprite_frames);
       this->ani_sprite->set_frame(0);
 
+      // 100ms blink (~10 fps)
       auto sprite_action =
         nom::create_action<nom::SpriteBatchAction>(this->ani_sprite, 0.100f);
       NOM_ASSERT(sprite_action != nullptr);
@@ -295,21 +327,22 @@ class App: public nom::SDLApp
       if ( MAXIMUM_WINDOWS > 1 )
       {
         this->window[1].make_current();
-        this->background = res_loader.get_texture( "board_outline" );
-        if( this->background == nullptr ) {
+        if( this->background.load(res.path() + RESOURCE_STATIC_IMAGE) == false ) {
           nom::DialogMessageBox(  APP_NAME,
-                                  "Could not load manifest texture 'board_outline'" );
+                                  "Could not load image file: " +
+                                  res.path() + RESOURCE_STATIC_IMAGE );
           return false;
         }
       }
 
       this->window[0].make_current();
 
+      // info_box[0]
       this->info_box[0].set_context(&this->desktop);
-      if( gui_res_loader.load_into_widget( "ui_messagebox", this->info_box[0] ) == false )
+      if( this->info_box[0].load_document_file( "messagebox.rml" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not load manifest UI 'ui_messagebox'" );
+                      "UIMessageBox should not be invalid; is the context and document file valid?" );
         return false;
       }
 
@@ -319,11 +352,12 @@ class App: public nom::SDLApp
       this->info_box[0].set_message_text( RESOURCE_INFO_BOX_TEXT_STRINGS[0] );
       this->info_box[0].show();
 
+      // info_box[1]
       this->info_box[1].set_context(&this->desktop);
-      if( gui_res_loader.load_into_widget( "ui_messagebox", this->info_box[1] ) == false )
+      if( this->info_box[1].load_document_file( "messagebox.rml" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not load manifest UI 'ui_messagebox'" );
+                      "UIMessageBox should not be invalid; is the context and document file valid?" );
         return false;
       }
 
@@ -335,9 +369,6 @@ class App: public nom::SDLApp
 
       this->sprite.set_position( nom::Point2i(this->info_box[0].position().x - this->sprite.size().w, this->info_box[0].position().y) );
       this->ani_sprite->set_position( nom::Point2i(this->info_box[0].position().x + this->info_box[0].size().w + this->sprite.size().w, this->info_box[0].position().y) );
-
-      this->res_loader_ = std::move(res_loader);
-      this->gui_res_loader_ = std::move(gui_res_loader);
 
       return true;
     } // onInit
@@ -402,7 +433,7 @@ class App: public nom::SDLApp
         if ( MAXIMUM_WINDOWS > 1 )
         {
           this->window[1].fill ( nom::Color4i::Black );
-          this->background->draw ( this->window[1] );
+          this->background.draw ( this->window[1] );
         }
 
         if ( MAXIMUM_WINDOWS > 2 ) // Third window
@@ -668,7 +699,7 @@ class App: public nom::SDLApp
     nom::UIMessageBox info_box[2];
 
     /// Texture used as a static background image
-    std::shared_ptr<nom::Texture> background;
+    nom::Texture background;
 
     /// Our spiffy sprites
     nom::Texture sprite_tex;
@@ -681,9 +712,6 @@ class App: public nom::SDLApp
 
     int selected_font_size;
     nom::sint selected_text_string;
-
-    nom::CachedResourceLoader res_loader_;
-    nom::gui::CachedResourceLoader gui_res_loader_;
 
     nom::sint select_font_size ( void )
     {

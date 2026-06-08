@@ -39,20 +39,14 @@ namespace nom {
 namespace audio {
 
 // Forward declarations
-// struct SoundBuffer;
-// class IOAudioEngine;
-
-// void null_set_audio_volume(SoundBuffer* target, real32 gain);
+class IOAudioEngine;
+struct AudioSpec;
 
 class NullAudioDevice: public IAudioDevice
 {
   public:
     NullAudioDevice();
     virtual ~NullAudioDevice();
-
-    // virtual void* device() const override;
-    // virtual void* context() const override;
-    // virtual IOAudioEngine* caps() const override;
 
     virtual bool valid() const override;
     std::string device_name() const override;
@@ -64,8 +58,8 @@ class NullAudioDevice: public IAudioDevice
 
   private:
     bool initialized_ = false;
-    // IOAudioEngine* impl_ = nullptr;
     std::string device_name_;
+    std::unique_ptr<IOAudioEngine> engine_;
 };
 
 IOAudioEngine* create_null_audio_device(const audio::AudioSpec* spec);

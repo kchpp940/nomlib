@@ -28,15 +28,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/audio/AudioDeviceLocator.hpp"
 
+#include "nomlib/audio/IAudioDevice.hpp"
+#include "nomlib/audio/NullAudioDevice.hpp"
+
 namespace nom {
 
 // Static initializations
-IAudioDevice* AudioDeviceLocator::audio_ = nullptr;
-NullAudioDevice AudioDeviceLocator::null_audio_;
+audio::IAudioDevice* AudioDeviceLocator::audio_ = nullptr;
+audio::NullAudioDevice AudioDeviceLocator::null_audio_;
+audio::IAudioDevice* AudioDeviceLocator::owned_provider_ = nullptr;
 
 AudioDeviceLocator::~AudioDeviceLocator( void )
 {
-  NOM_DELETE_PTR( AudioDeviceLocator::audio_ );
+  NOM_DELETE_PTR( AudioDeviceLocator::owned_provider_ );
 }
 
 void AudioDeviceLocator::initialize( void )
@@ -44,19 +48,15 @@ void AudioDeviceLocator::initialize( void )
   AudioDeviceLocator::audio_ = &AudioDeviceLocator::null_audio_;
 }
 
-IAudioDevice& AudioDeviceLocator::audio_device( void )
+audio::IAudioDevice& AudioDeviceLocator::audio_device( void )
 {
-  // if( AudioDeviceLocator::audio_ == nullptr )
-  // {
-    // NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO, "AudioDevice was not yet initialized. Initializing..." );
-    // AudioDeviceLocator::initialize();
-  // }
-
   return *AudioDeviceLocator::audio_;
 }
 
-void AudioDeviceLocator::set_provider( IAudioDevice* service )
+void AudioDeviceLocator::set_provider( audio::IAudioDevice* service )
 {
+  NOM_DELETE_PTR( AudioDeviceLocator::owned_provider_ );
+
   if( service == nullptr )
   {
     NOM_LOG_INFO( NOM_LOG_CATEGORY_APPLICATION, "Audio Service given was NULL; initializing NullAudioDevice..." );
@@ -65,6 +65,7 @@ void AudioDeviceLocator::set_provider( IAudioDevice* service )
   else
   {
     AudioDeviceLocator::audio_ = service;
+    AudioDeviceLocator::owned_provider_ = service;
   }
 }
 

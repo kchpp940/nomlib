@@ -19,13 +19,16 @@ set(  NOM_AUDIO_SOURCE
       ${INC_DIR}/audio/IAudioDevice.hpp
       ${INC_DIR}/audio/IOAudioEngine.hpp
 
-      # ${SRC_DIR}/audio/AudioDeviceLocator.cpp
-      # ${INC_DIR}/audio/AudioDeviceLocator.hpp
+      ${SRC_DIR}/audio/AudioMixer.cpp
+      ${INC_DIR}/audio/AudioMixer.hpp
 
-      # ${SRC_DIR}/audio/NullAudioDevice.cpp
-      # ${INC_DIR}/audio/NullAudioDevice.hpp
-      # ${SRC_DIR}/audio/NullAudioDeviceCaps.cpp
-      # ${INC_DIR}/audio/NullAudioDeviceCaps.hpp
+      ${SRC_DIR}/audio/AudioDeviceLocator.cpp
+      ${INC_DIR}/audio/AudioDeviceLocator.hpp
+
+      ${SRC_DIR}/audio/NullAudioDevice.cpp
+      ${INC_DIR}/audio/NullAudioDevice.hpp
+      ${SRC_DIR}/audio/NullAudioDeviceCaps.cpp
+      ${INC_DIR}/audio/NullAudioDeviceCaps.hpp
 )
 
 # Common dependencies on all platforms

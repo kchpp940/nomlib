@@ -43,8 +43,8 @@ using namespace nom;
 
 const std::string APP_NAME = "nomlib: audio";
 
-ResourceManifest manifest;
-audio::CachedResourceLoader audio_loader;
+// File resource paths
+SearchPath res;
 
 /// \remarks See program usage by passing --help
 struct AppFlags
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
   audio::IOAudioEngine* dev = nullptr;
   audio::SoundBuffer* buffer = nullptr;
 
-  const char* MANIFEST_FILENAME = "audio_manifest.json";
+  const char* RES_FILENAME = "audio.json";
   real32 master_gain = 100.0f;
   const real32 pitch = 1.0f;
   const Point3f audio_pos = {0.0f, 0.0f, 0.0f};
@@ -158,23 +158,19 @@ NOM_IGNORED_VARS_ENDL();
 
   ActionPlayer audio_player;
 
-  const char* MANIFEST_FILENAME = "audio_manifest.json";
-  if(manifest.load_file(MANIFEST_FILENAME, "resources") == false) {
+  if(res.load_file(RES_FILENAME, "resources") == false) {
     NOM_LOG_CRIT(NOM_LOG_CATEGORY_APPLICATION,
-                 "Could not load resource manifest:",
-                 MANIFEST_FILENAME);
+                 "Could not resolve the resources path from given input:",
+                 RES_FILENAME);
     exit(NOM_EXIT_FAILURE);
   }
-  manifest.dump();
 
   if(parse_cmdline(argc, argv, args) != 0) {
     exit(NOM_EXIT_FAILURE);
   }
 
-  bool using_manifest_audio = false;
   if(args.audio_input.length() < 1) {
-    using_manifest_audio = true;
-    args.audio_input = manifest.resolve_path( "sinewave_900hz_1s" );
+    args.audio_input = res.path() + "sinewave_1s-900.wav";
   }
 
   // Fatal error; if we are not able to complete this step, it means that
@@ -217,25 +213,10 @@ NOM_IGNORED_VARS_ENDL();
   master_gain = args.audio_volume;
   audio::set_volume(master_gain, dev);
 
-  audio_loader.set_manifest( manifest );
-
-  if( dev != nullptr ) {
-    audio_loader.set_engine( dev );
-    audio_loader.preload_eager();
-    audio_loader.dump();
-  }
-
-  if( using_manifest_audio && dev != nullptr ) {
-    buffer = audio_loader.get_audio( "sinewave_900hz_1s" );
-  } else {
-    buffer = audio::create_buffer(args.audio_input, dev);
-  }
+  buffer = audio::create_buffer(args.audio_input, dev);
   if(audio::valid_buffer(buffer, dev) == false) {
     NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
-                "Could not load audio samples from:",
-                using_manifest_audio ?
-                  std::string("manifest id 'sinewave_900hz_1s'") :
-                  args.audio_input);
+                "Could not load audio samples from:", args.audio_input);
     return NOM_EXIT_FAILURE;
   }
 
