@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/config.hpp"
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/math/Size2.hpp"
+#include "nomlib/system/ViewportManager.hpp"
 
 // Forward declarations (third-party)
 namespace Rocket {
@@ -206,6 +207,21 @@ class UIContext
     /// currently ignored.
     void draw();
 
+    /// \brief Access the ViewportManager used by this UI context.
+    ///
+    /// The ViewportManager tracks the render viewport offset and scale for
+    /// independent resolution scaling. UIContextEventHandler uses this as
+    /// the fallback coordinate conversion source when an event's
+    /// coord_space is MOUSE_COORD_WINDOW.
+    ///
+    /// Application code should keep this ViewportManager in sync with the
+    /// main Renderer, or bind it to the same ViewportManager used by the
+    /// EventHandler via bind_viewport_manager.
+    ///
+    /// \see nom::EventHandler::bind_viewport_manager, nom::ViewportManager
+    ViewportManager& viewport_manager();
+    const ViewportManager& viewport_manager() const;
+
   private:
     /// \brief Initialize libRocket's visual debugger tool.
     ///
@@ -240,6 +256,12 @@ class UIContext
 
     /// \brief The dimensions of the context.
     Size2i res_;
+
+    /// \brief Shared viewport state used for mouse coordinate conversion.
+    ///
+    /// Updated from the Renderer in set_size(). Can also be externally
+    /// synchronized with an EventHandler via bind_viewport_manager.
+    ViewportManager viewport_mgr_;
 };
 
 } // namespace nom

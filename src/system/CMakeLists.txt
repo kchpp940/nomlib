@@ -17,6 +17,8 @@ set(  NOM_SYSTEM_SOURCE
 
       ${SRC_DIR}/system/EventHandler.cpp
       ${INC_DIR}/system/EventHandler.hpp
+      ${SRC_DIR}/system/ViewportManager.cpp
+      ${INC_DIR}/system/ViewportManager.hpp
       ${SRC_DIR}/system/JoystickEventHandler.cpp
       ${INC_DIR}/system/JoystickEventHandler.hpp
       ${SRC_DIR}/system/GameControllerEventHandler.cpp

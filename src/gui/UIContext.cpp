@@ -433,6 +433,12 @@ void UIContext::set_size(const Size2i& dims)
   if( target && context )
   {
     SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
+
+    SDL_Rect vp;
+    SDL_RenderGetViewport( context->renderer(), &vp );
+    this->viewport_mgr_.viewport = IntRect(vp.x, vp.y, vp.w, vp.h);
+    this->viewport_mgr_.scale = scale;
+    this->viewport_mgr_.bound = true;
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is
@@ -442,6 +448,16 @@ void UIContext::set_size(const Size2i& dims)
   res.h = dims.h / scale.y;
 
   this->context_->SetDimensions( Rocket::Core::Vector2i(res.w, res.h) );
+}
+
+ViewportManager& UIContext::viewport_manager()
+{
+  return this->viewport_mgr_;
+}
+
+const ViewportManager& UIContext::viewport_manager() const
+{
+  return this->viewport_mgr_;
 }
 
 void UIContext::set_event_handler(nom::EventHandler& evt_handler)

@@ -36,7 +36,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Event.hpp"
+#include "nomlib/system/ViewportManager.hpp"
 #include "nomlib/math/Point2.hpp"
+#include "nomlib/math/Rect.hpp"
 
 // Forward declarations (third-party)
 union SDL_Event;
@@ -216,9 +218,41 @@ class EventHandler
 
     /// \brief Query whether a logical viewport is currently bound.
     ///
-    /// \returns True if bind_logical_viewport has been called and not yet
-    ///          cleared by unbind_logical_viewport or a nullptr callback.
+    /// \returns True if bind_logical_viewport or bind_viewport_manager has
+    ///          been called and not yet cleared.
     bool has_logical_viewport() const;
+
+    /// \brief Bind a shared ViewportManager to this EventHandler.
+    ///
+    /// This is the **recommended** integration path. The same ViewportManager
+    /// instance should be updated by the graphics module whenever the
+    /// Renderer's logical size, scale, or viewport changes (e.g. on window
+    /// resize), and the EventHandler will read the current values each time
+    /// a mouse event arrives. Because the ViewportManager is shared, state
+    /// stays in sync across all consumers (EventHandler, UI contexts, etc.).
+    ///
+    /// Example setup:
+    /// \code
+    ///   ViewportManager viewport_mgr;
+    ///   EventHandler evt_handler;
+    ///   evt_handler.bind_viewport_manager(&viewport_mgr);
+    ///
+    ///   // On window resize or logical size change:
+    ///   viewport_mgr.viewport = renderer.viewport();
+    ///   viewport_mgr.scale = renderer.scale();
+    ///   viewport_mgr.bound = true;
+    /// \endcode
+    ///
+    /// \param vm Non-owned pointer to the ViewportManager, or nullptr to
+    ///           unbind.
+    ///
+    /// \see nom::ViewportManager, nom::Renderer::viewport, nom::Renderer::scale
+    void bind_viewport_manager(ViewportManager* vm);
+
+    /// \brief Get the currently bound ViewportManager, if any.
+    ///
+    /// \returns Non-owned pointer, or nullptr if no ViewportManager is bound.
+    ViewportManager* viewport_manager() const;
 
   private:
     // -----------------------------------------------------------------------
@@ -292,19 +326,22 @@ class EventHandler
     ///
     /// Translates raw window pixel coordinates to a logical coordinate
     /// space (e.g. independent resolution scaling via SDL_RenderSetLogicalSize).
-    /// Supports two modes:
-    ///   1. Direct scale binding (bind_logical_viewport) — uses internal
-    ///      scale_x / scale_y factors for the common SDL_RenderSetLogicalSize
-    ///      use case.
-    ///   2. Custom callback (set_mouse_coordinate_converter) — user-provided
+    /// Supports three modes in priority order:
+    ///   1. Shared ViewportManager (bind_viewport_manager) — **recommended**.
+    ///      Uses the viewport offset + render scale from a shared
+    ///      ViewportManager instance. Automatically tracks window resize
+    ///      and letterbox changes when the graphics module updates the
+    ///      shared state.
+    ///   2. Direct scale binding (bind_logical_viewport) — uses internal
+    ///      scale_x / scale_y factors without letterbox offset.
+    ///   3. Custom callback (set_mouse_coordinate_converter) — user-provided
     ///      arbitrary transformation for special cases.
     struct CoordinateSpaceConverter
     {
       CoordinateSpaceConverter();
       ~CoordinateSpaceConverter();
 
-      /// \brief Returns true if either scale binding or a custom converter
-      ///        callback is active.
+      /// \brief Returns true if any conversion mode is active.
       bool is_active() const;
 
       /// \brief Convert a raw window-space mouse position to logical space.
@@ -315,6 +352,7 @@ class EventHandler
       /// If no converter is installed, returns the input unchanged.
       Point2i to_logical_delta(const Point2i& window_delta) const;
 
+      ViewportManager* viewport_mgr = nullptr;
       float scale_x = 1.0f;
       float scale_y = 1.0f;
       bool scale_bound = false;

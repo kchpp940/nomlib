@@ -143,14 +143,14 @@ void GameControllerEventHandler::remove_joysticks() {
   }
 }
 
-bool GameControllerEventHandler::remap_joystick(JoystickID dev_id)
+JoystickID GameControllerEventHandler::remap_joystick(JoystickID dev_id)
 {
   auto res = this->joysticks_.find(dev_id);
   if(res == this->joysticks_.end()) {
     NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
                  "Cannot remap game controller", dev_id,
                  ": device not found in pool");
-    return false;
+    return -1;
   }
 
   std::unique_ptr<GameController>& existing = res->second;
@@ -158,7 +158,7 @@ bool GameControllerEventHandler::remap_joystick(JoystickID dev_id)
     NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
                  "Cannot remap game controller", dev_id,
                  ": device pointer is null");
-    return false;
+    return -1;
   }
 
   JoystickIndex device_index = -1;
@@ -177,7 +177,7 @@ bool GameControllerEventHandler::remap_joystick(JoystickID dev_id)
     NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
                  "Cannot remap game controller", dev_id,
                  ": device index not re-discoverable");
-    return false;
+    return -1;
   }
 
   existing->close();
@@ -191,14 +191,14 @@ bool GameControllerEventHandler::remap_joystick(JoystickID dev_id)
       NOM_LOG_INFO(NOM_LOG_CATEGORY_EVENT,
                    "Game controller", dev_id,
                    "mapping refreshed successfully");
-      return true;
+      return dev_id;
     } else {
       NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
                    "Game controller remap changed instance ID",
                    dev_id, "→", new_id);
       this->joysticks_.erase(res);
       this->joysticks_[new_id] = std::move(new_dev);
-      return true;
+      return new_id;
     }
   }
 
@@ -206,7 +206,7 @@ bool GameControllerEventHandler::remap_joystick(JoystickID dev_id)
               "Failed to re-open game controller", dev_id,
               "after remap event");
   this->joysticks_.erase(res);
-  return false;
+  return -1;
 }
 
 } // namespace nom

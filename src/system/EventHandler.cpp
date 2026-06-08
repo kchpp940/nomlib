@@ -373,10 +373,12 @@ bool EventHandler::EventConverter::convert_controller_device(const SDL_Event* ev
     out.cdevice.id = ev->cdevice.which;
     return true;
   } else if( ev->type == SDL_CONTROLLERDEVICEREMAPPED ) {
-    out.type = Event::GAME_CONTROLLER_REMAPPED;
-    out.timestamp = ev->cdevice.timestamp;
-    out.cdevice.id = ev->cdevice.which;
-    return true;
+    // NOTE: REMAPPED events are handled exclusively by
+    // DeviceLifecycleManager::handle_device_event, which refreshes the
+    // controller's internal mapping and dispatches the event using the
+    // (possibly refreshed) instance ID. Processing here would risk
+    // double-dispatching or using a stale ID.
+    return false;
   }
   return false;
 }
@@ -566,10 +568,19 @@ bool EventHandler::DeviceLifecycleManager::handle_device_event(
     } else if( ev->type == SDL_CONTROLLERDEVICEREMAPPED ) {
       Event dev_event;
       if( EventConverter::convert_controller_device(ev, dev_event) ) {
-        auto dev_id = dev_event.cdevice.id;
-        if( evt_handler->remap_joystick(dev_id) == false ) {
+        auto old_id = dev_event.cdevice.id;
+        JoystickID new_id = evt_handler->remap_joystick(old_id);
+        if( new_id != -1 ) {
+          if( new_id != old_id ) {
+            NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                          "Game controller remapped instance ID",
+                          old_id, "→", new_id );
+            dev_event.cdevice.id = new_id;
+          }
+          owner.dispatcher_.dispatch(dev_event, owner);
+        } else {
           NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
-                        "Game controller instance ID", dev_id,
+                        "Game controller instance ID", old_id,
                         "remap failed; device no longer in pool" );
         }
         return true;
@@ -614,12 +625,17 @@ EventHandler::CoordinateSpaceConverter::~CoordinateSpaceConverter() = default;
 
 bool EventHandler::CoordinateSpaceConverter::is_active() const
 {
-  return this->scale_bound || static_cast<bool>(this->converter);
+  return (this->viewport_mgr != nullptr && this->viewport_mgr->bound)
+         || this->scale_bound
+         || static_cast<bool>(this->converter);
 }
 
 Point2i
 EventHandler::CoordinateSpaceConverter::to_logical(const Point2i& window_pos) const
 {
+  if( this->viewport_mgr != nullptr && this->viewport_mgr->bound ) {
+    return this->viewport_mgr->to_logical(window_pos);
+  }
   if( this->scale_bound ) {
     const float sx = (this->scale_x > 0.0f) ? this->scale_x : 1.0f;
     const float sy = (this->scale_y > 0.0f) ? this->scale_y : 1.0f;
@@ -636,6 +652,9 @@ Point2i
 EventHandler::CoordinateSpaceConverter::to_logical_delta(
     const Point2i& window_delta) const
 {
+  if( this->viewport_mgr != nullptr && this->viewport_mgr->bound ) {
+    return this->viewport_mgr->to_logical_delta(window_delta);
+  }
   if( this->scale_bound ) {
     const float sx = (this->scale_x > 0.0f) ? this->scale_x : 1.0f;
     const float sy = (this->scale_y > 0.0f) ? this->scale_y : 1.0f;
@@ -790,6 +809,16 @@ void EventHandler::unbind_logical_viewport()
 bool EventHandler::has_logical_viewport() const
 {
   return this->coord_converter_.is_active();
+}
+
+void EventHandler::bind_viewport_manager(ViewportManager* vm)
+{
+  this->coord_converter_.viewport_mgr = vm;
+}
+
+ViewportManager* EventHandler::viewport_manager() const
+{
+  return this->coord_converter_.viewport_mgr;
 }
 
 void EventHandler::push_event(const Event& ev)

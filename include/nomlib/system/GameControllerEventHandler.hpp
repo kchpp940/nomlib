@@ -80,12 +80,12 @@ class GameControllerEventHandler
     ///
     /// Called when an SDL_CONTROLLERDEVICEREMAPPED event is received. Closes
     /// the existing device handle and re-opens it so that SDL picks up the
-    /// new mapping for the controller. The device instance ID should remain
-    /// the same across a remap.
+    /// new mapping for the controller.
     ///
-    /// \returns Boolean TRUE if the joystick was found in the pool and
-    ///          successfully re-opened, and boolean FALSE otherwise.
-    bool remap_joystick(JoystickID dev_id);
+    /// \returns The (possibly refreshed) instance ID of the controller on
+    ///          success, or -1 if the device could not be found or
+    ///          re-opened. The instance ID may change across a remap.
+    JoystickID remap_joystick(JoystickID dev_id);
 
   private:
     typedef std::map<JoystickID, std::unique_ptr<GameController>> joysticks;
