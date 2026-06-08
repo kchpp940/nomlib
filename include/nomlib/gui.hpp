@@ -54,4 +54,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/gui/init_librocket.hpp"
 
+// Resource type loader adapters (for CachedResourceLoader integration)
+#include "nomlib/gui/ResourceLoaders.hpp"
+
 #endif // include guard defined

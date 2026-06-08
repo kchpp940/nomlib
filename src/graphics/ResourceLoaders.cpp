@@ -31,6 +31,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/graphics/Texture.hpp"
 #include "nomlib/graphics/Image.hpp"
 #include "nomlib/graphics/fonts/Font.hpp"
+#include "nomlib/graphics/sprite/SpriteSheet.hpp"
+#include "nomlib/graphics/RenderWindow.hpp"
+#include "nomlib/system/CachedResourceLoader.hpp"
 
 namespace nom {
 
@@ -173,6 +176,87 @@ void FontLoader::unload( void* resource )
     Font* font = static_cast<Font*>( resource );
     delete font;
   }
+}
+
+// ---------------------------------------------------------------------------
+// SpriteSheetLoader
+// ---------------------------------------------------------------------------
+
+SpriteSheetLoader::~SpriteSheetLoader( void )
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_SYSTEM,
+                      nom::NOM_LOG_PRIORITY_VERBOSE );
+}
+
+ResourceFile::Type SpriteSheetLoader::type( void ) const
+{
+  return ResourceFile::Type::SpriteSheet;
+}
+
+void* SpriteSheetLoader::load( const std::string& absolute_path )
+{
+  SpriteSheet* sheet = new ( std::nothrow ) SpriteSheet();
+  if( sheet == nullptr )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_GRAPHICS,
+                 "Failed to allocate SpriteSheet for:", absolute_path );
+    return nullptr;
+  }
+
+  if( sheet->load_file( absolute_path ) == false )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_GRAPHICS,
+                 "SpriteSheetLoader: failed to load:", absolute_path );
+    delete sheet;
+    return nullptr;
+  }
+
+  NOM_LOG_INFO( NOM_LOG_CATEGORY_GRAPHICS,
+                "SpriteSheetLoader: loaded:", absolute_path );
+  return sheet;
+}
+
+void SpriteSheetLoader::unload( void* resource )
+{
+  if( resource != nullptr )
+  {
+    SpriteSheet* sheet = static_cast<SpriteSheet*>( resource );
+    delete sheet;
+  }
+}
+
+// ===========================================================================
+// Convenience free functions — wrap path-string-only APIs
+// ===========================================================================
+
+bool set_window_icon_from_resource( RenderWindow& window,
+                                    CachedResourceLoader& loader,
+                                    const std::string& resource_id )
+{
+  const std::string path = loader.resolve_path( resource_id );
+  if( path.empty() )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_GRAPHICS,
+                 "set_window_icon_from_resource: no such manifest ID:",
+                 resource_id );
+    return false;
+  }
+  return window.set_window_icon( path );
+}
+
+bool load_sprite_sheet_from_resource( SpriteSheet& sheet,
+                                      CachedResourceLoader& loader,
+                                      const std::string& resource_id )
+{
+  const std::string path = loader.resolve_path( resource_id );
+  if( path.empty() )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_GRAPHICS,
+                 "load_sprite_sheet_from_resource: no such manifest ID:",
+                 resource_id );
+    return false;
+  }
+  return sheet.load_file( path );
 }
 
 } // namespace nom

@@ -160,17 +160,12 @@ NOM_IGNORED_VARS_ENDL();
 
   CachedResourceLoader res_loader;
 
-  if(res_loader.load_search_paths(RES_FILENAME, "resources") == false) {
+  // Load JSON config using the serializers-layer helper. This keeps
+  // nomlib-system free of an upward dependency on nomlib-serializers.
+  if( nom::load_resource_config( res_loader, RES_FILENAME ) == false ) {
     NOM_LOG_CRIT(NOM_LOG_CATEGORY_APPLICATION,
-                 "Could not resolve the resources path from given input:",
-                 RES_FILENAME);
+                 "Could not load resource config from:", RES_FILENAME);
     exit(NOM_EXIT_FAILURE);
-  }
-
-  if(res_loader.load_manifest(RES_FILENAME, "manifest") == false) {
-    NOM_LOG_WARN(NOM_LOG_CATEGORY_APPLICATION,
-                 "No manifest found in:", RES_FILENAME,
-                 "-- falling back to direct file paths");
   }
 
   if(parse_cmdline(argc, argv, args) != 0) {
@@ -178,8 +173,13 @@ NOM_IGNORED_VARS_ENDL();
   }
 
   if(args.audio_input.length() < 1) {
-    args.audio_input =
-      res_loader.search_path().resolve( "sinewave_1s-900.wav" );
+    // Leave empty — we will load the default sound through the
+    // CachedResourceLoader via audio::load_sound_buffer_from_resource after
+    // the audio device is initialized. This keeps all manifest lookups and
+    // path resolution inside the audio module's adapter layer.
+  } else {
+    // User-supplied external file path (command-line -i) — this bypasses the
+    // resource manifest entirely by design.
   }
 
   // Fatal error; if we are not able to complete this step, it means that
@@ -222,11 +222,27 @@ NOM_IGNORED_VARS_ENDL();
   master_gain = args.audio_volume;
   audio::set_volume(master_gain, dev);
 
-  buffer = audio::create_buffer(args.audio_input, dev);
-  if(audio::valid_buffer(buffer, dev) == false) {
-    NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
-                "Could not load audio samples from:", args.audio_input);
-    return NOM_EXIT_FAILURE;
+  // Load the audio buffer — either from the user-supplied command-line path
+  // or (preferred) from the resource manifest via the audio adapter layer.
+  if( args.audio_input.length() > 0 ) {
+    buffer = audio::create_buffer(args.audio_input, dev);
+    if(audio::valid_buffer(buffer, dev) == false) {
+      NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
+                  "Could not load audio samples from:", args.audio_input);
+      return NOM_EXIT_FAILURE;
+    }
+  } else {
+    // Load the default test sound through the unified resource loader.
+    // The audio module's adapter helper handles loader registration,
+    // manifest lookup, path resolution, and caching — no direct
+    // resolve_path() call here.
+    buffer = nom::audio::load_sound_buffer_from_resource(
+      res_loader, dev, "sinewave_1s" );
+    if( buffer == nullptr || audio::valid_buffer(buffer, dev) == false ) {
+      NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
+                  "Could not load audio buffer for manifest ID: sinewave_1s");
+      return NOM_EXIT_FAILURE;
+    }
   }
 
   // TODO(jeff): Implement per-buffer gain level passing via command line
@@ -237,8 +253,15 @@ NOM_IGNORED_VARS_ENDL();
   audio::set_velocity(buffer, dev, audio_velocity);
   // audio::set_state(buffer, dev, audio::AUDIO_STATE_LOOPING);
 #if 1
+  // Resolve the audio file path through the audio adapter helper instead
+  // of calling resolve_path() directly — keeps all path-resolution concerns
+  // inside the audio module.
+  const std::string playback_path = ( args.audio_input.length() > 0 )
+    ? args.audio_input
+    : nom::audio::resolve_audio_resource_path( res_loader, "sinewave_1s" );
+
   auto playback_action =
-    nom::create_action<PlayAudioSource>(dev, args.audio_input.c_str());
+    nom::create_action<PlayAudioSource>(dev, playback_path.c_str());
 #else
   auto playback_action =
     nom::create_action<FadeAudioGainBy>(dev, buffer, ACTION_FADE_DISPLACEMENT,

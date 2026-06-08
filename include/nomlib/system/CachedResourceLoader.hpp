@@ -38,13 +38,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/File.hpp"
-#include "nomlib/system/Path.hpp"
 #include "nomlib/system/ResourceFile.hpp"
 #include "nomlib/system/ResourceManifest.hpp"
 #include "nomlib/system/SearchPath.hpp"
 #include "nomlib/system/IResourceTypeLoader.hpp"
 
 namespace nom {
+
+// Forward declarations
+class Value;
 
 /// \brief Unified resource loader with caching, lifecycle management, and
 ///        preloading support.
@@ -69,29 +71,35 @@ namespace nom {
 ///   - Providing explicit release / eviction policies
 ///
 /// It is **NOT** responsible for:
-///   - Parsing manifest JSON → ResourceManifest does that
+///   - Parsing JSON/XML files → that belongs in the serializers module
 ///   - Walking search prefixes → SearchPath does that
 ///   - Type-specific loading logic → IResourceTypeLoader subclasses do that
 ///
-/// ### Usage example:
+/// ### Population strategies (choose one):
+///
+/// **Option A — Parse from an already-loaded ptree::Value (recommended):**
 /// \code
-///   // Setup
+///   Value root = ...; // loaded from disk by the serializers module
 ///   CachedResourceLoader loader;
-///   loader.load_config("resources.json");            // SearchPath
-///   loader.load_manifest("resources.json");          // ResourceManifest
-///   loader.register_type_loader(
-///     std::make_unique<TextureLoader>() );
-///
-///   // Load by logical name (path resolution + caching is automatic)
-///   Texture* tex = loader.load<Texture>("player_sprite");
-///
-///   // Preload a batch
-///   loader.preload( {"bg_music", "title_font", "player_sprite"} );
-///
-///   // Release specific or all resources
-///   loader.release("player_sprite");
-///   loader.clear();
+///   loader.parse_search_paths_from_value( root["resources"] );
+///   loader.parse_manifest_from_value( root["manifest"] );
+///   loader.register_type_loader( std::make_unique<TextureLoader>() );
+///   Texture* tex = loader.load<Texture>("icon");
 /// \endcode
+///
+/// **Option B — Manually populate manifest and search_path:**
+/// \code
+///   CachedResourceLoader loader;
+///   loader.search_path().resolve_from({"./", "../"}, "Resources/");
+///   ResourceDescriptor d = {"icon", "app/icon.png", ResourceFile::Graphic, {}};
+///   loader.manifest().insert(d);
+///   loader.register_type_loader( std::make_unique<TextureLoader>() );
+/// \endcode
+///
+/// \note CachedResourceLoader intentionally does **not** perform any file I/O
+///       itself. Loading configuration from disk is the job of the serializers
+///       module, which sits at a higher layer in the dependency graph. This
+///       keeps the system module free of an upward dependency on serializers.
 class CachedResourceLoader
 {
   public:
@@ -118,20 +126,24 @@ class CachedResourceLoader
     virtual ~CachedResourceLoader( void );
 
     // ------------------------------------------------------------------
-    // Configuration
+    // Configuration — Value-based parsing (no serializers dependency)
     // ------------------------------------------------------------------
 
-    /// \brief Load the search-path configuration from a JSON file.
+    /// \brief Parse the search-path configuration from a ptree::Value node.
     ///
-    /// Delegates to SearchPath::load_file.
-    bool load_search_paths( const std::string& config_file,
-                            const std::string& node = "resources" );
+    /// Delegates to SearchPath::parse_from_value.
+    ///
+    /// \param resources_node A Value object containing "search_prefix" (array)
+    ///                       and "path" (string) fields.
+    bool parse_search_paths_from_value( const Value& resources_node );
 
-    /// \brief Load the resource manifest from a JSON file.
+    /// \brief Parse the resource manifest from a ptree::Value node.
     ///
-    /// Delegates to ResourceManifest::load_file.
-    bool load_manifest( const std::string& manifest_file,
-                        const std::string& node = "manifest" );
+    /// Delegates to ResourceManifest::parse_from_value.
+    ///
+    /// \param manifest_node A Value object whose keys are logical resource
+    ///                      names and values are descriptor objects.
+    bool parse_manifest_from_value( const Value& manifest_node );
 
     /// \brief Access the underlying SearchPath for manual configuration.
     SearchPath& search_path( void );
@@ -221,6 +233,18 @@ class CachedResourceLoader
     // Debugging aids
     // ------------------------------------------------------------------
 
+    /// \brief Convenience: resolve the full absolute path for a resource by
+    ///        its logical name.
+    ///
+    /// This is useful for APIs that consume raw file paths (e.g. SDL window
+    /// icons, SpriteSheet JSON descriptors) instead of loaded resource
+    /// objects. It looks up the name in the manifest and delegates to
+    /// SearchPath::resolve under the hood.
+    ///
+    /// \returns The resolved absolute path on success, or an empty string
+    ///          if the name is not in the manifest.
+    std::string resolve_path( const std::string& name ) const;
+
     /// \brief Print the contents of the cache to the log.
     void dump( void ) const;
 
@@ -247,8 +271,8 @@ class CachedResourceLoader
                          ResourceFile::Type expected_type,
                          bool& out_loaded_from_cache );
 
-    /// \brief Resolve the full absolute path for a resource descriptor.
-    std::string resolve_path( const ResourceDescriptor& desc ) const;
+    /// \brief Internal: resolve the full absolute path for a resource descriptor.
+    std::string resolve_internal_path( const ResourceDescriptor& desc ) const;
 
     /// \brief Find a suitable type loader for the given resource type.
     IResourceTypeLoader* find_loader( ResourceFile::Type type ) const;
@@ -314,4 +338,10 @@ T* CachedResourceLoader::load( const std::string& name )
 /// CachedResourceLoader centralizes the orchestration while delegating
 /// each specialized concern to a dedicated collaborator, following the
 /// *Single Responsibility Principle*.
+///
+/// Importantly, CachedResourceLoader does **no file I/O of its own**.
+/// Parsing configuration from JSON/XML files is the job of the serializers
+/// module (higher layer). This preserves the correct dependency layering:
+///
+///   core → ptree → system → serializers → graphics/audio/gui → examples
 ///

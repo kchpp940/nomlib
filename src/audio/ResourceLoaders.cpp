@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/audio/IOAudioEngine.hpp"
 #include "nomlib/audio/SoundBuffer.hpp"
+#include "nomlib/system/CachedResourceLoader.hpp"
 
 #if defined(NOM_USE_OPENAL) || defined(NOM_USE_APPLE_OPENAL) || defined(NOM_USE_OPENAL_SOFT)
   #include "nomlib/audio/AL/SoundSource.hpp"
@@ -101,6 +102,37 @@ void AudioBufferLoader::unload( void* resource )
     delete buffer;
 #endif
   }
+}
+
+// ===========================================================================
+// Convenience free functions — audio module glue
+// ===========================================================================
+
+SoundBuffer* load_sound_buffer_from_resource( CachedResourceLoader& loader,
+                                              IOAudioEngine* engine,
+                                              const std::string& resource_id )
+{
+  // Register (or re-register) the AudioBufferLoader bound to this engine.
+  // It is safe to call this multiple times — the loader map simply replaces
+  // the previous entry for ResourceFile::Audio.
+  loader.register_type_loader(
+    ResourceFile::Type::Audio,
+    std::make_unique<AudioBufferLoader>( engine ) );
+
+  return loader.load<SoundBuffer>( resource_id );
+}
+
+std::string resolve_audio_resource_path( CachedResourceLoader& loader,
+                                         const std::string& resource_id )
+{
+  const std::string path = loader.resolve_path( resource_id );
+  if( path.empty() )
+  {
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_AUDIO,
+                  "resolve_audio_resource_path: no such manifest ID:",
+                  resource_id );
+  }
+  return path;
 }
 
 } // namespace audio

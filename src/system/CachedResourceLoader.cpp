@@ -28,6 +28,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/system/CachedResourceLoader.hpp"
 
+#include "nomlib/ptree/Value.hpp"
+
 namespace nom {
 
 // ---------------------------------------------------------------------------
@@ -50,19 +52,19 @@ CachedResourceLoader::~CachedResourceLoader( void )
 }
 
 // ---------------------------------------------------------------------------
-// Configuration
+// Configuration — Value-based parsing (no file I/O here)
 // ---------------------------------------------------------------------------
 
-bool CachedResourceLoader::load_search_paths( const std::string& config_file,
-                                              const std::string& node )
+bool CachedResourceLoader::parse_search_paths_from_value(
+  const Value& resources_node )
 {
-  return this->search_path_.load_file( config_file, node );
+  return this->search_path_.parse_from_value( resources_node );
 }
 
-bool CachedResourceLoader::load_manifest( const std::string& manifest_file,
-                                          const std::string& node )
+bool CachedResourceLoader::parse_manifest_from_value(
+  const Value& manifest_node )
 {
-  return this->manifest_.load_file( manifest_file, node );
+  return this->manifest_.parse_from_value( manifest_node );
 }
 
 SearchPath& CachedResourceLoader::search_path( void )
@@ -137,7 +139,7 @@ void CachedResourceLoader::register_type_loader(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-std::string CachedResourceLoader::resolve_path(
+std::string CachedResourceLoader::resolve_internal_path(
   const ResourceDescriptor& desc ) const
 {
   return this->search_path_.resolve( desc.path );
@@ -180,7 +182,7 @@ void* CachedResourceLoader::load_internal( const std::string& name,
   }
 
   // 3. Resolve full path
-  const std::string full_path = this->resolve_path( *desc );
+  const std::string full_path = this->resolve_internal_path( *desc );
 
   // 4. Verify file exists
   File fp;
@@ -375,6 +377,23 @@ nom::size_type CachedResourceLoader::size( void ) const
 }
 
 // ---------------------------------------------------------------------------
+// Public convenience: resolve path by resource name
+// ---------------------------------------------------------------------------
+
+std::string CachedResourceLoader::resolve_path( const std::string& name ) const
+{
+  const ResourceDescriptor* desc = this->manifest_.find( name );
+  if( desc == nullptr )
+  {
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
+                  "CachedResourceLoader::resolve_path: '", name,
+                  "' not found in manifest" );
+    return std::string();
+  }
+  return this->search_path_.resolve( desc->path );
+}
+
+// ---------------------------------------------------------------------------
 // Debugging
 // ---------------------------------------------------------------------------
 
@@ -392,7 +411,7 @@ void CachedResourceLoader::dump( void ) const
     NOM_LOG_INFO( NOM_LOG_CATEGORY_SYSTEM,
                   "  - ", itr->first,
                   " [type=", static_cast<int>( entry.descriptor.type ),
-                  "] -> ", this->resolve_path( entry.descriptor ) );
+                  "] -> ", this->resolve_internal_path( entry.descriptor ) );
   }
 }
 

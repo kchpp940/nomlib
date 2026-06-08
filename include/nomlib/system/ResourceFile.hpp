@@ -54,7 +54,9 @@ class ResourceFile
       Movie,
       Audio,
       TrueTypeFont,
-      BitmapFont
+      BitmapFont,
+      GuiDocument,
+      SpriteSheet
     };
 
     /// \brief Default constructor; initialize resource to an invalid state.

@@ -28,16 +28,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ******************************************************************************/
 #include "nomlib/system/SearchPath.hpp"
 
-#include "nomlib/system/File.hpp"
-#include "nomlib/system/Path.hpp"
 #include "nomlib/ptree/Value.hpp"
-#include "nomlib/serializers/JsonCppDeserializer.hpp"
-#include "nomlib/serializers/IValueDeserializer.hpp"
+#include "nomlib/system/File.hpp"
 
 namespace nom {
 
-SearchPath::SearchPath() :
-  fp_( nullptr )
+// ---------------------------------------------------------------------------
+// Construction / Destruction
+// ---------------------------------------------------------------------------
+
+SearchPath::SearchPath()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_SYSTEM, nom::NOM_LOG_PRIORITY_VERBOSE );
 }
@@ -46,6 +46,103 @@ SearchPath::~SearchPath()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_SYSTEM, nom::NOM_LOG_PRIORITY_VERBOSE );
 }
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+bool SearchPath::resolve_internal()
+{
+  File fp;
+
+  for( auto itr = this->search_prefix_.begin();
+       itr != this->search_prefix_.end();
+       ++itr )
+  {
+    const std::string candidate = (*itr) + this->path_;
+    if( fp.is_directory( candidate ) )
+    {
+      this->path_ = candidate;
+      NOM_LOG_INFO( NOM_LOG_CATEGORY_SYSTEM,
+                    "SearchPath: resolved to:", this->path_ );
+      return true;
+    }
+  }
+
+  NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+               "SearchPath: could not resolve a valid directory from",
+               this->search_prefix_.size(), "prefix(es)" );
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Value parsing (no serializers dependency — only ptree)
+// ---------------------------------------------------------------------------
+
+bool SearchPath::parse_from_value( const Value& resources_node )
+{
+  if( resources_node.null_type() )
+  {
+    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
+                  "SearchPath: resources Value node is null" );
+    return false;
+  }
+
+  if( ! resources_node.object_type() )
+  {
+    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
+                  "SearchPath: resources Value node must be an object" );
+    return false;
+  }
+
+  // Parse "search_prefix" array
+  if( resources_node["search_prefix"].null_type() == false &&
+      resources_node["search_prefix"].size() > 0 )
+  {
+    this->search_prefix_.clear();
+
+    const Value& prefixes = resources_node["search_prefix"];
+    for( auto itr = prefixes.begin(); itr != prefixes.end(); ++itr )
+    {
+      if( (*itr).string_type() )
+      {
+        this->search_prefix_.push_back( (*itr).get_string() );
+      }
+    }
+  }
+
+  // Parse "path" string
+  if( resources_node["path"].string_type() )
+  {
+    this->path_ = resources_node["path"].get_string();
+  }
+  else
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+                 "SearchPath: 'path' field missing or not a string" );
+    return false;
+  }
+
+  // Now scan prefixes
+  return this->resolve_internal();
+}
+
+// ---------------------------------------------------------------------------
+// Programmatic configuration
+// ---------------------------------------------------------------------------
+
+bool SearchPath::resolve_from(
+  const std::vector<std::string>& search_prefixes,
+  const std::string& base_path )
+{
+  this->search_prefix_ = search_prefixes;
+  this->path_ = base_path;
+  return this->resolve_internal();
+}
+
+// ---------------------------------------------------------------------------
+// Query API
+// ---------------------------------------------------------------------------
 
 const std::string& SearchPath::path() const
 {
@@ -73,122 +170,6 @@ const std::vector<std::string>& SearchPath::search_prefixes() const
 bool SearchPath::is_resolved() const
 {
   return ( this->path_.empty() == false );
-}
-
-void SearchPath::set_deserializer( std::unique_ptr<IValueDeserializer> fp )
-{
-  this->fp_ = std::move( fp );
-}
-
-bool SearchPath::resolve_from( const std::vector<std::string>& search_prefixes,
-                               const std::string& base_path )
-{
-  File dir;
-  Path p;
-
-  this->search_prefix_ = search_prefixes;
-  this->path_.clear();
-
-  std::vector<std::string> candidates;
-  for( auto itr = search_prefixes.begin();
-       itr != search_prefixes.end();
-       ++itr )
-  {
-    candidates.push_back( p.join( *itr, base_path ) );
-  }
-
-  for( auto itr = candidates.begin(); itr != candidates.end(); ++itr )
-  {
-    if( dir.exists( *itr ) )
-    {
-      this->path_ = *itr;
-      break;
-    }
-    else
-    {
-      NOM_LOG_DEBUG( NOM_LOG_CATEGORY_SYSTEM,
-                     "Not using non-existent search path:", *itr );
-    }
-  }
-
-  if( ! dir.exists( this->path_ ) )
-  {
-    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Could not find resources at any of the defined search paths:" );
-
-    for( auto itr = candidates.begin(); itr != candidates.end(); ++itr )
-    {
-      NOM_LOG_INFO( NOM_LOG_CATEGORY_SYSTEM, *itr );
-    }
-
-    return false;
-  }
-  else
-  {
-    NOM_LOG_INFO( NOM_LOG_CATEGORY_SYSTEM,
-                  "Using resources from:", this->path_ );
-  }
-
-  return true;
-}
-
-bool SearchPath::load_file( const std::string& filename,
-                           const std::string& node )
-{
-  Value obj;
-  Value prefixes;
-  std::string base_path;
-
-  if( this->fp_ == nullptr )
-  {
-    this->fp_.reset( new JsonCppDeserializer() );
-  }
-
-  if( this->fp_->load( filename, obj ) == false )
-  {
-    return false;
-  }
-
-  if( obj[node].null_type() )
-  {
-    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Top-level object '", node,
-                  "' is not defined in the search path config." );
-    return false;
-  }
-
-  if( ! obj[node].object_type() )
-  {
-    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Top-level node '", node, "' must be an object type." );
-    return false;
-  }
-
-  if( obj[node]["path"].null_type() || ! obj[node]["path"].string_type() )
-  {
-    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Path is not defined for node:", node );
-    return false;
-  }
-
-  if( obj[node]["search_prefix"].null_type() ||
-      ! obj[node]["search_prefix"].array_type() )
-  {
-    NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Search prefix is not defined for node:", node );
-    return false;
-  }
-
-  base_path = obj[node]["path"].get_string();
-  prefixes = obj[node]["search_prefix"];
-
-  std::vector<std::string> prefix_list;
-  for( auto itr = prefixes.begin(); itr != prefixes.end(); ++itr )
-  {
-    prefix_list.push_back( (*itr).get_string() );
-  }
-
-  return this->resolve_from( prefix_list, base_path );
 }
 
 } // namespace nom

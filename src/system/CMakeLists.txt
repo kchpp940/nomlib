@@ -96,7 +96,11 @@ if( SDL2_TTF_FOUND )
 endif( SDL2_TTF_FOUND )
 
 # Common on all platforms
-set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math nomlib-ptree nomlib-serializers
+# NOTE: nomlib-system intentionally does NOT depend on nomlib-serializers.
+# That would create a reverse dependency from a lower layer into a higher
+# layer. JSON parsing for SearchPath / ResourceManifest / CachedResourceLoader
+# is provided by nomlib-serializers::ResourceLoaderHelpers instead.
+set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math nomlib-ptree
       # FIXME: Needed only by nom::init and nom::quit
       ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY} )
 

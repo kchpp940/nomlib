@@ -72,13 +72,6 @@ const nom::Point2i INFO_BOX_ORIGINS[2] =  {
                                                         )
                                           };
 
-const std::string RESOURCE_ICON = "icon.png";
-
-const std::string RESOURCE_SPRITE_SHEET = "cursors.json";
-
-/// Copyright (c) 2013 Fielding Johnston. All rights reserved.
-const std::string RESOURCE_STATIC_IMAGE = "boardoutline.png";
-
 /// \brief Relative filename path to saved screen shot example
 ///
 /// Default path should resolve to the same directory as the app example
@@ -129,34 +122,50 @@ class App: public nom::SDLApp
       int render_driver = -1;
 
       nom::CachedResourceLoader res_loader;
+      nom::CachedResourceLoader gui_res_loader;
       std::string res_file = "app.json";
 
-      if( res_loader.load_search_paths( res_file, "resources" ) == false )
+      // Load search paths + manifest for app graphics (icon, sprite sheet,
+      // texture, background image) from JSON config.
+      if( nom::load_resource_config( res_loader, res_file ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                     "Could not determine the resource path for", res_file );
+                     "Could not load resource config from", res_file );
         return false;
       }
 
-      if( res_loader.load_manifest( res_file, "manifest" ) == false )
+      // Load the separate GUI search path + manifest (fonts, RML documents).
+      // GUI assets live in a different directory (Resources/tests/gui/) so
+      // they are tracked by their own CachedResourceLoader instance.
+      if( nom::load_search_path_file( gui_res_loader.search_path(),
+                                      res_file, "gui" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not load resource manifest from", res_file );
-        return false;
-      }
-
-      res_loader.register_type_loader(
-        std::make_unique<nom::TextureLoader>() );
-
-      nom::SearchPath res_gui;
-
-      if( res_gui.load_file( res_file, "gui" ) == false )
-      {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
-                      "Could not determine the resource path for",
+                      "Could not determine the GUI resource path for",
                       res_file );
         return false;
       }
+      if( nom::load_manifest_file( gui_res_loader.manifest(),
+                                   res_file, "gui_manifest" ) == false )
+      {
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
+                      "Could not load GUI manifest from", res_file );
+        return false;
+      }
+
+      // Register type loaders — each module contributes exactly its own
+      // loaders, and nothing else.
+      res_loader.register_type_loader(
+        std::make_unique<nom::TextureLoader>() );
+      res_loader.register_type_loader(
+        std::make_unique<nom::ImageLoader>() );
+      res_loader.register_type_loader(
+        std::make_unique<nom::FontLoader>() );
+      res_loader.register_type_loader(
+        std::make_unique<nom::SpriteSheetLoader>() );
+
+      // The GUI (libRocket) file interface still needs a raw directory path
+      // because libRocket walks the filesystem itself via RocketFileInterface.
 
       if ( nom::set_hint ( SDL_HINT_RENDER_VSYNC, "0" ) == false )
       {
@@ -191,11 +200,10 @@ class App: public nom::SDLApp
           return false;
         }
 
-        if( this->window[idx].set_window_icon(
-              res_loader.search_path().resolve( RESOURCE_ICON ) ) == false ) {
+        if( nom::set_window_icon_from_resource(
+              this->window[idx], res_loader, "icon" ) == false ) {
           nom::DialogMessageBox(  APP_NAME,
-                                  "Could not load window icon: " +
-                                  RESOURCE_ICON );
+                                  "Could not load window icon: icon" );
           return false;
         }
 
@@ -224,7 +232,7 @@ class App: public nom::SDLApp
       // Initialize the core of libRocket; these are the core dependencies that
       // libRocket depends on for successful initialization.
       Rocket::Core::FileInterface* fs =
-        new nom::RocketFileInterface( res_gui.path() );
+        new nom::RocketFileInterface( gui_res_loader.search_path().path() );
 
       Rocket::Core::SystemInterface* sys =
         new nom::RocketSDL2SystemInterface();
@@ -249,21 +257,24 @@ class App: public nom::SDLApp
 
       this->desktop.set_event_handler(this->evt_handler);
 
-      if( this->desktop.load_font( "Delicious-Bold.otf" ) == false )
+      if( nom::load_font_from_resource(
+            this->desktop, gui_res_loader, "font_delicious_bold" ) == false )
       {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font file: Delicious-Bold.otf" );
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font: font_delicious_bold" );
         return false;
       }
 
-      if( this->desktop.load_font( "OpenSans-Regular.ttf" ) == false )
+      if( nom::load_font_from_resource(
+            this->desktop, gui_res_loader, "font_opensans_regular" ) == false )
       {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font file: OpenSans-Regular.ttf" );
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font: font_opensans_regular" );
         return false;
       }
 
-      if( this->desktop.load_font( "OpenSans-Bold.ttf" ) == false )
+      if( nom::load_font_from_resource(
+            this->desktop, gui_res_loader, "font_opensans_bold" ) == false )
       {
-        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font file: OpenSans-Bold.ttf" );
+        NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION, "Could not load font: font_opensans_bold" );
         return false;
       }
 
@@ -276,47 +287,47 @@ class App: public nom::SDLApp
 
       nom::SpriteSheet sprite_frames;
 
-      // Load a sprite sheet, using the sheet_filename as the base path to load
-      // the image file from disk
-      if( sprite_frames.load_file(
-            res_loader.search_path().resolve( RESOURCE_SPRITE_SHEET ) ) == false ) {
+      // Load a sprite sheet JSON descriptor via resource manifest ID — the
+      // free function wraps the manifest lookup and path resolution so the
+      // example never touches resolve_path() directly.
+      if( nom::load_sprite_sheet_from_resource(
+            sprite_frames, res_loader, "cursors_sheet" ) == false ) {
         nom::DialogMessageBox(  APP_NAME,
-                                "Could not load sprite sheet: " +
-                                RESOURCE_SPRITE_SHEET );
+                                "Could not load sprite sheet: cursors_sheet" );
         return false;
       }
 
-      if( this->sprite_tex.load(
-            res_loader.search_path().resolve( sprite_frames.sheet_filename() ),
-            false, nom::Texture::Access::Streaming ) == false )
+      // Load the sprite sheet's texture through the unified resource loader.
+      // This goes through manifest lookup → path resolution → type loader
+      // → caching — no manual path concatenation anywhere.
+      nom::Texture* sprite_tex_ptr = res_loader.load<nom::Texture>( "cursors_texture" );
+      if( sprite_tex_ptr == nullptr )
       {
         nom::DialogMessageBox(  APP_NAME,
-                                "Could not load sprite texture: " +
-                                sprite_frames.sheet_filename() );
+                                "Could not load sprite texture: cursors_texture" );
         return false;
       }
+      this->sprite_tex = *sprite_tex_ptr;
+      this->sprite_tex.resize(nom::Texture::ResizeAlgorithm::scale2x);
 
       this->sprite.set_texture(sprite_tex);
       this->sprite.set_sprite_sheet(sprite_frames);
-      this->sprite_tex.resize(nom::Texture::ResizeAlgorithm::scale2x);
       this->sprite.set_frame(1); // Left-pointing cursor hand
 
       auto ani_sprite_tex =
         std::make_shared<nom::Texture>();
       NOM_ASSERT(ani_sprite_tex != nullptr);
 
-      // Sharing the same texture for the animated sprite instead of loading
-      // another texture source would be OK, too, if we didn't care about
-      // preserving the original scale of the sprite here for testing purposes.
-      // this->ani_sprite.set_texture( *this->sprite_tex.clone() );
-      if( ani_sprite_tex->load(
-            res_loader.search_path().resolve( sprite_frames.sheet_filename() ) ) == false )
+      // Load the animated sprite's texture through the loader (same manifest
+      // entry, separate cache entry because we want a distinct copy).
+      nom::Texture* ani_tex_ptr = res_loader.load<nom::Texture>( "cursors_texture" );
+      if( ani_tex_ptr == nullptr )
       {
         nom::DialogMessageBox(  APP_NAME,
-                                "Could not load sprite texture: " +
-                                sprite_frames.sheet_filename() );
+                                "Could not load sprite texture: cursors_texture" );
         return false;
       }
+      *ani_sprite_tex = *ani_tex_ptr;
 
       this->ani_sprite =
         std::make_shared<nom::SpriteBatch>();
@@ -342,20 +353,24 @@ class App: public nom::SDLApp
       if ( MAXIMUM_WINDOWS > 1 )
       {
         this->window[1].make_current();
-        if( this->background.load(
-              res_loader.search_path().resolve( RESOURCE_STATIC_IMAGE ) ) == false ) {
+
+        // Load the static background image through the unified resource
+        // loader by its logical name — no path concatenation.
+        nom::Image* bg = res_loader.load<nom::Image>( "board_outline" );
+        if( bg == nullptr ) {
           nom::DialogMessageBox(  APP_NAME,
-                                  "Could not load image file: " +
-                                  RESOURCE_STATIC_IMAGE );
+                                  "Could not load image file: board_outline" );
           return false;
         }
+        this->background = *bg;
       }
 
       this->window[0].make_current();
 
       // info_box[0]
       this->info_box[0].set_context(&this->desktop);
-      if( this->info_box[0].load_document_file( "messagebox.rml" ) == false )
+      if( nom::load_document_from_resource(
+            this->info_box[0], gui_res_loader, "doc_messagebox" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "UIMessageBox should not be invalid; is the context and document file valid?" );
@@ -370,7 +385,8 @@ class App: public nom::SDLApp
 
       // info_box[1]
       this->info_box[1].set_context(&this->desktop);
-      if( this->info_box[1].load_document_file( "messagebox.rml" ) == false )
+      if( nom::load_document_from_resource(
+            this->info_box[1], gui_res_loader, "doc_messagebox" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "UIMessageBox should not be invalid; is the context and document file valid?" );

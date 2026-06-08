@@ -38,30 +38,43 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace nom {
 
 // Forward declarations
-class IValueDeserializer;
+class Value;
 
 /// \brief Resolve a directory location by scanning through search path
 ///        prefixes.
 ///
-/// \remarks This class **only** handles path resolution: it parses search
-/// prefixes and a relative base path from a config file, scans for the first
-/// existing directory, and provides a method to resolve a relative resource
-/// path to an absolute file path.
+/// \remarks This class is part of the **data layer** of the resource system.
+///          It deals **only** with path resolution:
+///            - Storing a list of search prefixes and a relative base path
+///            - Scanning prefixes to find the first existing directory
+///            - Concatenating the resolved base path with a relative resource
+///              name
 ///
-/// It does NOT handle:
-/// - Resource manifest parsing (see ResourceManifest)
-/// - Resource caching / lifecycle management (see CachedResourceLoader)
-/// - Resource loading / type-specific logic (see IResourceTypeLoader)
+///          It does **NOT** handle:
+///            - JSON/XML file parsing (that belongs in serializers module)
+///            - Resource manifest parsing (see ResourceManifest)
+///            - Resource caching / lifecycle management (see CachedResourceLoader)
+///            - Resource loading / type-specific logic (see IResourceTypeLoader)
 ///
-/// JSON config format (shared with the manifest file):
-/// \code
-/// {
-///   "resources": {
-///     "search_prefix": ["./", "../../", "../../../"],
-///     "path": "Resources/examples/app/"
-///   }
-/// }
-/// \endcode
+///          The caller (typically a JSON parser in the serializers module, or
+///          CachedResourceLoader via a pre-parsed ptree::Value) is responsible
+///          for populating the search prefixes and base path.
+///
+///          ### Populating from ptree::Value:
+///          \code
+///            Value root = ...; // parsed from JSON elsewhere
+///            SearchPath sp;
+///            sp.parse_from_value( root["resources"] );
+///            std::string full = sp.resolve("icon.png");
+///          \endcode
+///
+///          ### Expected Value structure:
+///          \code
+///            {
+///              "search_prefix": ["./", "../../", "../../../"],
+///              "path": "Resources/examples/app/"
+///            }
+///          \endcode
 class SearchPath
 {
   public:
@@ -76,6 +89,20 @@ class SearchPath
     /// \brief Destructor.
     ~SearchPath();
 
+    /// \brief Parse search-path configuration from an already-parsed
+    ///        ptree::Value node and resolve the base directory.
+    ///
+    /// \param resources_node A ptree::Value object node that contains a
+    ///                       "search_prefix" (array of strings) and a "path"
+    ///                       (string) field.
+    ///
+    /// \returns TRUE if a valid existing directory was resolved.
+    ///
+    /// \remarks This method depends **only** on nomlib-ptree (the generic
+    ///          value container), NOT on nomlib-serializers (JSON/XML parsers).
+    ///          File I/O and JSON deserialization is the caller's job.
+    bool parse_from_value( const Value& resources_node );
+
     /// \brief Get the resolved base path.
     ///
     /// \returns The absolute (or resolved relative) base path to the
@@ -89,22 +116,6 @@ class SearchPath
     /// \returns The concatenated full path. Does NOT check for file
     ///          existence — use File::exists if you need that.
     std::string resolve( const std::string& relative_path ) const;
-
-    /// \brief Set a custom deserializer.
-    ///
-    /// \remarks The default parser is JSON.
-    void set_deserializer( std::unique_ptr<IValueDeserializer> fp );
-
-    /// \brief Parse a config file and resolve the base path.
-    ///
-    /// \param filename The absolute file path to a JSON config file.
-    /// \param node     The top-level object key that contains
-    ///                 "search_prefix" and "path" fields.
-    ///                 Defaults to "resources".
-    ///
-    /// \returns TRUE if a valid existing directory was resolved.
-    bool load_file( const std::string& filename,
-                    const std::string& node = "resources" );
 
     /// \brief Manually set the search prefixes and base path, then resolve.
     ///
@@ -123,8 +134,11 @@ class SearchPath
     bool is_resolved() const;
 
   private:
-    /// \brief Parser object to use.
-    std::unique_ptr<IValueDeserializer> fp_;
+    /// \brief Internal: scan the stored search_prefix_ + path_ combination,
+    ///        storing the first existing directory in this->path_.
+    ///
+    /// \returns TRUE if an existing directory was found.
+    bool resolve_internal();
 
     /// \brief List of path prefixes that were scanned.
     std::vector<std::string> search_prefix_;
@@ -136,3 +150,18 @@ class SearchPath
 } // namespace nom
 
 #endif // include guard defined
+
+/// \class nom::SearchPath
+/// \ingroup system
+///
+/// ### Design rationale
+///
+/// Previously, SearchPath was entangled with JSON parsing (the serializers
+/// module) and lived in the serializers module itself. This created an
+/// undesirable coupling between the low-level system layer and the
+/// serialization layer.
+///
+/// By restricting SearchPath to pure data + a ptree::Value parser, system
+/// now depends only on ptree (a lower layer), and the actual JSON file
+/// loading lives in the serializers module where it belongs.
+///

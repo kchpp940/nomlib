@@ -43,6 +43,8 @@ class Texture;
 class Image;
 class Font;
 class SpriteSheet;
+class RenderWindow;
+class CachedResourceLoader;
 
 /// \brief Resource type loader for nom::Texture (graphic images).
 ///
@@ -103,6 +105,52 @@ class FontLoader : public IResourceTypeLoader
 
     virtual void unload( void* resource ) override;
 };
+
+/// \brief Resource type loader for nom::SpriteSheet JSON descriptors.
+///
+/// \remarks Loads a SpriteSheet from its JSON descriptor file via
+///          SpriteSheet::load_file(). The resource type tag is
+///          ResourceFile::SpriteSheet.
+class SpriteSheetLoader : public IResourceTypeLoader
+{
+  public:
+    typedef SpriteSheetLoader self_type;
+
+    virtual ~SpriteSheetLoader( void );
+
+    virtual ResourceFile::Type type( void ) const override;
+
+    virtual void* load( const std::string& absolute_path ) override;
+
+    virtual void unload( void* resource ) override;
+};
+
+// ============================================================================
+// Convenience helpers — wrap "legacy" APIs that only consume raw file paths.
+//
+// These free functions look up a resource by manifest ID through the
+// CachedResourceLoader, resolve the absolute path, and hand it off to the
+// underlying API (RenderWindow, SpriteSheet, etc.). They exist so that
+// application-level code (examples, games) never needs to call
+// CachedResourceLoader::resolve_path() directly.
+// ============================================================================
+
+/// \brief Set a RenderWindow icon from a resource manifest ID.
+///
+/// \returns TRUE if the icon was found in the manifest, resolved, and
+///          successfully applied to the window.
+bool set_window_icon_from_resource( RenderWindow& window,
+                                    CachedResourceLoader& loader,
+                                    const std::string& resource_id );
+
+/// \brief Load a SpriteSheet from its JSON descriptor, looked up by manifest
+///        ID.
+///
+/// \returns TRUE if the resource was found, resolved, and loaded into the
+///          SpriteSheet instance.
+bool load_sprite_sheet_from_resource( SpriteSheet& sheet,
+                                      CachedResourceLoader& loader,
+                                      const std::string& resource_id );
 
 } // namespace nom
 

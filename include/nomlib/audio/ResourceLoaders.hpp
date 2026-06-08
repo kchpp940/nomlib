@@ -42,6 +42,7 @@ namespace audio {
 // Forward declarations
 class IOAudioEngine;
 struct SoundBuffer;
+class CachedResourceLoader;
 
 /// \brief Resource type loader for audio::SoundBuffer objects.
 ///
@@ -82,6 +83,35 @@ class AudioBufferLoader : public IResourceTypeLoader
     /// \brief Non-owning pointer to the audio engine.
     IOAudioEngine* engine_;
 };
+
+// ============================================================================
+// Convenience helpers — audio module glue for CachedResourceLoader.
+//
+// These free functions keep application-level code free of direct
+// resolve_path() calls. Path-string-only APIs (e.g. PlayAudioSource) are
+// wrapped here as well.
+// ============================================================================
+
+/// \brief Convenience: load an audio::SoundBuffer through a CachedResourceLoader
+///        by manifest ID.
+///
+/// This helper registers an AudioBufferLoader on the loader (using the
+/// supplied engine), then calls loader.load<SoundBuffer>(resource_id).
+///
+/// \returns A non-owning pointer to the loaded SoundBuffer (owned by the
+///          loader's cache), or nullptr on failure.
+SoundBuffer* load_sound_buffer_from_resource( CachedResourceLoader& loader,
+                                              IOAudioEngine* engine,
+                                              const std::string& resource_id );
+
+/// \brief Convenience: resolve the absolute file path of an audio resource
+///        by manifest ID.
+///
+/// This exists solely for legacy audio APIs that consume raw file paths
+/// (e.g. PlayAudioSource). Callers in application code should prefer
+/// load_sound_buffer_from_resource() whenever possible.
+std::string resolve_audio_resource_path( CachedResourceLoader& loader,
+                                         const std::string& resource_id );
 
 } // namespace audio
 } // namespace nom

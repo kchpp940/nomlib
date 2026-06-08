@@ -29,13 +29,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/system/ResourceManifest.hpp"
 
 #include "nomlib/ptree/Value.hpp"
-#include "nomlib/serializers/JsonCppDeserializer.hpp"
-#include "nomlib/serializers/IValueDeserializer.hpp"
 
 namespace nom {
 
-ResourceManifest::ResourceManifest( void ) :
-  fp_( nullptr )
+// ---------------------------------------------------------------------------
+// Construction / Destruction
+// ---------------------------------------------------------------------------
+
+ResourceManifest::ResourceManifest( void )
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_SYSTEM, nom::NOM_LOG_PRIORITY_VERBOSE );
 }
@@ -45,7 +46,12 @@ ResourceManifest::~ResourceManifest( void )
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_SYSTEM, nom::NOM_LOG_PRIORITY_VERBOSE );
 }
 
-ResourceFile::Type ResourceManifest::type_from_string( const std::string& type_str )
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+ResourceFile::Type ResourceManifest::type_from_string(
+  const std::string& type_str )
 {
   if( type_str == "Graphic" )        return ResourceFile::Type::Graphic;
   if( type_str == "Image" )          return ResourceFile::Type::Graphic;
@@ -57,6 +63,13 @@ ResourceFile::Type ResourceManifest::type_from_string( const std::string& type_s
   if( type_str == "TTF" )            return ResourceFile::Type::TrueTypeFont;
   if( type_str == "BitmapFont" )     return ResourceFile::Type::BitmapFont;
   if( type_str == "BMFont" )         return ResourceFile::Type::BitmapFont;
+  if( type_str == "GuiDocument" )    return ResourceFile::Type::GuiDocument;
+  if( type_str == "GUI" )            return ResourceFile::Type::GuiDocument;
+  if( type_str == "RML" )            return ResourceFile::Type::GuiDocument;
+  if( type_str == "RCSS" )           return ResourceFile::Type::GuiDocument;
+  if( type_str == "SpriteSheet" )    return ResourceFile::Type::SpriteSheet;
+  if( type_str == "Sprite" )         return ResourceFile::Type::SpriteSheet;
+  if( type_str == "Sheet" )          return ResourceFile::Type::SpriteSheet;
 
   NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
                 "Unknown resource type string:", type_str,
@@ -64,46 +77,28 @@ ResourceFile::Type ResourceManifest::type_from_string( const std::string& type_s
   return ResourceFile::Type::Invalid;
 }
 
-void ResourceManifest::set_deserializer( std::unique_ptr<IValueDeserializer> fp )
+// ---------------------------------------------------------------------------
+// Value parsing (no serializers dependency — only ptree)
+// ---------------------------------------------------------------------------
+
+bool ResourceManifest::parse_from_value( const Value& manifest_node )
 {
-  this->fp_ = std::move( fp );
-}
-
-bool ResourceManifest::load_file( const std::string& manifest_file,
-                                  const std::string& manifest_node )
-{
-  Value obj;
-
-  if( this->fp_ == nullptr )
-  {
-    this->fp_.reset( new JsonCppDeserializer() );
-  }
-
-  if( this->fp_->load( manifest_file, obj ) == false )
-  {
-    NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
-                 "Could not load manifest file:", manifest_file );
-    return false;
-  }
-
-  if( obj[manifest_node].null_type() )
+  if( manifest_node.null_type() )
   {
     NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Manifest node '", manifest_node,
-                  "' is not defined in file:", manifest_file );
+                  "ResourceManifest: manifest Value node is null" );
     return false;
   }
 
-  if( ! obj[manifest_node].object_type() )
+  if( ! manifest_node.object_type() )
   {
     NOM_LOG_CRIT( NOM_LOG_CATEGORY_SYSTEM,
-                  "Manifest node '", manifest_node,
-                  "' must be an object type in file:", manifest_file );
+                  "ResourceManifest: manifest Value node must be an object" );
     return false;
   }
 
-  for( auto itr = obj[manifest_node].begin();
-       itr != obj[manifest_node].end();
+  for( auto itr = manifest_node.begin();
+       itr != manifest_node.end();
        ++itr )
   {
     const std::string& res_name = itr.key();
@@ -112,14 +107,14 @@ bool ResourceManifest::load_file( const std::string& manifest_file,
     if( ! entry.object_type() )
     {
       NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
-                    "Skipping non-object manifest entry:", res_name );
+                    "ResourceManifest: skipping non-object entry:", res_name );
       continue;
     }
 
     if( entry["path"].null_type() || ! entry["path"].string_type() )
     {
       NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
-                    "Skipping manifest entry '", res_name,
+                    "ResourceManifest: skipping entry '", res_name,
                     "': missing or invalid 'path' field" );
       continue;
     }
@@ -155,16 +150,19 @@ bool ResourceManifest::load_file( const std::string& manifest_file,
   if( this->entries_.empty() )
   {
     NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
-                  "No valid resource entries found in manifest file:",
-                  manifest_file );
+                  "ResourceManifest: no valid resource entries parsed from Value" );
     return false;
   }
 
   NOM_LOG_INFO( NOM_LOG_CATEGORY_SYSTEM,
-                "Loaded", this->entries_.size(),
-                "resource descriptor(s) from manifest:", manifest_file );
+                "ResourceManifest: parsed", this->entries_.size(),
+                "resource descriptor(s) from Value" );
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// Lookup / mutation API
+// ---------------------------------------------------------------------------
 
 const ResourceDescriptor* ResourceManifest::find( const std::string& name ) const
 {
@@ -186,7 +184,7 @@ bool ResourceManifest::insert( const ResourceDescriptor& descriptor )
   if( descriptor.name.empty() )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
-                 "Cannot insert resource descriptor with empty name" );
+                 "ResourceManifest: cannot insert descriptor with empty name" );
     return false;
   }
 

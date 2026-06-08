@@ -78,6 +78,10 @@ set(  NOM_GUI_SOURCE
       ${SRC_DIR}/gui/MinimalDecorator.cpp
       ${INC_DIR}/gui/MinimalDecorator.hpp
       ${SRC_DIR}/gui/FinalFantasyDecorator.cpp
+
+      # Resource type loader adapters (for CachedResourceLoader integration)
+      ${SRC_DIR}/gui/ResourceLoaders.cpp
+      ${INC_DIR}/gui/ResourceLoaders.hpp
 )
 
 # Common dependencies on all platforms

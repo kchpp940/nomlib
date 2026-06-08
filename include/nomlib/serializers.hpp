@@ -45,4 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Filesystem utilities
 #include <nomlib/serializers/SearchPath.hpp>
 
+// Resource loader helpers (JSON parsing for CachedResourceLoader)
+#include <nomlib/serializers/ResourceLoaderHelpers.hpp>
+
 #endif // include guard defined
