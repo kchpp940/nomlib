@@ -306,7 +306,7 @@ class App: public nom::SDLApp
       this->window[0].make_current();
 
       this->info_box[0].set_context(&this->desktop);
-      if( gui_res_loader.create_document( "ui_messagebox" ) == nullptr )
+      if( gui_res_loader.load_into_widget( "ui_messagebox", this->info_box[0] ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );
@@ -320,7 +320,7 @@ class App: public nom::SDLApp
       this->info_box[0].show();
 
       this->info_box[1].set_context(&this->desktop);
-      if( gui_res_loader.create_document( "ui_messagebox" ) == nullptr )
+      if( gui_res_loader.load_into_widget( "ui_messagebox", this->info_box[1] ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );

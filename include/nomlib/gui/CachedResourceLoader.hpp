@@ -32,36 +32,73 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <map>
 #include <vector>
+#include <memory>
 
 #include "nomlib/config.hpp"
 #include "nomlib/serializers/ResourceManifest.hpp"
 #include "nomlib/gui/UIContext.hpp"
+#include "nomlib/gui/UIWidget.hpp"
 #include "nomlib/gui/RocketUtilities.hpp"
 #include "nomlib/gui/ResourceLoader.hpp"
 
 namespace nom {
 namespace gui {
 
+/// \brief Custom deleter that calls Rocket::Core::ElementDocument::Close().
+///
+/// \remarks The document pointer is allowed to be null.
+inline void close_document_deleter( Rocket::Core::ElementDocument* doc )
+{
+  if( doc != nullptr )
+  {
+    doc->Close();
+  }
+}
+
+/// \brief Unique-ownership handle for an independent UI document.
+///
+/// The document is automatically Close()d when the handle goes out of scope,
+/// is assigned to, or is reset().
+///
+/// \see CachedResourceLoader::acquire_document
+typedef std::unique_ptr<Rocket::Core::ElementDocument,
+                        void(*)(Rocket::Core::ElementDocument*)> UIDocumentPtr;
+
 /// \brief Manifest-aware UI resource loader with per-id caching, eager
 ///        preload, lazy load-on-first-access, and tag-based bulk load/release.
 ///
-/// \remarks Fonts are registered into the attached UIContext (Rocket handles
-///          internal deduplication; the loader only tracks which manifest ids
-///          have been resolved and loaded to avoid redundant manifest lookups
-///          and path resolution).  Fonts cannot be individually unloaded from
-///          Rocket; release() merely drops the loader's bookkeeping record.
+/// UI documents come in two ownership models with distinct APIs — pick the
+/// one that matches your use case; **do not mix** them for the same document:
 ///
-///          Documents come in two flavours:
-///          - Shared cached instances returned by get_document(): cached by id,
-///            automatically Close()d on release()/clear()/destruction.  Useful
-///            for one-off windows that live for the whole app lifecycle.
-///          - Independent instances returned by create_document(): a fresh
-///            Rocket document is created on every call and is **never** cached;
-///            the caller (typically a UIWidget) owns the lifetime and should
-///            call Close() when done, or rely on UIContext::shutdown().
+/// **Shared cached documents — `get_document()`**
+/// - A single instance per manifest id is kept in the loader's cache.
+/// - The loader owns the document and will Close() it on
+///   release() / release_by_tag() / clear() / destruction.
+/// - The returned pointer is **non-owning**: you must NOT call Close() on it
+///   and you must NOT pass it to a UIWidget that may call close().
+/// - Useful for singleton-style overlays, HUD root documents, etc. that
+///   live for the whole application lifetime.
+/// - Participates in `preload_eager`, `preload_by_tag`, `is_loaded`,
+///   `loaded_count`, `release`, `release_by_tag`.
 ///
-///          This class is a non-owning view of a UIContext; the context must
-///          outlive the loader.
+/// **Independent documents — `acquire_document()` / `load_into_widget()`**
+/// - Every call creates a brand-new Rocket document instance.
+/// - The loader never caches or tracks these instances.  They do not appear
+///   in `is_loaded` / `loaded_count`, and `release*` / `clear` do not touch
+///   them.
+/// - Ownership is transferred to the caller via one of two explicit paths:
+///   1. `acquire_document(id)` — returns a `UIDocumentPtr` (unique_ptr with
+///      a Close() deleter).  The smart pointer owns the lifetime.
+///   2. `load_into_widget(id, widget)` — loads the document directly into a
+///      UIWidget.  The widget's user is then responsible for calling
+///      `UIWidget::close()` or relying on `UIContext::shutdown()`.
+///
+/// UI fonts are always loader-owned and internally deduplicated by Rocket;
+/// `release()` only drops the bookkeeping record (Rocket provides no per-font
+/// unload API until `UIContext::shutdown()`).
+///
+/// This class is a non-owning view of a UIContext; the context must outlive
+/// the loader.
 class CachedResourceLoader
 {
   public:
@@ -86,7 +123,7 @@ class CachedResourceLoader
     UIContext* context( void ) const;
 
     // -----------------------------------------------------------------------
-    // Lazy cached access
+    // Lazy cached access (fonts)
     // -----------------------------------------------------------------------
 
     /// \brief Lazily load (or return the cached result for) a UI font by
@@ -94,28 +131,65 @@ class CachedResourceLoader
     ///
     /// \returns true if the font is available in the UIContext (either already
     ///          present or just successfully loaded).
+    ///
+    /// \remarks Fonts are deduplicated internally by libRocket.  The loader
+    ///          only caches the resolved manifest state to avoid redundant
+    ///          lookups and type checks.
     bool get_font( const std::string& id );
+
+    // -----------------------------------------------------------------------
+    // Shared cached documents (loader-owned)
+    // -----------------------------------------------------------------------
 
     /// \brief Get the shared cached instance of a UI document, loading it on
     ///        first access.
     ///
-    /// \returns Non-owning pointer to the cached document, valid until
+    /// \returns **Non-owning** pointer to the cached document, valid until
     ///          release(), clear(), UIContext::shutdown(), or loader
     ///          destruction.  Returns nullptr on load failure.
     ///
-    /// \remarks Multiple calls with the same id return the same document
-    ///          pointer.  If you need an independent document instance (for
-    ///          example two message boxes with different titles), use
-    ///          create_document().
+    /// \warning Do **not** call Close() on the returned pointer and do **not**
+    ///          hand it to a UIWidget that may invoke close() — the loader
+    ///          owns the lifetime.
+    ///
+    /// \see acquire_document for an independent instance owned by the caller.
     void* get_document( const std::string& id );
 
-    /// \brief Always create a new, independent UI document instance.
+    // -----------------------------------------------------------------------
+    // Independent documents (caller-owned — two explicit transfer paths)
+    // -----------------------------------------------------------------------
+
+    /// \brief Create a fresh, independent document instance and transfer
+    ///        ownership via a smart pointer.
     ///
-    /// \returns Non-owning pointer to the newly created document, or nullptr
-    ///          on failure.  The pointer is never stored in the cache; the
-    ///          caller is responsible for the document lifetime
-    ///          (e.g. UIWidget::close() or UIContext::shutdown()).
-    void* create_document( const std::string& id );
+    /// \returns A `UIDocumentPtr` (unique_ptr with Close() deleter) owning
+    ///          the newly loaded document, or a null pointer on failure.
+    ///          The document is automatically Close()d when the pointer is
+    ///          destroyed, reassigned, or reset().
+    ///
+    /// \remarks The loader never caches or tracks independent instances.
+    ///          Each call returns a distinct document.
+    ///
+    /// \see get_document for a shared, loader-owned instance.
+    /// \see load_into_widget to bind the document directly to a UIWidget.
+    UIDocumentPtr acquire_document( const std::string& id );
+
+    /// \brief Create a fresh, independent document instance and bind it
+    ///        directly to a UIWidget.
+    ///
+    /// \returns true on success, false if the manifest lookup or document
+    ///          load failed.
+    ///
+    /// \remarks The loader never caches or tracks independent instances.
+    ///          Each call loads a distinct document into the widget.
+    ///          Ownership responsibility passes to the widget's caller:
+    ///          either invoke `widget.close()` when done or rely on
+    ///          `UIContext::shutdown()` for final cleanup.
+    ///
+    ///          This is the recommended way to feed a RML document from the
+    ///          manifest into a UIMessageBox, UIQuestionDialogBox, or any
+    ///          other UIWidget subclass.
+    bool load_into_widget( const std::string& id, UIWidget& widget );
 
     // -----------------------------------------------------------------------
     // Preload
@@ -123,10 +197,17 @@ class CachedResourceLoader
 
     /// \brief Preload all Font/UI entries marked preload=Eager.
     ///
+    /// Only shared cached documents (those reachable via get_document) are
+    /// eligible for eager preloading; independent documents are always
+    /// created on demand.
+    ///
     /// \returns true if all eager resources loaded successfully.
     bool preload_eager( void );
 
     /// \brief Preload all Font/UI entries carrying the given tag.
+    ///
+    /// Only shared cached documents (those reachable via get_document) are
+    /// eligible for tag preloading.
     ///
     /// \returns Count of resources successfully (pre)loaded.
     nom::size_type preload_by_tag( const std::string& tag );
@@ -137,12 +218,13 @@ class CachedResourceLoader
 
     /// \brief Release a single cached resource by id.
     ///
-    /// \remarks For cached documents, Rocket::Core::ElementDocument::Close()
-    ///          is called and the cache entry is erased.  For fonts, only the
-    ///          bookkeeping record is dropped (Rocket provides no per-font
-    ///          unload API; the font remains registered until shutdown).
-    ///          Independent documents created via create_document() are never
-    ///          affected.
+    /// For a shared cached document the loader calls Close() and erases the
+    /// cache entry.  For a font only the bookkeeping record is dropped
+    /// (libRocket provides no per-font unload).
+    ///
+    /// Independent documents created via acquire_document() or
+    /// load_into_widget() are **never** affected — they are owned by the
+    /// caller.
     ///
     /// \returns true if the resource was found and released.
     bool release( const std::string& id );
@@ -159,8 +241,17 @@ class CachedResourceLoader
     // Queries
     // -----------------------------------------------------------------------
 
+    /// \brief Whether a font id or shared document id is currently cached.
+    ///
+    /// \note Independent documents returned by acquire_document() /
+    ///       load_into_widget() are never tracked and always report false.
     bool is_loaded( const std::string& id ) const;
+
+    /// \brief Total number of cached fonts + shared cached documents.
+    ///
+    /// Independent documents are not counted.
     nom::size_type loaded_count( void ) const;
+
     void dump( void ) const;
 
   private:
@@ -302,17 +393,42 @@ CachedResourceLoader::get_document( const std::string& id )
   return doc;
 }
 
-inline void*
-CachedResourceLoader::create_document( const std::string& id )
+inline UIDocumentPtr
+CachedResourceLoader::acquire_document( const std::string& id )
 {
   if( this->context_ == nullptr )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION,
-                 "gui::CachedResourceLoader::create_document - no context attached." );
-    return nullptr;
+                 "gui::CachedResourceLoader::acquire_document - no context attached." );
+    return UIDocumentPtr( nullptr, &close_document_deleter );
   }
 
-  return nom::load_ui_document( this->manifest_, id, *this->context_ );
+  auto doc = static_cast<Rocket::Core::ElementDocument*>(
+    nom::load_ui_document( this->manifest_, id, *this->context_ ) );
+
+  return UIDocumentPtr( doc, &close_document_deleter );
+}
+
+inline bool
+CachedResourceLoader::load_into_widget( const std::string& id, UIWidget& widget )
+{
+  const ResourceManifestEntry& entry = this->manifest_.find( id );
+  if( ! entry.valid() )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION,
+                 "gui::CachedResourceLoader::load_into_widget - unknown manifest id:", id );
+    return false;
+  }
+  if( entry.type() != ResourceType::UI )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION,
+                 "gui::CachedResourceLoader::load_into_widget - id '", id,
+                 "' has type '", ResourceManifest::type_to_string( entry.type() ),
+                 "', expected 'ui'." );
+    return false;
+  }
+
+  return widget.load_document_file( entry.path() );
 }
 
 inline bool
