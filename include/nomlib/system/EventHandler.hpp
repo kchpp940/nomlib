@@ -32,9 +32,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <deque>
 #include <vector>
 #include <memory>
+#include <functional>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Event.hpp"
+#include "nomlib/math/Point2.hpp"
 
 // Forward declarations (third-party)
 union SDL_Event;
@@ -58,6 +60,15 @@ class EventHandler
       SDL_JOYSTICK_EVENT_HANDLER,
       GAME_CONTROLLER_EVENT_HANDLER,
     };
+
+    /// \brief Callback type for mouse coordinate conversion.
+    ///
+    /// Takes a window-space pixel position and returns the logical
+    /// coordinate-space position. Used to translate raw SDL mouse events
+    /// when using independent resolution scaling.
+    ///
+    /// \see nom::EventHandler::set_mouse_coordinate_converter
+    typedef std::function<Point2i(const Point2i&)> MouseCoordinateFn;
 
     EventHandler();
 
@@ -145,7 +156,38 @@ class EventHandler
     /// \brief Erase all event watchers.
     void remove_event_watchers();
 
+    /// \brief Set the callback used to convert window-space mouse coordinates
+    /// to a logical coordinate space.
+    ///
+    /// When using independent resolution scaling (e.g. Renderer::set_logical_size),
+    /// raw SDL mouse coordinates are in physical window pixels and must be
+    /// translated to the application's logical coordinates.
+    ///
+    /// Passing an empty function (nullptr) clears the converter, restoring
+    /// pass-through behavior.
+    ///
+    /// Example for Renderer-based logical size:
+    /// \code
+    ///   evt_handler.set_mouse_coordinate_converter(
+    ///     [&renderer](const Point2i& pos) -> Point2i {
+    ///       Point2f scale = renderer.scale();
+    ///       if (scale.x == 0.0f) scale.x = 1.0f;
+    ///       if (scale.y == 0.0f) scale.y = 1.0f;
+    ///       return Point2i(static_cast<int>(pos.x / scale.x),
+    ///                      static_cast<int>(pos.y / scale.y));
+    ///     });
+    /// \endcode
+    ///
+    /// \see nom::Renderer::set_logical_size, nom::Renderer::scale
+    void set_mouse_coordinate_converter(const MouseCoordinateFn& fn);
+
   private:
+    // -----------------------------------------------------------------------
+    // Internal helper components (forward declarations)
+    // -----------------------------------------------------------------------
+
+    struct CoordinateSpaceConverter;
+
     // -----------------------------------------------------------------------
     // Internal helper components
     // -----------------------------------------------------------------------
@@ -160,8 +202,10 @@ class EventHandler
       static bool convert_quit(const SDL_Event* ev, Event& out);
       static bool convert_window(const SDL_Event* ev, Event& out);
       static bool convert_key(const SDL_Event* ev, Event& out);
-      static bool convert_mouse_motion(const SDL_Event* ev, Event& out);
-      static bool convert_mouse_button(const SDL_Event* ev, Event& out);
+      static bool convert_mouse_motion(const SDL_Event* ev, Event& out,
+                                        const CoordinateSpaceConverter* cvt);
+      static bool convert_mouse_button(const SDL_Event* ev, Event& out,
+                                        const CoordinateSpaceConverter* cvt);
       static bool convert_mouse_wheel(const SDL_Event* ev, Event& out);
       static bool convert_finger(const SDL_Event* ev, Event& out);
       static bool convert_gesture(const SDL_Event* ev, Event& out);
@@ -183,7 +227,7 @@ class EventHandler
     ///
     /// Handles creation/destruction of JoystickEventHandler and
     /// GameControllerEventHandler instances, and routes device
-    /// added/removed events to the appropriate handler.
+    /// added/removed/remapped events to the appropriate handler.
     struct DeviceLifecycleManager
     {
       DeviceLifecycleManager();
@@ -195,13 +239,36 @@ class EventHandler
       void disable_game_controller(EventHandler& owner);
       void shutdown(EventHandler& owner);
 
-      /// \brief Process a device add/remove event, updating the handler pool.
+      /// \brief Process a device add/remove/remap event, updating the
+      /// handler pool.
       /// Returns true if the event was a device lifecycle event and was
       /// handled (the event itself still needs conversion and dispatching).
       bool handle_device_event(const SDL_Event* ev, EventHandler& owner);
 
       JoystickHandlerType type = NO_EVENT_HANDLER;
       void* handler = nullptr;
+    };
+
+    /// \brief Mouse coordinate space conversion.
+    ///
+    /// Translates raw window pixel coordinates to a logical coordinate
+    /// space (e.g. independent resolution scaling via SDL_RenderSetLogicalSize).
+    /// The actual conversion is provided by the application via a callback,
+    /// to keep the system module independent of the graphics module.
+    struct CoordinateSpaceConverter
+    {
+      CoordinateSpaceConverter();
+      ~CoordinateSpaceConverter();
+
+      /// \brief Convert a raw window-space mouse position to logical space.
+      /// If no converter is installed, returns the input unchanged.
+      Point2i to_logical(const Point2i& window_pos) const;
+
+      /// \brief Convert a raw window-space mouse delta to logical space.
+      /// If no converter is installed, returns the input unchanged.
+      Point2i to_logical_delta(const Point2i& window_delta) const;
+
+      MouseCoordinateFn converter;
     };
 
     /// \brief Coordinates enqueuing and watcher notification for events.
@@ -247,6 +314,7 @@ class EventHandler
     std::vector<std::unique_ptr<event_watcher>> event_watchers_;
 
     DeviceLifecycleManager device_mgr_;
+    CoordinateSpaceConverter coord_converter_;
     EventDispatcher dispatcher_;
 };
 

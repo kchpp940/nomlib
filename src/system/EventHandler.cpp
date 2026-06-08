@@ -142,22 +142,32 @@ bool EventHandler::EventConverter::convert_key(const SDL_Event* ev, Event& out)
   return true;
 }
 
-bool EventHandler::EventConverter::convert_mouse_motion(const SDL_Event* ev, Event& out)
+bool EventHandler::EventConverter::convert_mouse_motion(
+    const SDL_Event* ev, Event& out, const CoordinateSpaceConverter* cvt)
 {
   if( ev->type != SDL_MOUSEMOTION ) return false;
   out.type = Event::MOUSE_MOTION;
   out.timestamp = ev->motion.timestamp;
   out.motion.id = ev->motion.which;
-  out.motion.x = ev->motion.x;
-  out.motion.y = ev->motion.y;
-  out.motion.x_rel = ev->motion.xrel;
-  out.motion.y_rel = ev->motion.yrel;
+
+  Point2i pos(ev->motion.x, ev->motion.y);
+  Point2i delta(ev->motion.xrel, ev->motion.yrel);
+  if( cvt != nullptr ) {
+    pos = cvt->to_logical(pos);
+    delta = cvt->to_logical_delta(delta);
+  }
+  out.motion.x = pos.x;
+  out.motion.y = pos.y;
+  out.motion.x_rel = delta.x;
+  out.motion.y_rel = delta.y;
+
   out.motion.state = ev->motion.state;
   out.motion.window_id = ev->motion.windowID;
   return true;
 }
 
-bool EventHandler::EventConverter::convert_mouse_button(const SDL_Event* ev, Event& out)
+bool EventHandler::EventConverter::convert_mouse_button(
+    const SDL_Event* ev, Event& out, const CoordinateSpaceConverter* cvt)
 {
   Event::EventType etype;
   if( ev->type == SDL_MOUSEBUTTONDOWN ) {
@@ -178,8 +188,14 @@ bool EventHandler::EventConverter::convert_mouse_button(const SDL_Event* ev, Eve
   out.type = etype;
   out.timestamp = ev->button.timestamp;
   out.mouse.id = ev->button.which;
-  out.mouse.x = ev->button.x;
-  out.mouse.y = ev->button.y;
+
+  Point2i pos(ev->button.x, ev->button.y);
+  if( cvt != nullptr ) {
+    pos = cvt->to_logical(pos);
+  }
+  out.mouse.x = pos.x;
+  out.mouse.y = pos.y;
+
   out.mouse.button = button;
   out.mouse.state = ev->button.state;
   out.mouse.clicks = ev->button.clicks;
@@ -239,7 +255,7 @@ bool EventHandler::EventConverter::convert_drop(const SDL_Event* ev, Event& out)
 {
   if( ev->type != SDL_DROPFILE ) return false;
   out.type = Event::DROP_FILE;
-  out.timestamp = nom::ticks();
+  out.timestamp = ev->drop.timestamp;
   out.drop.file_path = ev->drop.file;
   return true;
 }
@@ -270,7 +286,7 @@ bool EventHandler::EventConverter::convert_render_targets_reset(const SDL_Event*
 {
   if( ev->type != SDL_RENDER_TARGETS_RESET ) return false;
   out.type = Event::RENDER_TARGETS_RESET;
-  out.timestamp = nom::ticks();
+  out.timestamp = ev->common.timestamp;
   return true;
 }
 
@@ -543,6 +559,22 @@ bool EventHandler::DeviceLifecycleManager::handle_device_event(
         }
         return true;
       }
+    } else if( ev->type == SDL_CONTROLLERDEVICEREMAPPED ) {
+      Event dev_event;
+      if( EventConverter::convert_controller_device(ev, dev_event) ) {
+        auto dev_id = dev_event.cdevice.id;
+        auto joy_dev = evt_handler->joystick(dev_id);
+        if( joy_dev != nullptr ) {
+          NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
+                        "Game controller instance ID", dev_id,
+                        "has been remapped" );
+        } else {
+          NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
+                        "Game controller instance ID", dev_id,
+                        "remapped but device not found in pool" );
+        }
+        return true;
+      }
     }
   }
 
@@ -572,6 +604,34 @@ void EventHandler::EventDispatcher::dispatch(const Event& ev, EventHandler& owne
       (*itr)->callback.operator()(ev, (*itr)->data1);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// CoordinateSpaceConverter — mouse window → logical coordinate translation
+// ---------------------------------------------------------------------------
+
+EventHandler::CoordinateSpaceConverter::CoordinateSpaceConverter() = default;
+EventHandler::CoordinateSpaceConverter::~CoordinateSpaceConverter() = default;
+
+Point2i
+EventHandler::CoordinateSpaceConverter::to_logical(const Point2i& window_pos) const
+{
+  if( this->converter ) {
+    return this->converter(window_pos);
+  }
+  return window_pos;
+}
+
+Point2i
+EventHandler::CoordinateSpaceConverter::to_logical_delta(
+    const Point2i& window_delta) const
+{
+  if( this->converter ) {
+    Point2i origin = this->converter(Point2i(0, 0));
+    Point2i shifted = this->converter(window_delta);
+    return Point2i(shifted.x - origin.x, shifted.y - origin.y);
+  }
+  return window_delta;
 }
 
 // ---------------------------------------------------------------------------
@@ -692,6 +752,11 @@ void EventHandler::remove_event_watchers()
   this->event_watchers_.clear();
 }
 
+void EventHandler::set_mouse_coordinate_converter(const MouseCoordinateFn& fn)
+{
+  this->coord_converter_.converter = fn;
+}
+
 void EventHandler::push_event(const Event& ev)
 {
   this->dispatcher_.dispatch(ev, *this);
@@ -760,9 +825,9 @@ void EventHandler::process_event(const SDL_Event* ev)
   // Keyboard
   if( !converted ) converted = EventConverter::convert_key(ev, event);
 
-  // Mouse
-  if( !converted ) converted = EventConverter::convert_mouse_motion(ev, event);
-  if( !converted ) converted = EventConverter::convert_mouse_button(ev, event);
+  // Mouse (with coordinate space conversion)
+  if( !converted ) converted = EventConverter::convert_mouse_motion(ev, event, &this->coord_converter_);
+  if( !converted ) converted = EventConverter::convert_mouse_button(ev, event, &this->coord_converter_);
   if( !converted ) converted = EventConverter::convert_mouse_wheel(ev, event);
 
   // Window / Quit
