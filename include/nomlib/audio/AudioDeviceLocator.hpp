@@ -41,14 +41,25 @@ class IAudioDevice;
 class NullAudioDevice;
 class IOAudioEngine;
 class AudioMixer;
+struct AudioSpec;
 } // namespace audio
 
 /// \brief Service Locator pattern implementation for audio device access.
 ///
-/// This is the central entry point for the audio subsystem. It manages:
-/// - Audio device provider registration and fallback (NullAudioDevice)
-/// - AudioMixer lifecycle and bus state management
-/// - IOAudioEngine registration from init_audio() / shutdown_audio()
+/// This is the **sole** entry point for the audio subsystem lifecycle.
+/// Provider attach / detach, engine creation / destruction, mixer reset /
+/// rebinding and source teardown all happen here — no other code path should
+/// directly manipulate the active engine or mixer.
+///
+/// Lifecycle contract:
+/// 1. `initialize()` installs the NullAudioDevice fallback.
+/// 2. `set_provider(new_device, spec)` detaches the current provider, resets
+///    the mixer (stops + frees every source, resets bus state), then opens
+///    the new device and binds its engine to the mixer.
+/// 3. `set_provider(nullptr, nullptr)` falls back to NullAudioDevice.
+/// 4. `mixer_for_engine(engine)` returns the global mixer **only** if engine
+///    matches the currently active engine — otherwise nullptr. Callers must
+///    not silently fall back to a different engine.
 ///
 /// \see http://gameprogrammingpatterns.com/service-locator.html
 class AudioDeviceLocator
@@ -56,40 +67,56 @@ class AudioDeviceLocator
   public:
     ~AudioDeviceLocator( void );
 
-    /// \brief Initialize the locator with NullAudioDevice as fallback.
+    /// \brief Initialize the locator with the NullAudioDevice fallback.
     static void initialize( void );
 
     /// \brief Get the current audio device provider.
     static audio::IAudioDevice& audio_device( void );
 
-    /// \brief Get the global AudioMixer instance for bus control.
+    /// \brief Get the global AudioMixer bound to the active engine.
+    ///
+    /// \note If no provider is attached the mixer exists but has no engine
+    ///       and `valid()` returns false.
     static audio::AudioMixer& mixer( void );
 
-    /// \brief Look up the mixer associated with a given engine.
+    /// \brief Look up the mixer for a given engine pointer.
     ///
-    /// \returns The global mixer if engine matches the registered one,
-    ///          otherwise nullptr.
+    /// \returns The global mixer if \p engine matches the currently active
+    ///          engine registered via set_provider. Returns nullptr if the
+    ///          engine does not match — callers **must** treat a nullptr as
+    ///          a hard error and not fall back to the global mixer, as doing
+    ///          so would route sources to the wrong device.
     static audio::AudioMixer* mixer_for_engine( audio::IOAudioEngine* engine );
 
-    /// \brief Register an IOAudioEngine with the locator.
-    ///
-    /// Called by audio::init_audio() after successfully opening a device.
-    /// The engine is attached to the global AudioMixer.
-    static void register_engine( audio::IOAudioEngine* engine );
-
-    /// \brief Unregister the current IOAudioEngine.
-    ///
-    /// Called by audio::shutdown_audio(). The global AudioMixer is detached
-    /// and falls back to a null state.
-    static void unregister_engine( audio::IOAudioEngine* engine );
+    /// \brief Get the currently active engine (may be nullptr).
+    static audio::IOAudioEngine* active_engine( void );
 
     /// \brief Replace the audio device provider.
     ///
-    /// If service is nullptr, falls back to NullAudioDevice.
-    /// The locator takes ownership of the provided device.
-    static void set_provider( audio::IAudioDevice* service );
+    /// This is the only valid way to change the audio device. It performs a
+    /// complete teardown of the previous provider before bringing up the new
+    /// one:
+    ///   1. Mixer::reset() — stops + frees all tracked sources, resets bus
+    ///      state to defaults and detaches the old engine.
+    ///   2. Old IAudioDevice::close() + delete (if owned).
+    ///   3. If \p device is nullptr the NullAudioDevice fallback is installed
+    ///      with a null spec.
+    ///   4. New IAudioDevice::open(spec) → IOAudioEngine*.
+    ///   5. AudioMixer::set_engine(engine) binds the mixer to the new engine.
+    ///
+    /// The locator takes ownership of \p device and will delete it on the
+    /// next set_provider() call or in the destructor.
+    static void set_provider( audio::IAudioDevice* device,
+                              const audio::AudioSpec* spec );
 
   private:
+    /// \brief Detach the current provider: reset mixer, close device.
+    static void detach_current_provider( void );
+
+    /// \brief Attach a provider: open(spec), bind engine to mixer.
+    static void attach_provider( audio::IAudioDevice* device,
+                                 const audio::AudioSpec* spec );
+
     static audio::IAudioDevice* audio_;
     static audio::NullAudioDevice null_audio_;
     static audio::IAudioDevice* owned_provider_;

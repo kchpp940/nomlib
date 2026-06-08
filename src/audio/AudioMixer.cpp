@@ -38,32 +38,39 @@ namespace audio {
 AudioMixer::AudioMixer()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_VERBOSE);
-
-  for(int i = 0; i < AUDIO_BUS_COUNT; ++i) {
-    buses_[i].volume = MAX_VOLUME;
-    buses_[i].muted = false;
-  }
+  this->reset_bus_states();
 }
 
 AudioMixer::AudioMixer(IOAudioEngine* engine)
   : engine_(engine)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_VERBOSE);
-
-  for(int i = 0; i < AUDIO_BUS_COUNT; ++i) {
-    buses_[i].volume = MAX_VOLUME;
-    buses_[i].muted = false;
-  }
+  this->reset_bus_states();
 }
 
 AudioMixer::~AudioMixer()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_VERBOSE);
+  this->reset();
 }
 
 void AudioMixer::set_engine(IOAudioEngine* engine)
 {
+  if( this->engine_ == engine ) {
+    return;
+  }
+
+  if( this->engine_ != nullptr ) {
+    this->reset();
+  }
+
   this->engine_ = engine;
+
+  if( this->engine_ != nullptr ) {
+    this->reset_bus_states();
+    NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO,
+                  "AudioMixer: attached to new audio engine" );
+  }
 }
 
 IOAudioEngine* AudioMixer::engine() const
@@ -144,7 +151,6 @@ real32 AudioMixer::effective_volume(AudioBus bus) const
   real32 bus_gain = this->buses_[bus].muted ?
                     MIN_VOLUME : this->buses_[bus].volume;
 
-  // Normalize to 0..1, multiply, then scale back to 0..100
   real32 effective = (master / MAX_VOLUME) * (bus_gain / MAX_VOLUME) * MAX_VOLUME;
   return clamp_gain(effective);
 }
@@ -152,6 +158,7 @@ real32 AudioMixer::effective_volume(AudioBus bus) const
 void AudioMixer::play(SoundBuffer* buffer, AudioBus bus)
 {
   if(this->valid() && buffer != nullptr) {
+    this->register_source(buffer);
     this->apply_bus_volume(buffer, bus);
     this->engine_->play(buffer);
   }
@@ -206,6 +213,7 @@ uint32 AudioMixer::source_state(SoundBuffer* buffer) const
 bool AudioMixer::push_buffer(SoundBuffer* buffer)
 {
   if(this->valid() && buffer != nullptr) {
+    this->register_source(buffer);
     return this->engine_->push_buffer(buffer);
   }
   return false;
@@ -214,6 +222,7 @@ bool AudioMixer::push_buffer(SoundBuffer* buffer)
 bool AudioMixer::queue_buffer(SoundBuffer* buffer)
 {
   if(this->valid() && buffer != nullptr) {
+    this->register_source(buffer);
     return this->engine_->queue_buffer(buffer);
   }
   return false;
@@ -221,9 +230,13 @@ bool AudioMixer::queue_buffer(SoundBuffer* buffer)
 
 void AudioMixer::free_buffer(SoundBuffer* buffer)
 {
-  if(this->valid() && buffer != nullptr) {
+  if(buffer == nullptr) {
+    return;
+  }
+  if(this->valid()) {
     this->engine_->free_buffer(buffer);
   }
+  this->unregister_source(buffer);
 }
 
 void AudioMixer::suspend()
@@ -240,12 +253,35 @@ void AudioMixer::resume_engine()
   }
 }
 
+void AudioMixer::reset()
+{
+  NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO,
+                "AudioMixer: resetting — releasing ",
+                this->sources_.size(), " source(s)" );
+
+  for(auto* buffer : this->sources_) {
+    if(buffer != nullptr && this->valid()) {
+      this->engine_->stop(buffer);
+      this->engine_->free_buffer(buffer);
+    }
+  }
+  this->sources_.clear();
+
+  this->close();
+  this->engine_ = nullptr;
+  this->reset_bus_states();
+}
+
 void AudioMixer::close()
 {
   if(this->valid()) {
     this->engine_->close();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Private helpers
+// ---------------------------------------------------------------------------
 
 real32 AudioMixer::clamp_gain(real32 gain)
 {
@@ -258,6 +294,36 @@ void AudioMixer::apply_bus_volume(SoundBuffer* buffer, AudioBus bus)
 {
   real32 current = this->source_volume(buffer);
   this->set_source_volume(buffer, current, bus);
+}
+
+void AudioMixer::register_source(SoundBuffer* buffer)
+{
+  if(buffer == nullptr) {
+    return;
+  }
+  auto it = std::find(this->sources_.begin(), this->sources_.end(), buffer);
+  if(it == this->sources_.end()) {
+    this->sources_.push_back(buffer);
+  }
+}
+
+void AudioMixer::unregister_source(SoundBuffer* buffer)
+{
+  if(buffer == nullptr) {
+    return;
+  }
+  auto it = std::find(this->sources_.begin(), this->sources_.end(), buffer);
+  if(it != this->sources_.end()) {
+    this->sources_.erase(it);
+  }
+}
+
+void AudioMixer::reset_bus_states()
+{
+  for(int i = 0; i < AUDIO_BUS_COUNT; ++i) {
+    this->buses_[i].volume = MAX_VOLUME;
+    this->buses_[i].muted = false;
+  }
 }
 
 } // namespace audio

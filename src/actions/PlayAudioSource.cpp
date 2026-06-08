@@ -55,7 +55,10 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
 
   this->mixer_ = AudioDeviceLocator::mixer_for_engine(dev);
   if( this->mixer_ == nullptr ) {
-    this->mixer_ = &AudioDeviceLocator::mixer();
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_AUDIO,
+                  "PlayAudioSource: engine mismatch or invalid engine — "
+                  "no audio will be played. Ensure the IOAudioEngine* passed in matches "
+                  "the active engine registered with AudioDeviceLocator." );
   }
 
   audio::SoundBuffer* buffer = nullptr;

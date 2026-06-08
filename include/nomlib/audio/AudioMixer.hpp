@@ -65,6 +65,10 @@ struct AudioBusState
 ///
 /// This class acts as the central dispatch point for audio actions, providing
 /// a stable control path for music, sound effects and voice playback.
+///
+/// The mixer tracks all registered SoundBuffer sources and can reset() all
+/// of them in one call — used during device/provider transitions to ensure
+/// old sources are released along with the engine they were bound to.
 class AudioMixer
 {
   public:
@@ -75,7 +79,12 @@ class AudioMixer
     AudioMixer(const AudioMixer&) = delete;
     AudioMixer& operator=(const AudioMixer&) = delete;
 
+    /// \brief Attach a new engine to the mixer.
+    ///
+    /// If an engine was already attached, reset() is called first to stop
+    /// and free all sources bound to the previous engine.
     void set_engine(IOAudioEngine* engine);
+
     IOAudioEngine* engine() const;
     bool valid() const;
 
@@ -99,7 +108,11 @@ class AudioMixer
 
     // --- Source control (dispatched to backend) ---
 
+    /// \brief Play a buffer on the given bus.
+    ///
+    /// The buffer is automatically registered so it can be released by reset().
     void play(SoundBuffer* buffer, AudioBus bus = AUDIO_BUS_SFX);
+
     void stop(SoundBuffer* buffer);
     void pause(SoundBuffer* buffer);
     void resume(SoundBuffer* buffer);
@@ -110,22 +123,50 @@ class AudioMixer
 
     uint32 source_state(SoundBuffer* buffer) const;
 
+    /// \brief Push (upload) a buffer to the backend.
+    ///
+    /// The buffer is automatically registered so it can be released by reset().
     bool push_buffer(SoundBuffer* buffer);
+
+    /// \brief Queue a buffer for streaming playback.
+    ///
+    /// The buffer is automatically registered so it can be released by reset().
     bool queue_buffer(SoundBuffer* buffer);
+
+    /// \brief Free a single buffer and unregister it from the mixer.
     void free_buffer(SoundBuffer* buffer);
 
     // --- Global engine controls ---
 
     void suspend();
     void resume_engine();
+
+    /// \brief Stop and free every registered source, reset all bus states
+    ///        to defaults, detach the engine and mark mixer as invalid.
+    ///
+    /// Called by AudioDeviceLocator when the provider is detached or
+    /// replaced, so no stale sources remain bound to a defunct engine.
+    void reset();
+
+    /// \brief Close the engine (called by reset()).
     void close();
 
   private:
     static real32 clamp_gain(real32 gain);
     void apply_bus_volume(SoundBuffer* buffer, AudioBus bus);
 
+    /// Register a buffer with the mixer if not already tracked.
+    void register_source(SoundBuffer* buffer);
+
+    /// Unregister a buffer from the mixer.
+    void unregister_source(SoundBuffer* buffer);
+
+    /// Reset bus state to factory defaults (MAX_VOLUME, not muted).
+    void reset_bus_states();
+
     IOAudioEngine* engine_ = nullptr;
     AudioBusState buses_[AUDIO_BUS_COUNT];
+    std::vector<SoundBuffer*> sources_;
 };
 
 } // namespace audio

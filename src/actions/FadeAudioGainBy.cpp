@@ -59,7 +59,10 @@ FadeAudioGainBy(audio::IOAudioEngine* dev, const char* filename, real32 delta,
 
   this->mixer_ = AudioDeviceLocator::mixer_for_engine(dev);
   if( this->mixer_ == nullptr ) {
-    this->mixer_ = &AudioDeviceLocator::mixer();
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_AUDIO,
+                  "FadeAudioGainBy: engine mismatch or invalid engine — "
+                  "no audio fade will be applied. Ensure the IOAudioEngine* passed in matches "
+                  "the active engine registered with AudioDeviceLocator." );
   }
 
   this->elapsed_frames_ = 0.0f;
@@ -86,7 +89,10 @@ FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
 
   this->mixer_ = AudioDeviceLocator::mixer_for_engine(dev);
   if( this->mixer_ == nullptr ) {
-    this->mixer_ = &AudioDeviceLocator::mixer();
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_AUDIO,
+                  "FadeAudioGainBy: engine mismatch or invalid engine — "
+                  "no audio fade will be applied. Ensure the IOAudioEngine* passed in matches "
+                  "the active engine registered with AudioDeviceLocator." );
   }
 
   this->elapsed_frames_ = 0.0f;
