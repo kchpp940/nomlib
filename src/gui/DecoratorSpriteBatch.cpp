@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketFileInterface.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
+#include "nomlib/gui/UIContext.hpp"
 
 namespace nom {
 
@@ -119,14 +120,21 @@ void DecoratorSpriteBatch::RenderElement(Rocket::Core::Element* element, Rocket:
 {
   Rocket::Core::Vector2f pos = element->GetAbsoluteOffset(Rocket::Core::Box::PADDING);
 
-  nom::RocketSDL2RenderInterface* target = NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, Rocket::Core::GetRenderInterface() );
+  // Resolve the correct render target through the callback element's owning context
+  // (bound by UIContext::create_context via SetUserData).  We intentionally
+  // intentionally avoid Rocket::Core::GetRenderInterface() so that multiple active
+  // UIContexts / windows don't accidentally draw into each other's renderers.
+  Rocket::Core::Context* rkt_ctx = element ? element->GetContext() : nullptr;
+  UIContext* ui_ctx = UIContext::from_rocket_context( rkt_ctx );
+  nom::RocketSDL2RenderInterface* target = ui_ctx ?
+    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, ui_ctx->render_interface() ) : nullptr;
   NOM_ASSERT( target != nullptr );
   if( target == nullptr ) return;
 
-  const RenderWindow* context = target->window_;
+  const RenderWindow* context_window = target->window_;
 
-  NOM_ASSERT( context != nullptr );
-  if( context != nullptr && this->sprite_ != nullptr )
+  NOM_ASSERT( context_window != nullptr );
+  if( context_window != nullptr && this->sprite_ != nullptr )
   {
     // --- SDL / GL State Isolation ------------------------------------------------
     // This method is called from inside libRocket's render loop, where the GL
@@ -134,10 +142,10 @@ void DecoratorSpriteBatch::RenderElement(Rocket::Core::Element* element, Rocket:
     // blend, current color, etc).  nom::SpriteBatch::draw() goes through SDL's
     // renderer API, which will itself touch GL state.  We must save+restore
     // everything to avoid corrupting either side of the rendering pipeline.
-    RenderStateGuard guard( context->renderer(), RenderStateGuard::Scope::All );
+    RenderStateGuard guard( context_window->renderer(), RenderStateGuard::Scope::All );
 
     this->sprite_->set_position( Point2i( pos.x, pos.y ) );
-    this->sprite_->draw( *context );
+    this->sprite_->draw( *context_window );
   }
 }
 

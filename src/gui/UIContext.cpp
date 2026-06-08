@@ -287,6 +287,19 @@ Rocket::Core::Context* UIContext::context() const
   return this->context_;
 }
 
+Rocket::Core::RenderInterface* UIContext::render_interface() const
+{
+  return this->renderer_;
+}
+
+UIContext* UIContext::from_rocket_context( Rocket::Core::Context* ctx )
+{
+  if( ctx == nullptr ) {
+    return nullptr;
+  }
+  return static_cast<UIContext*>( ctx->GetUserData() );
+}
+
 Size2i UIContext::size() const
 {
   Rocket::Core::Vector2i dims( 0, 0 );
@@ -328,6 +341,13 @@ bool UIContext::create_context( const std::string& name, const Size2i& res,
 
   if( this->context_ )
   {
+    // Bind ourselves to the underlying Rocket context so that callbacks
+    // (Decorators, etc.) can resolve the originating UIContext -- and hence
+    // the correct RenderWindow / Renderer -- without relying on the global
+    // Rocket::Core::GetRenderInterface(), which becomes ambiguous when
+    // multiple UIContexts or windows are active.
+    this->context_->SetUserData( this );
+
     // ::initialize_debugger depends on this value
     this->res_ = res;
 
@@ -424,16 +444,17 @@ void UIContext::set_size(const Size2i& dims)
   Point2f scale( 1.0f, 1.0f );
   Size2i res(Size2i::zero);
 
+  // Use the render interface bound to THIS context -- not the global one --
+  // so multi-window / multi-context setups pull the correct logical scale.
   nom::RocketSDL2RenderInterface* target =
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
-                      Rocket::Core::GetRenderInterface() );
+    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, this->renderer_ );
   NOM_ASSERT( target != nullptr );
 
-  const RenderWindow* context = target->window_;
-  NOM_ASSERT( context != nullptr );
-  if( target && context )
+  const RenderWindow* context_window = target ? target->window_ : nullptr;
+  NOM_ASSERT( context_window != nullptr );
+  if( target && context_window )
   {
-    SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
+    SDL_RenderGetScale( context_window->renderer(), &scale.x, &scale.y );
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is
@@ -478,11 +499,12 @@ void UIContext::draw()
   // state internally, the rest of the engine (Sprite / Texture / Shape) is
   // fully insulated.
   //
-  // We also need to grab a RenderWindow pointer from the currently-installed
-  // render interface, since UIContext itself does not hold one.
+  // We pull the RenderWindow from the render interface **bound to this
+  // context** (this->renderer_), never from the global
+  // Rocket::Core::GetRenderInterface(), so multiple UIContexts / windows
+  // never cross wires.
   nom::RocketSDL2RenderInterface* ri =
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
-                      Rocket::Core::GetRenderInterface() );
+    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, this->renderer_ );
 
   if( ri != nullptr && ri->window_ != nullptr )
   {
