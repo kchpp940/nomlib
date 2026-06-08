@@ -30,6 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_ACTIONS_FADE_AUDIO_GAIN_BY_HPP
 
 #include <memory>
+#include <string>
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
@@ -43,8 +44,17 @@ struct SoundBuffer;
 
 } // namespace audio
 
-/// \brief [TODO: Description]
-// TODO: Update comments!
+/// \brief Fade the audio gain (volume) of a sound buffer over time.
+///
+/// Two ownership modes are supported:
+///   1. **File-backed** (constructed with `const char* filename`): the action
+///      owns the SoundBuffer* returned by audio::create_buffer() and will
+///      free it in release() via audio::free_buffer().
+///   2. **Externally-supplied buffer** (constructed with `SoundBuffer*`): the
+///      action is only an observer and will **never** free the buffer.
+///
+/// In both cases the IOAudioEngine* is an observer pointer and is never freed
+/// by the action.
 class FadeAudioGainBy: public virtual IActionObject
 {
   public:
@@ -53,18 +63,21 @@ class FadeAudioGainBy: public virtual IActionObject
 
     typedef FadeAudioGainBy self_type;
 
-    /// \brief Default constructor; create the action from an audio file on
-    /// disk.
+    /// \brief Owned-buffer constructor: load and own the audio at `filename`.
     FadeAudioGainBy(audio::IOAudioEngine* dev, const char* filename,
                     real32 delta, real32 duration);
 
-    /// \brief Construct the action from a pre-initialized audio buffer.
+    /// \brief Observer constructor: fade the caller-supplied buffer without
+    ///        taking ownership.
     FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
                     real32 delta, real32 duration);
 
     /// \brief Destructor.
     virtual ~FadeAudioGainBy();
 
+    /// \brief Clone semantics follow the ownership mode of the source:
+    ///        file-backed actions re-load the file; observer-mode actions share
+    ///        the external buffer.
     virtual std::unique_ptr<IActionObject> clone() const override;
 
     virtual IActionObject::FrameState next_frame(real32 delta_time) override;
@@ -73,33 +86,41 @@ class FadeAudioGainBy: public virtual IActionObject
 
     virtual void pause(real32 delta_time) override;
 
-    /// \brief Resume logic for the animation object.
-    ///
-    /// \remarks Reserved for future implementation.
     virtual void resume(real32 delta_time) override;
 
+    /// \brief Restore the volume to the value recorded at first_frame() time
+    ///        and clear all frame-local state, making the action safe to replay
+    ///        from the beginning (including inside RepeatFor / RepeatForever).
     virtual void rewind(real32 delta_time) override;
 
+    /// \brief Free the owned SoundBuffer (if any) and clear all observer
+    ///        pointers.  Safe to call multiple times.
     virtual void release() override;
 
   private:
     static const char* DEBUG_CLASS_NAME;
 
-    /// \brief Execute the alpha blending logic for the animation.
     IActionObject::FrameState update(real32 t, uint8 b, int16 c, real32 d);
 
     void first_frame(real32 delta_time);
     void last_frame(real32 delta_time);
 
-    /// \brief The initial alpha blending value.
+    /// \brief Volume recorded at first_frame() time; rewind restores this.
     real32 initial_volume_;
 
     /// \brief The total change in the alpha blending value.
     const real32 total_displacement_;
 
+    /// \brief Observer pointer -- never owned, never deleted.
     audio::IOAudioEngine* impl_ = nullptr;
 
-    /// \brief The animation proxy object used to perform alpha blending on.
+    /// \brief When true, audible_ is freed in release() via audio::free_buffer().
+    bool owns_audible_ = false;
+
+    /// \brief Source file name; only populated when owns_audible_ is true.
+    std::string source_filename_;
+
+    /// \brief The audio buffer whose volume is being faded.
     audio::SoundBuffer* audible_ = nullptr;
 };
 

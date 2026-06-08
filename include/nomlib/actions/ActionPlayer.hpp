@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <map>
 #include <deque>
+#include <cstdint>
 
 #include "nomlib/config.hpp"
 
@@ -113,20 +114,30 @@ class ActionPlayer
 
     /// \brief Get the completion status of an action.
     ///
-    /// \param action_id The unique identifier of the action.
+    /// \param action_name The user-assigned label of the action (see
+    ///                 IActionObject::name()).
     ///
-    /// \returns Boolean TRUE if the action has completed, and boolean FALSE
-    /// if the action has **not** completed.
+    /// \returns Boolean TRUE if an action with the given label is currently
+    ///          scheduled, and boolean FALSE if no such action is running.
     ///
-    /// \see nom::IActionObject::set_name.
-    bool action_running(const std::string& action_id) const;
+    /// \note Multiple actions may share the same name; this method returns TRUE
+    ///       TRUE if **any** action with a matching name is present.
+    ///
+    /// \see nom::IActionObject::set_name, nom::IActionObject::id.
+    bool action_running(const std::string& action_name) const;
 
-    /// \brief Stop executing an action.
+    /// \brief Stop executing all actions sharing a user-assigned label.
     ///
-    /// \param action_id The unique identifier of the action to stop.
+    /// \param action_name The user-assigned label of the actions to stop.
     ///
-    /// \see nom::IActionObject::set_name.
-    bool cancel_action(const std::string& action_id);
+    /// \returns Boolean TRUE if at least one action was cancelled, and boolean
+    ///          FALSE if no action with that name was found.
+    ///
+    /// \note All scheduled actions bearing the supplied label are removed from the
+    ///       queue and released.
+    ///
+    /// \see nom::IActionObject::set_name, nom::IActionObject::id.
+    bool cancel_action(const std::string& action_name);
 
     void cancel_actions(const action_names& actions);
 
@@ -139,8 +150,9 @@ class ActionPlayer
     ///
     /// \param action The action to run; NULL actions are valid.
     ///
-    /// \remarks If an action using the same key is already running, it is
-    /// removed before the new action is added.
+    /// \remarks The action is keyed by its auto-generated IActionObject::id(),
+    ///          so cloned actions never collide even when they share the
+    ///          the same user-visible name().
     ///
     /// \see nom::ActionPlayer::update
     bool run_action(const std::shared_ptr<IActionObject>& action);
@@ -152,8 +164,9 @@ class ActionPlayer
     /// \param completion_func The function to call when the action is
     /// completed -- passing NULL here is valid.
     ///
-    /// \remarks If an action using the same key is already running, it is
-    /// removed before the new action is added.
+    /// \remarks The action is keyed by its auto-generated
+    ///          IActionObject::id(), so cloned actions never collide even
+    ///          when they share the same user-visible name().
     ///
     /// \see nom::ActionPlayer::update
     bool run_action(  const std::shared_ptr<IActionObject>& action,
@@ -200,15 +213,22 @@ class ActionPlayer
 
     static const char* DEBUG_CLASS_NAME;
 
+    // Primary container: keyed by the globally-unique IActionObject::id().
     typedef
-    std::map<std::string, std::unique_ptr<DispatchQueue>> container_type;
+    std::map<uint64, std::unique_ptr<DispatchQueue>> container_type;
 
     typedef container_type::iterator container_iterator;
 
     ActionPlayer::State player_state_;
 
-    /// \brief Enqueued actions.
+    /// \brief Enqueued actions (primary storage).
     container_type actions_;
+
+    /// \brief Secondary index: user-visible name -> set of action ids.
+    ///
+    /// Multiple actions may share the same name; this map lets us look them up
+    /// all active ids by name for action_running / cancel_action.
+    std::multimap<std::string, uint64> name_index_;
 
     /// \brief The actions pending removal.
     std::deque<container_iterator> free_list_;

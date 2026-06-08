@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <functional>
 #include <vector>
+#include <cstdint>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Timer.hpp"
@@ -77,9 +78,22 @@ class IActionObject
 
     IActionObject();
 
+    /// \brief Destructor -- automatically calls release() if the action has
+    ///        not already been released, ensuring owned resources are freed.
     virtual ~IActionObject();
 
-    /// \brief Get the unique identifier of the action.
+    /// \brief Get the internal unique identifier of the action.
+    ///
+    /// \remarks This ID is auto-generated at construction time and is
+    ///          guaranteed to be unique across all IActionObject instances.
+    ///          It is the authoritative key used by ActionPlayer for
+    ///          scheduling; the user-visible name() is purely a cosmetic label.
+    uint64 id() const;
+
+    /// \brief Get the user-assigned label of the action (may be empty).
+    ///
+    /// \remarks This is **not** a unique identifier.  Use id() for
+    ///          addressing a specific action within ActionPlayer.
     const std::string& name() const;
 
     /// \brief Get the duration of the action.
@@ -121,11 +135,12 @@ class IActionObject
     /// \brief Create a deep copy instance of the action in its initial state.
     ///
     /// \returns A new action instance with:
+    ///   - A fresh unique id() (never collides with the original)
     ///   - Construction parameters fully copied
+    ///   - The user-visible name() preserved unchanged
     ///   - Shared target objects (Sprite, SpriteBatch, etc.) keep shared ownership
     ///   - All runtime state (timer, elapsed_frames, iterators, initial_* values)
     ///     reset to defaults as if freshly constructed
-    ///   - Name suffixed with "_cloned" to avoid key collision in ActionPlayer
     ///
     /// \note External target objects (sprites, audio buffers) are NOT deep-copied;
     ///       the cloned action shares them with the original via shared_ptr /
@@ -265,6 +280,12 @@ class IActionObject
     Timer timer_;
 
   private:
+    /// \brief Auto-generated unique identifier, assigned at construction.
+    ///
+    /// This is the authoritative key used by ActionPlayer.  It is intentionally
+    /// never copied by clone() -- each instance always gets a fresh id.
+    uint64 action_id_ = 0;
+
     FrameState status_ = FrameState::PLAYING;
     LifecycleState lifecycle_state_ = LifecycleState::IDLE;
     std::string name_;

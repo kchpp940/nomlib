@@ -38,7 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/audio/libsndfile/SoundFileReader.hpp"
 #include "nomlib/audio/SoundBuffer.hpp"
 #include "nomlib/audio/AL/SoundSource.hpp"
-// #include "nomlib/audio/AL/ALAudioDeviceCaps.hpp"
+#include "nomlib/audio/SoundFile.hpp"
 
 namespace nom {
 
@@ -46,89 +46,101 @@ namespace nom {
 const char* PlayAudioSource::DEBUG_CLASS_NAME = "[PlayAudioSource]:";
 
 PlayAudioSource::
-PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
+PlayAudioSource(audio::IOAudioEngine* dev, const char* filename) :
+  source_filename_( filename != nullptr ? filename : "")
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
 
-  audio::SoundBuffer* buffer = nullptr;
-  audio::SoundInfo metadata = {};
   this->impl_ = dev;
   this->elapsed_frames_ = 0.0f;
-
-  this->fp_ = new audio::SoundFileReader();
-  NOM_ASSERT(this->fp_ != nullptr);
-  if(this->fp_ != nullptr) {
-
-    if(this->fp_->open(filename, metadata) == false) {
-      return;
-    }
-
-    if(this->fp_->valid() == false) {
-      return;
-    }
-
-    auto samples_per_second = metadata.sample_rate;
-    auto num_channels = metadata.channel_count;
-    auto channel_format = metadata.channel_format;
-
-    buffer =
-      audio::create_buffer_memory(samples_per_second, num_channels,
-                                  channel_format);
-
-    // NOTE(jeff): Create a queue of buffers to stream out in chunks
-    for(auto buffer_idx = 0;
-        buffer_idx != audio::TOTAL_NUM_BUFFERS;
-        ++buffer_idx)
-    {
-      if(buffer == nullptr) {
-        break;
-      }
-
-      // TODO(jeff): Validity check..?
-      if(audio::write_info(buffer, metadata) == false) {
-        return;
-      }
-
-      this->set_duration(buffer->duration);
-      this->audible_.push_back(buffer);
-
-    } // end for TOTAL_NUM_BUFFERS loop
-
-    this->current_buffer_ = this->audible_.begin();
-  }
-  NOM_DUMP(this->audible_.size());
-
   this->input_pos_ = 0;
+  this->curr_frame_ = 0;
+
+  this->open_source();
 }
-#if 0
-PlayAudioSource::
-PlayAudioSource(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer)
-{
-  NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
-                     nom::NOM_LOG_PRIORITY_VERBOSE);
 
-  NOM_ASSERT_INVALID_PATH("TODO");
-
-  this->impl_ = dev;
-  this->elapsed_frames_ = 0.0f;
-  this->audible_ = buffer;
-
-  if(buffer != nullptr) {
-    this->set_duration(buffer->duration);
-  }
-}
-#endif
 PlayAudioSource::~PlayAudioSource()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
 }
 
+bool PlayAudioSource::open_source()
+{
+  using namespace audio;
+
+  if( this->impl_ == nullptr || this->source_filename_.empty() ) {
+    return false;
+  }
+
+  SoundBuffer* buffer = nullptr;
+  SoundInfo metadata = {};
+
+  this->fp_ = nom::make_unique<SoundFileReader>();
+  if( this->fp_ == nullptr ) {
+    return false;
+  }
+
+  if( this->fp_->open(this->source_filename_, metadata) == false) {
+    this->fp_.reset();
+    return false;
+  }
+
+  if( this->fp_->valid() == false) {
+    this->fp_.reset();
+    return false;
+  }
+
+  auto samples_per_second = metadata.sample_rate;
+  auto num_channels = metadata.channel_count;
+  auto channel_format = metadata.channel_format;
+
+  buffer =
+    create_buffer_memory(samples_per_second, num_channels,
+                        channel_format);
+
+  // NOTE(jeff): Create a queue of buffers to stream out in chunks
+  for(auto buffer_idx = 0;
+      buffer_idx != TOTAL_NUM_BUFFERS;
+      ++buffer_idx)
+  {
+    if(buffer == nullptr) {
+      break;
+    }
+
+    // TODO(jeff): Validity check..?
+    if(write_info(buffer, metadata) == false) {
+      return false;
+    }
+
+    this->set_duration(buffer->duration);
+    this->audible_.push_back(buffer);
+
+  } // end for TOTAL_NUM_BUFFERS loop
+
+  this->current_buffer_ = this->audible_.begin();
+
+  NOM_DUMP(this->audible_.size());
+
+  this->input_pos_ = 0;
+
+  return true;
+}
+
 std::unique_ptr<IActionObject> PlayAudioSource::clone() const
 {
-  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
+  // NOTE: We cannot use the copy constructor because unique_ptr<ISoundFileReader>
+  // makes PlayAudioSource non-copyable.  Construct a fresh instance instead and
+  // copy over the configuration parameters (name, duration, speed, timing curve).
+  auto cloned_obj =
+    nom::make_unique<self_type>(this->impl_, this->source_filename_.c_str());
   if( cloned_obj != nullptr ) {
+
+    cloned_obj->set_name(this->name());
+    cloned_obj->set_duration(this->duration());
+    cloned_obj->set_speed(this->speed());
+    cloned_obj->set_timing_curve(this->timing_curve());
 
     cloned_obj->set_status(FrameState::PLAYING);
     cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
@@ -137,11 +149,7 @@ std::unique_ptr<IActionObject> PlayAudioSource::clone() const
     cloned_obj->curr_frame_ = 0;
     cloned_obj->input_pos_ = 0;
 
-    cloned_obj->fp_ = nullptr;
-    cloned_obj->audible_.clear();
-
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
+    // open_source() was already called by the constructor above.
     return std::move(cloned_obj);
   } else {
     return nullptr;
@@ -164,7 +172,14 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
   this->set_lifecycle_state(LifecycleState::RUNNING);
 
   auto& itr = this->current_buffer_;
-  if(*itr == nullptr || (*itr)->samples == nullptr) {
+  if( this->audible_.empty() ) {
+    status = FrameState::COMPLETED;
+    this->set_status(status);
+    this->set_lifecycle_state(LifecycleState::FINISHED);
+    return status;
+  }
+
+  if( itr == this->audible_.end() || *itr == nullptr || (*itr)->samples == nullptr) {
     status = FrameState::COMPLETED;
     this->set_status(status);
     this->set_lifecycle_state(LifecycleState::FINISHED);
@@ -233,11 +248,7 @@ PlayAudioSource::update(real32 t, uint8 b, int16 c, real32 d)
 IActionObject::FrameState PlayAudioSource::next_frame(real32 delta_time)
 {
   delta_time = this->timer_.to_seconds();
-#if 0
-  if(this->audible_) {
-    this->audible_->elapsed_seconds = this->timer_.ticks();
-  }
-#endif
+
   this->first_frame(delta_time);
 
   return this->update(delta_time, 0.0f, 0.0f, this->duration());
@@ -246,11 +257,7 @@ IActionObject::FrameState PlayAudioSource::next_frame(real32 delta_time)
 IActionObject::FrameState PlayAudioSource::prev_frame(real32 delta_time)
 {
   delta_time = this->timer_.to_seconds();
-#if 0
-  if(this->audible_) {
-    this->audible_->elapsed_seconds = this->timer_.ticks();
-  }
-#endif
+
   this->first_frame(delta_time);
 
   return this->update(delta_time, 0.0f, 0.0f, this->duration());
@@ -284,16 +291,24 @@ void PlayAudioSource::rewind(real32 delta_time)
   this->input_pos_ = 0;
   this->current_buffer_ = this->audible_.begin();
 
+  // Stop all buffers
   for(auto itr = this->audible_.begin(); itr != this->audible_.end(); ++itr) {
     if((*itr) != nullptr) {
       audio::stop((*itr), this->impl_);
       (*itr)->samples_read = 0;
     }
   }
+
+  // Seek the file reader back to frame zero so the next read starts from the
+  // beginning of the audio.
+  if( this->fp_ != nullptr && this->fp_->valid() ) {
+    this->fp_->seek(0, audio::SOUND_SEEK_SET);
+  }
 }
 
 void PlayAudioSource::release()
 {
+  // Release owned streaming buffer queue
   auto audible_end = this->audible_.end();
   for(auto itr = this->audible_.begin(); itr != audible_end; ++itr)
   {
@@ -302,12 +317,12 @@ void PlayAudioSource::release()
     }
   }
   this->audible_.clear();
+  this->current_buffer_ = this->audible_.end();
 
-  if(this->fp_ != nullptr) {
-    delete this->fp_;
-    this->fp_ = nullptr;
-  }
+  // unique_ptr automatically cleans up the ISoundFileReader on reset
+  this->fp_.reset();
 
+  // Observer pointer - clear, never delete
   this->impl_ = nullptr;
 
   IActionObject::release();
@@ -332,13 +347,12 @@ void PlayAudioSource::last_frame(real32 delta_time)
 {
   NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                "END at", delta_time);
-  auto itr = this->current_buffer_;
 
   this->timer_.stop();
 
   // TODO(jeff): ?
-  // audio::stop((*itr), this->impl_);
-  // (*itr)->samples_read = 0;
+  // audio::stop((*this->current_buffer_), this->impl_);
+  // (*this->current_buffer_)->samples_read = 0;
   this->input_pos_ = 0;
 }
 

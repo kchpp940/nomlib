@@ -98,8 +98,6 @@ std::unique_ptr<IActionObject> AnimateTexturesAction::clone() const
     cloned_obj->next_frame_ = cloned_obj->frames_.begin();
     cloned_obj->last_frame_ = cloned_obj->frames_.empty() ? cloned_obj->frames_.end() : (cloned_obj->frames_.end() - 1);
 
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;

@@ -71,8 +71,6 @@ std::unique_ptr<IActionObject> CallbackAction::clone() const
     cloned_obj->elapsed_frames_ = 0.0f;
     cloned_obj->timer_.stop();
 
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;
@@ -157,6 +155,12 @@ void CallbackAction::resume(real32 delta_time)
 void CallbackAction::rewind(real32 delta_time)
 {
   IActionObject::rewind(delta_time);
+
+  // Stop the timer so the next run through next_frame() will re-enter the
+  // first_frame "begin" branch (timer_.started() == false).  This is required
+  // for correct behaviour when the action is wrapped inside RepeatFor or
+  // RepeatForever.
+  this->timer_.stop();
 }
 
 void CallbackAction::release()

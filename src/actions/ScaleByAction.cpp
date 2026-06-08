@@ -70,8 +70,6 @@ std::unique_ptr<IActionObject> ScaleByAction::clone() const
     cloned_obj->initial_size_ = Size2i::zero;
     cloned_obj->size_ = Size2i::zero;
 
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;

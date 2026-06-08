@@ -154,6 +154,13 @@ DispatchQueue::update(uint32 player_state, real32 delta_time)
 
     NOM_ASSERT(this->num_actions_ >= 0);
 
+    // Unified lifecycle exit: release any owned resources (audio buffers, file
+    // handles, etc.) as soon as the action finishes.  The shared_ptr keeps the
+    // wrapper alive until this DispatchQueue is erased from ActionPlayer, but
+    // the action itself is now marked RELEASED and will short-circuit any
+    // further next_frame() calls.
+    action->release();
+
     // Holla back
     if( completion_func != nullptr ) {
       completion_func.operator()();

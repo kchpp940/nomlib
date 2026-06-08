@@ -33,17 +33,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
+namespace {
+// Global monotonically increasing counter used to assign every IActionObject
+// a unique identity at construction time.  We deliberately use a process-wide
+// counter so that ids are stable even across multiple ActionPlayer instances.
+static uint64 next_action_id_counter = 0;
+} // namespace (anonymous)
+
 IActionObject::IActionObject() :
   timing_curve_(nom::Linear::ease_in_out)
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       NOM_LOG_PRIORITY_VERBOSE );
+
+  this->action_id_ = ++(next_action_id_counter);
 }
 
 IActionObject::~IActionObject()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       NOM_LOG_PRIORITY_VERBOSE );
+
+  // RAII safety net: if the user (or a container action) forgot to call
+  // release(), ensure owned resources are still freed before the object dies.
+  if( this->lifecycle_state_ != LifecycleState::RELEASED ) {
+    this->release();
+  }
+}
+
+uint64 IActionObject::id() const
+{
+  return this->action_id_;
 }
 
 const std::string& IActionObject::name() const

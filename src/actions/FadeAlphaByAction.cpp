@@ -71,8 +71,6 @@ std::unique_ptr<IActionObject> FadeAlphaByAction::clone() const
     cloned_obj->initial_alpha_ = 0.0f;
     cloned_obj->alpha_ = 0;
 
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;

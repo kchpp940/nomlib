@@ -94,10 +94,6 @@ std::unique_ptr<IActionObject> GroupAction::clone() const
     cloned_obj->num_completed_ = 0;
     cloned_obj->num_actions_ = cloned_obj->actions_.size();
 
-    // IMPORTANT: This is done to prevent the cloned action from being erased
-    // from a running queue at the same time as the original instance!
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;

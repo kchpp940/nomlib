@@ -71,10 +71,6 @@ std::unique_ptr<IActionObject> RepeatForAction::clone() const
       cloned_obj->action_ = this->action_->clone();
     }
 
-    // IMPORTANT: This is done to prevent the cloned action from being erased
-    // from a running queue at the same time as the original instance!
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;

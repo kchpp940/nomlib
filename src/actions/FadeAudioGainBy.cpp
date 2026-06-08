@@ -53,6 +53,9 @@ FadeAudioGainBy(audio::IOAudioEngine* dev, const char* filename, real32 delta,
 
   this->impl_ = dev;
   this->elapsed_frames_ = 0.0f;
+  this->owns_audible_ = true;
+  this->source_filename_ = filename != nullptr ? filename : "";
+
   this->audible_ = audio::create_buffer(filename, this->impl_);
   // TODO(jeff): Validity check..?
 
@@ -70,6 +73,9 @@ FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
 
   this->impl_ = dev;
   this->elapsed_frames_ = 0.0f;
+  this->owns_audible_ = false;  // Caller retains ownership
+  this->source_filename_.clear();
+
   this->audible_ = buffer;
 
   this->set_duration(duration);
@@ -92,9 +98,22 @@ std::unique_ptr<IActionObject> FadeAudioGainBy::clone() const
     cloned_obj->elapsed_frames_ = 0.0f;
     cloned_obj->timer_.stop();
 
-    cloned_obj->audible_ = nullptr;
-
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+    // Clone respects the ownership model:
+    //   - If we own audible_, the clone must independently re-load the file
+    //     so it doesn't share or double-free the buffer.
+    //   - If we are observing an external buffer, the clone also observes
+    //     (never frees) the same external buffer.
+    if( this->owns_audible_ && !this->source_filename_.empty() ) {
+      cloned_obj->owns_audible_ = true;
+      cloned_obj->audible_ =
+        audio::create_buffer(this->source_filename_.c_str(), cloned_obj->impl_);
+      cloned_obj->initial_volume_ =
+        audio::volume(cloned_obj->audible_, cloned_obj->impl_);
+    } else {
+      cloned_obj->owns_audible_ = false;
+      cloned_obj->audible_ = this->audible_;
+      cloned_obj->initial_volume_ = this->initial_volume_;
+    }
 
     return std::move(cloned_obj);
   } else {
@@ -230,6 +249,10 @@ void FadeAudioGainBy::rewind(real32 delta_time)
 {
   IActionObject::rewind(delta_time);
 
+  // IMPORTANT: Do NOT re-read the buffer's current volume here; on rewind the
+  // caller expects the action to revert to the value captured at first_frame()
+  // time, not whatever the buffer happens to be at right now.  This eliminates
+  // state carry-over between repetitions inside RepeatFor / RepeatForever.
   if(this->audible_ != nullptr) {
     audio::set_volume(this->audible_, this->impl_, this->initial_volume_);
     audio::stop(this->audible_, this->impl_);
@@ -238,8 +261,11 @@ void FadeAudioGainBy::rewind(real32 delta_time)
 
 void FadeAudioGainBy::release()
 {
-  if(this->audible_ != nullptr) {
+  if(this->owns_audible_ && this->audible_ != nullptr) {
     audio::free_buffer(this->audible_, this->impl_);
+    this->audible_ = nullptr;
+  } else {
+    // Observer mode: just drop the reference, never free the caller's buffer.
     this->audible_ = nullptr;
   }
 
@@ -258,7 +284,9 @@ void FadeAudioGainBy::first_frame(real32 delta_time)
     NOM_LOG_INFO(NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
                  "BEGIN at", delta_time);
 
-    // ...Set the animation up...
+    // Capture the starting volume on the first frame of *each* run; rewind()
+    // will restore the buffer to exactly this value, not whatever it reads
+    // from the hardware later.
     if(this->audible_ != nullptr) {
       this->initial_volume_ = audio::volume(this->audible_, this->impl_);
 

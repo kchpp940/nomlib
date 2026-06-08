@@ -82,8 +82,6 @@ std::unique_ptr<IActionObject> SpriteBatchAction::clone() const
     cloned_obj->initial_frame_ = 0;
     cloned_obj->last_delta_ = 0.0f;
 
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;

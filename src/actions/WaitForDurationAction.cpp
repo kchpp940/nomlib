@@ -63,8 +63,6 @@ std::unique_ptr<IActionObject> WaitForDurationAction::clone() const
     cloned_obj->elapsed_frames_ = 0.0f;
     cloned_obj->timer_.stop();
 
-    cloned_obj->set_name( "__" + this->name() + "_cloned" );
-
     return std::move(cloned_obj);
   } else {
     return nullptr;
