@@ -30,7 +30,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/audio/IOAudioEngine.hpp"
 #include "nomlib/audio/SoundBuffer.hpp"
+#include "nomlib/core/unique_ptr.hpp"
 #include "nomlib/system/CachedResourceLoader.hpp"
+#include "nomlib/system/ResourceLoaders.hpp"
+#include "nomlib/actions/PlayAudioSource.hpp"
+#include "nomlib/actions/IActionObject.hpp"
 
 #if defined(NOM_USE_OPENAL) || defined(NOM_USE_APPLE_OPENAL) || defined(NOM_USE_OPENAL_SOFT)
   #include "nomlib/audio/AL/SoundSource.hpp"
@@ -117,22 +121,30 @@ SoundBuffer* load_sound_buffer_from_resource( CachedResourceLoader& loader,
   // the previous entry for ResourceFile::Audio.
   loader.register_type_loader(
     ResourceFile::Type::Audio,
-    std::make_unique<AudioBufferLoader>( engine ) );
+    nom::make_unique<AudioBufferLoader>( engine ) );
 
   return loader.load<SoundBuffer>( resource_id );
 }
 
-std::string resolve_audio_resource_path( CachedResourceLoader& loader,
-                                         const std::string& resource_id )
+std::unique_ptr<IActionObject>
+create_play_audio_action( CachedResourceLoader& loader,
+                          IOAudioEngine* engine,
+                          const std::string& resource_id )
 {
-  const std::string path = loader.resolve_path( resource_id );
-  if( path.empty() )
+  // Register ResourceFilePathLoader if not already present — idempotent.
+  loader.register_type_loader(
+    nom::make_unique<ResourceFilePathLoader>() );
+
+  const std::string* path = loader.load<std::string>( resource_id );
+  if( path == nullptr || path->empty() )
   {
-    NOM_LOG_WARN( NOM_LOG_CATEGORY_AUDIO,
-                  "resolve_audio_resource_path: no such manifest ID:",
-                  resource_id );
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_AUDIO,
+                 "create_play_audio_action: failed to resolve manifest ID:",
+                 resource_id );
+    return nullptr;
   }
-  return path;
+
+  return nom::make_unique<PlayAudioSource>( engine, path->c_str() );
 }
 
 } // namespace audio

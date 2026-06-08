@@ -2,7 +2,7 @@
 
   nomlib - C++11 cross-platform game engine
 
-Copyright (c) 2013, 2014 Jeffrey Carpenter <i8degrees@gmail.com>
+Copyright (c) 2013, 2014, 2015, 2016 Jeffrey Carpenter <i8degrees@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,43 +26,39 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ******************************************************************************/
-#ifndef NOMLIB_SYSTEM_HEADERS
-#define NOMLIB_SYSTEM_HEADERS
+#include "nomlib/system/ResourceLoaders.hpp"
 
-// Public header file
+namespace nom {
 
-#include <nomlib/system/FPS.hpp>
-#include <nomlib/system/StateMachine.hpp>
-#include <nomlib/system/IState.hpp>
-#include <nomlib/system/dialog_messagebox.hpp>
-#include <nomlib/system/Path.hpp>
-#include <nomlib/system/File.hpp>
-#include <nomlib/system/SDLApp.hpp>
-#include <nomlib/system/EventHandler.hpp>
-#include <nomlib/system/Joystick.hpp>
-#include <nomlib/system/GameController.hpp>
-#include <nomlib/system/Timer.hpp>
-#include <nomlib/system/HighResolutionTimer.hpp>
+ResourceFilePathLoader::~ResourceFilePathLoader( void )
+{
+  NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_SYSTEM,
+                      nom::NOM_LOG_PRIORITY_VERBOSE );
+}
 
-// Engine initialization & shutdown
-#include <nomlib/system/init.hpp>
+ResourceFile::Type ResourceFilePathLoader::type( void ) const
+{
+  return ResourceFile::Type::FilePath;
+}
 
-#include <nomlib/system/SDL_helpers.hpp>
-#include <nomlib/system/Event.hpp>
-#include <nomlib/system/InputMapper/InputAction.hpp>
-#include <nomlib/system/InputMapper/InputStateMapper.hpp>
-#include <nomlib/system/InputMapper/InputActionMapper.hpp>
+void* ResourceFilePathLoader::load( const std::string& absolute_path )
+{
+  if( absolute_path.empty() )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+                 "ResourceFilePathLoader: refusing to load empty path" );
+    return nullptr;
+  }
+  return new std::string( absolute_path );
+}
 
-// Resource management
-#include <nomlib/system/resource_types.hpp>
-#include <nomlib/system/ResourceFile.hpp>
-#include <nomlib/system/ResourceCache.hpp>
-#include <nomlib/system/ResourceManifest.hpp>
-#include <nomlib/system/SearchPath.hpp>
-#include <nomlib/system/IResourceTypeLoader.hpp>
-#include <nomlib/system/ResourceLoaders.hpp>
-#include <nomlib/system/CachedResourceLoader.hpp>
+void ResourceFilePathLoader::unload( void* resource )
+{
+  if( resource != nullptr )
+  {
+    std::string* str = static_cast<std::string*>( resource );
+    delete str;
+  }
+}
 
-#include <nomlib/system/ColorDatabase.hpp>
-
-#endif // include guard defined
+} // namespace nom

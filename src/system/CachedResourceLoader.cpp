@@ -173,6 +173,26 @@ void* CachedResourceLoader::load_internal( const std::string& name,
     return nullptr;
   }
 
+  // 1b. Validate type — if the caller requested a specific type via
+  //     TypeTraits<T>, it must match the manifest entry's type tag.
+  //     Special case: ResourceFile::Invalid is treated as "don't care".
+  if( expected_type != ResourceFile::Type::Invalid &&
+      desc->type != ResourceFile::Type::Invalid &&
+      expected_type != desc->type )
+  {
+    // Allow FilePath to match any manifest type — this is the "last resort"
+    // loader for legacy APIs that only consume raw file paths.
+    if( expected_type != ResourceFile::Type::FilePath )
+    {
+      NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+                   "CachedResourceLoader: type mismatch for '", name,
+                   "' — manifest says type=", static_cast<int>( desc->type ),
+                   " but caller requested type=",
+                   static_cast<int>( expected_type ) );
+      return nullptr;
+    }
+  }
+
   // 2. Check cache first
   auto cache_itr = this->cache_.find( name );
   if( cache_itr != this->cache_.end() && cache_itr->second.loaded )

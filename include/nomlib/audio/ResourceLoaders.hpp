@@ -2,7 +2,7 @@
 
   nomlib - C++11 cross-platform game engine
 
-Copyright (c) 2013, 2014 Jeffrey Carpenter <i8degrees@gmail.com>
+Copyright (c) 2013, 2014, 2015, 2016 Jeffrey Carpenter <i8degrees@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,14 +35,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/config.hpp"
 #include "nomlib/system/IResourceTypeLoader.hpp"
 #include "nomlib/system/ResourceFile.hpp"
+#include "nomlib/system/CachedResourceLoader.hpp"
 
 namespace nom {
+
+// Forward declarations at top level (for TypeTraits below)
+class IActionObject;
+
 namespace audio {
 
-// Forward declarations
 class IOAudioEngine;
 struct SoundBuffer;
-class CachedResourceLoader;
+
+} // namespace audio
+
+// TypeTraits specializations — must be at nom namespace scope
+// These map C++ types to ResourceFile::Type tags so that
+// CachedResourceLoader::load<T>() can validate types at load time.
+template <> struct TypeTraits<audio::SoundBuffer>
+{
+  static constexpr ResourceFile::Type resource_type = ResourceFile::Audio;
+};
+
+namespace audio {
 
 /// \brief Resource type loader for audio::SoundBuffer objects.
 ///
@@ -87,9 +102,10 @@ class AudioBufferLoader : public IResourceTypeLoader
 // ============================================================================
 // Convenience helpers — audio module glue for CachedResourceLoader.
 //
-// These free functions keep application-level code free of direct
-// resolve_path() calls. Path-string-only APIs (e.g. PlayAudioSource) are
-// wrapped here as well.
+// These helpers **never** call CachedResourceLoader::resolve_path() directly.
+// They always go through CachedResourceLoader::load<T>(), which means the
+// resource is cached, type-validated, and tracked by the loader's lifecycle
+// machinery.
 // ============================================================================
 
 /// \brief Convenience: load an audio::SoundBuffer through a CachedResourceLoader
@@ -104,14 +120,24 @@ SoundBuffer* load_sound_buffer_from_resource( CachedResourceLoader& loader,
                                               IOAudioEngine* engine,
                                               const std::string& resource_id );
 
-/// \brief Convenience: resolve the absolute file path of an audio resource
-///        by manifest ID.
+/// \brief Convenience: create a PlayAudioSource action that plays the audio
+///        resource identified by manifest ID.
 ///
-/// This exists solely for legacy audio APIs that consume raw file paths
-/// (e.g. PlayAudioSource). Callers in application code should prefer
-/// load_sound_buffer_from_resource() whenever possible.
-std::string resolve_audio_resource_path( CachedResourceLoader& loader,
-                                         const std::string& resource_id );
+/// This helper routes the path lookup through the CachedResourceLoader's
+/// FilePath loader (ResourceFilePathLoader) — so the resolved path is cached
+/// and tracked like any other resource — then hands the path off to the
+/// existing PlayAudioSource(filename) constructor.
+///
+/// \param loader     The resource loader to query.
+/// \param engine     The active audio engine.
+/// \param resource_id The manifest ID of the audio resource to play.
+///
+/// \returns A unique_ptr to a new IActionObject (which is a PlayAudioSource),
+///          or nullptr on failure.
+std::unique_ptr<IActionObject>
+create_play_audio_action( CachedResourceLoader& loader,
+                          IOAudioEngine* engine,
+                          const std::string& resource_id );
 
 } // namespace audio
 } // namespace nom

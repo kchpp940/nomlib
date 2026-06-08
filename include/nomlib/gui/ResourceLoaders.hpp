@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/IResourceTypeLoader.hpp"
+#include "nomlib/system/CachedResourceLoader.hpp"
 
 namespace nom {
 
@@ -78,20 +79,19 @@ class GuiDocumentLoader : public IResourceTypeLoader
 };
 
 // ============================================================================
-// Convenience helpers — wrap libRocket path-string-only APIs.
+// Convenience helpers — adapt libRocket path-only APIs.
 //
-// These free functions look up a resource by manifest ID through the
-// CachedResourceLoader, resolve the absolute path, and hand it off to the
-// underlying libRocket API (UIContext::load_font, UIWidget::load_document_file).
-// They exist so that application-level code (examples, games) never needs to
-// call CachedResourceLoader::resolve_path() directly.
+// These go through CachedResourceLoader::load<std::string>() via the
+// ResourceFilePathLoader adapter (from nomlib/system/ResourceLoaders.hpp).
+// They **never** call resolve_path() directly — all path resolution is
+// routed through the loader's cache, type validation, and release machinery.
 // ============================================================================
 
 /// \brief Load a font into a UIContext (libRocket desktop) from a resource
 ///        manifest ID.
 ///
-/// \returns TRUE if the resource was found, resolved, and successfully
-///          loaded by libRocket.
+/// \returns TRUE if the resource was found through the manifest, the path
+///          was resolved and cached, and libRocket accepted the font.
 bool load_font_from_resource( UIContext& context,
                               CachedResourceLoader& loader,
                               const std::string& resource_id );
@@ -99,8 +99,8 @@ bool load_font_from_resource( UIContext& context,
 /// \brief Load an RML document file into a UIWidget (e.g. UIMessageBox,
 ///        UIQuestionDialogBox) from a resource manifest ID.
 ///
-/// \returns TRUE if the resource was found, resolved, and successfully
-///          loaded into the widget.
+/// \returns TRUE if the resource was found, resolved, and loaded into the
+///          widget.
 bool load_document_from_resource( UIWidget& widget,
                                   CachedResourceLoader& loader,
                                   const std::string& resource_id );

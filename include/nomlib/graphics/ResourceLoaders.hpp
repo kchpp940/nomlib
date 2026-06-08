@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/config.hpp"
 #include "nomlib/system/IResourceTypeLoader.hpp"
 #include "nomlib/system/ResourceFile.hpp"
+#include "nomlib/system/CachedResourceLoader.hpp"
 
 namespace nom {
 
@@ -45,6 +46,27 @@ class Font;
 class SpriteSheet;
 class RenderWindow;
 class CachedResourceLoader;
+
+// TypeTraits specializations — map C++ types to ResourceFile::Type tags so
+// that CachedResourceLoader::load<T>() can validate types at load time.
+template <> struct TypeTraits<Texture>
+{
+  static constexpr ResourceFile::Type resource_type = ResourceFile::Graphic;
+};
+template <> struct TypeTraits<Image>
+{
+  static constexpr ResourceFile::Type resource_type = ResourceFile::Graphic;
+};
+template <> struct TypeTraits<Font>
+{
+  // FontLoader handles both TrueType and Bitmap fonts — Invalid signals
+  // the loader to accept either.
+  static constexpr ResourceFile::Type resource_type = ResourceFile::Invalid;
+};
+template <> struct TypeTraits<SpriteSheet>
+{
+  static constexpr ResourceFile::Type resource_type = ResourceFile::SpriteSheet;
+};
 
 /// \brief Resource type loader for nom::Texture (graphic images).
 ///

@@ -31,8 +31,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fstream>
 #include <sstream>
 
+#include "nomlib/core/unique_ptr.hpp"
 #include "nomlib/system/File.hpp"
 #include "nomlib/system/CachedResourceLoader.hpp"
+#include "nomlib/system/ResourceLoaders.hpp"
 #include "nomlib/gui/UIContext.hpp"
 #include "nomlib/gui/UIWidget.hpp"
 
@@ -103,37 +105,56 @@ void GuiDocumentLoader::unload( void* resource )
 }
 
 // ===========================================================================
-// Convenience free functions — wrap path-string-only libRocket APIs
+// Convenience free functions — adapt libRocket path-only APIs.
+//
+// IMPORTANT: These helpers must **never** call CachedResourceLoader::resolve_path()
+// directly. They always route through CachedResourceLoader::load<std::string>(),
+// which means the resolved path is cached, type-validated, and tracked by the
+// loader's lifecycle machinery via ResourceFilePathLoader.
 // ===========================================================================
+
+namespace {
+inline void ensure_gui_file_path_loader( CachedResourceLoader& loader )
+{
+  // Idempotent — register_type_loader overwrites any existing entry for
+  // the same ResourceFile::Type.
+  loader.register_type_loader(
+    nom::make_unique<ResourceFilePathLoader>() );
+}
+} // anonymous namespace
 
 bool load_font_from_resource( UIContext& context,
                               CachedResourceLoader& loader,
                               const std::string& resource_id )
 {
-  const std::string path = loader.resolve_path( resource_id );
-  if( path.empty() )
+  ensure_gui_file_path_loader( loader );
+
+  const std::string* path = loader.load<std::string>( resource_id );
+  if( path == nullptr || path->empty() )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_GUI,
-                 "load_font_from_resource: no such manifest ID:",
+                 "load_font_from_resource: failed to resolve manifest ID:",
                  resource_id );
     return false;
   }
-  return context.load_font( path );
+  return context.load_font( *path );
 }
 
 bool load_document_from_resource( UIWidget& widget,
                                   CachedResourceLoader& loader,
                                   const std::string& resource_id )
 {
-  const std::string path = loader.resolve_path( resource_id );
-  if( path.empty() )
+  ensure_gui_file_path_loader( loader );
+
+  const std::string* path = loader.load<std::string>( resource_id );
+  if( path == nullptr || path->empty() )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_GUI,
-                 "load_document_from_resource: no such manifest ID:",
+                 "load_document_from_resource: failed to resolve manifest ID:",
                  resource_id );
     return false;
   }
-  return widget.load_document_file( path );
+  return widget.load_document_file( *path );
 }
 
 } // namespace nom

@@ -234,8 +234,8 @@ NOM_IGNORED_VARS_ENDL();
   } else {
     // Load the default test sound through the unified resource loader.
     // The audio module's adapter helper handles loader registration,
-    // manifest lookup, path resolution, and caching — no direct
-    // resolve_path() call here.
+    // manifest lookup, path resolution, and caching — all routed through
+    // the CachedResourceLoader's load<T>() pipeline.
     buffer = nom::audio::load_sound_buffer_from_resource(
       res_loader, dev, "sinewave_1s" );
     if( buffer == nullptr || audio::valid_buffer(buffer, dev) == false ) {
@@ -253,15 +253,26 @@ NOM_IGNORED_VARS_ENDL();
   audio::set_velocity(buffer, dev, audio_velocity);
   // audio::set_state(buffer, dev, audio::AUDIO_STATE_LOOPING);
 #if 1
-  // Resolve the audio file path through the audio adapter helper instead
-  // of calling resolve_path() directly — keeps all path-resolution concerns
-  // inside the audio module.
-  const std::string playback_path = ( args.audio_input.length() > 0 )
-    ? args.audio_input
-    : nom::audio::resolve_audio_resource_path( res_loader, "sinewave_1s" );
+  // Create the PlayAudioSource action either from a user-supplied path
+  // (command-line -i) or by manifest ID through the audio adapter.
+  // The adapter factory (create_play_audio_action) internally routes
+  // through CachedResourceLoader::load<std::string>() so the resolved path
+  // enters the cache, type-validation, and release machinery just like
+  // any other resource — no raw resolve_path() call here.
+  std::unique_ptr<IActionObject> playback_action;
 
-  auto playback_action =
-    nom::create_action<PlayAudioSource>(dev, playback_path.c_str());
+  if( args.audio_input.length() > 0 ) {
+    playback_action =
+      nom::create_action<PlayAudioSource>(dev, args.audio_input.c_str());
+  } else {
+    playback_action =
+      nom::audio::create_play_audio_action(res_loader, dev, "sinewave_1s");
+    if( playback_action == nullptr ) {
+      NOM_LOG_ERR(NOM_LOG_CATEGORY_APPLICATION,
+                  "Could not create PlayAudioSource for manifest ID: sinewave_1s");
+      return NOM_EXIT_FAILURE;
+    }
+  }
 #else
   auto playback_action =
     nom::create_action<FadeAudioGainBy>(dev, buffer, ACTION_FADE_DISPLACEMENT,

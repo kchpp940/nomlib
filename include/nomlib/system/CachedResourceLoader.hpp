@@ -48,6 +48,28 @@ namespace nom {
 // Forward declarations
 class Value;
 
+/// \brief Type-traits mapping concrete C++ types to their corresponding
+///        ResourceFile::Type tag.
+///
+/// Specialize this for each resource type you want to load through
+/// CachedResourceLoader::load<T>(). The primary template is deliberately
+/// left undefined — failure to specialize results in a compile-time error.
+///
+/// \code
+///   // Example specialization for nom::Texture:
+///   template <> struct TypeTraits<Texture> {
+///     static constexpr ResourceFile::Type resource_type = ResourceFile::Graphic;
+///   };
+/// \endcode
+template <typename T>
+struct TypeTraits;
+
+// Built-in specializations for generic types.
+template <> struct TypeTraits<std::string>
+{
+  static constexpr ResourceFile::Type resource_type = ResourceFile::FilePath;
+};
+
 /// \brief Unified resource loader with caching, lifecycle management, and
 ///        preloading support.
 ///
@@ -301,12 +323,11 @@ class CachedResourceLoader
 template <typename T>
 T* CachedResourceLoader::load( const std::string& name )
 {
-  // We don't try to deduce the type from T (that would require RTTI or
-  // additional registration). Instead, we rely on the manifest to tell us
-  // the type, and the type loader to produce a compatible T*. The caller is
-  // responsible for requesting a T that matches the manifest entry's type.
+  // Look up the expected ResourceFile::Type tag via TypeTraits<T>.
+  // This enables type validation inside load_internal() — if the manifest
+  // entry's type does not match what the caller asked for, loading fails.
   bool loaded_from_cache = false;
-  void* raw = this->load_internal( name, ResourceFile::Type::Invalid,
+  void* raw = this->load_internal( name, TypeTraits<T>::resource_type,
                                     loaded_from_cache );
   return static_cast<T*>( raw );
 }

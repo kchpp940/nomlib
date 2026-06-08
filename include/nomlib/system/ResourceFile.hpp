@@ -56,7 +56,8 @@ class ResourceFile
       TrueTypeFont,
       BitmapFont,
       GuiDocument,
-      SpriteSheet
+      SpriteSheet,
+      FilePath
     };
 
     /// \brief Default constructor; initialize resource to an invalid state.
