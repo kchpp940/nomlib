@@ -200,7 +200,7 @@ void SequenceAction::release()
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
     if( *itr != nullptr ) {
-      (*itr)->release();
+      (*itr)->final_release();
       (*itr).reset();
     }
   }

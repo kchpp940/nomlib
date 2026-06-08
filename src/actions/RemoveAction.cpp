@@ -124,7 +124,7 @@ void RemoveAction::rewind(real32 delta_time)
 void RemoveAction::release()
 {
   if( this->action_ != nullptr ) {
-    this->action_->release();
+    this->action_->final_release();
   }
 
   this->action_.reset();

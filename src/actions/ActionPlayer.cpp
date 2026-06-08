@@ -46,6 +46,17 @@ ActionPlayer::ActionPlayer() :
 ActionPlayer::~ActionPlayer()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION, NOM_LOG_PRIORITY_VERBOSE);
+
+  // Deterministic teardown: for every action still in the map, call
+  // final_release() *before* the unique_ptr<DispatchQueue> destroys the
+  // queue.  This guarantees the derived vtable is still intact when
+  // release() runs, so owned resources (unique_ptr<ISoundFileReader>,
+  // manually-allocated SoundBuffers, ...) are actually freed.
+  for( auto& kv : this->actions_ ) {
+    if( kv.second != nullptr ) {
+      kv.second->final_release_all();
+    }
+  }
 }
 
 bool ActionPlayer::idle() const
@@ -114,6 +125,12 @@ bool ActionPlayer::cancel_action(const std::string& action_name)
     auto res = this->actions_.find(action_id);
     if( res != this->actions_.end() ) {
 
+      // Final-release before erasing so the derived vtable is still intact
+      // when release() runs.
+      if( res->second != nullptr ) {
+        res->second->final_release_all();
+      }
+
       this->actions_.erase(res);
       found_any = true;
     }
@@ -143,6 +160,15 @@ ActionPlayer::cancel_actions(const ActionPlayer::action_names& actions)
 void ActionPlayer::cancel_actions()
 {
   this->free_list_.clear();
+
+  // Final-release every enqueued action before clearing the map so that
+  // subclass release() hooks actually run (derived vtable is still alive).
+  for( auto& kv : this->actions_ ) {
+    if( kv.second != nullptr ) {
+      kv.second->final_release_all();
+    }
+  }
+
   this->name_index_.clear();
   this->actions_.clear();
 }
@@ -208,6 +234,12 @@ bool ActionPlayer::update(real32 delta_time)
 
     NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_ACTION_PLAYER, DEBUG_CLASS_NAME,
                     "erasing action", "[action_id]:", action_id );
+
+    // Final-release BEFORE erasing from the map -- at this point the object
+    // is still fully alive so the derived release() hook dispatches correctly.
+    if( res->second != nullptr ) {
+      res->second->final_release_all();
+    }
 
     // Look up and remove any name_index_ entries pointing to this id.
     // We have to scan the whole multimap since name_index_ is keyed by name.

@@ -227,7 +227,7 @@ void GroupAction::release()
 
     IActionObject* action = (*itr).action.get();
     if( action != nullptr ) {
-      action->release();
+      action->final_release();
     }
   } // end for loop
 

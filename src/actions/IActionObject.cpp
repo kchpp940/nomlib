@@ -54,11 +54,33 @@ IActionObject::~IActionObject()
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       NOM_LOG_PRIORITY_VERBOSE );
 
-  // RAII safety net: if the user (or a container action) forgot to call
-  // release(), ensure owned resources are still freed before the object dies.
-  if( this->lifecycle_state_ != LifecycleState::RELEASED ) {
-    this->release();
+  // NOTE: We deliberately do NOT call release() / final_release() here.  In
+  // a C++ base-class destructor the derived vtable has already been torn
+  // down, so invoking the virtual release() hook would only run
+  // IActionObject::release() and silently skip every derived override --
+  // leaking unique_ptr members, raw SoundBuffer pointers, and any other
+  // resource owned by a subclass.
+  //
+  // The correct release path is:
+  //   ActionPlayer (removes action from map)
+  //     -> action->final_release()  [non-virtual, dispatches to virtual release()]
+  //       -> ~IActionObject()       [RAII members destroyed bottom-up]
+}
+
+void IActionObject::final_release()
+{
+  if( this->lifecycle_state_ == LifecycleState::RELEASED ) {
+    return;
   }
+
+  // Dispatch to the virtual release() hook.  Because final_release() is
+  // called while the object is still fully alive (typically by ActionPlayer
+  // just before erasing it from its map), the vtable is intact and the
+  // correct derived override runs.
+  this->release();
+
+  // Guard against a derived override that forgot to chain up.
+  this->lifecycle_state_ = LifecycleState::RELEASED;
 }
 
 uint64 IActionObject::id() const

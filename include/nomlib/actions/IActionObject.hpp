@@ -78,9 +78,42 @@ class IActionObject
 
     IActionObject();
 
-    /// \brief Destructor -- automatically calls release() if the action has
-    ///        not already been released, ensuring owned resources are freed.
+    /// \brief Destructor.
+    ///
+    /// \note The destructor does **NOT** call the virtual release() hook:
+    ///       during a base-class destructor the derived vtable is no longer
+    ///       available, so only IActionObject::release() would run and any
+    ///       derived-class cleanup (unique_ptr members, manually-owned raw
+    ///       buffers, etc.) would silently leak.
+    ///
+    ///       Instead, RAII members (unique_ptr, shared_ptr, std::vector,
+    ///       std::string, ...) are destroyed by the compiler-generated chain
+    ///       of derived destructors running bottom-up.  Any non-RAII resource
+    ///       that must be released deterministically **before** destruction
+    ///       should be released via final_release() -- which is called by
+    ///       ActionPlayer when it actually removes the action from its
+    ///       scheduling map (at which point the full derived vtable is still
+    ///       intact).
     virtual ~IActionObject();
+
+    /// \brief Deterministic, safe entry point for releasing all owned resources.
+    ///
+    /// \details This is the **only** public entry point that should be used
+    ///          to tear down an action's resources.  It:
+    ///            1. short-circuits if lifecycle_state() is already RELEASED
+    ///            2. dispatches to the virtual release() hook (which works
+    ///               correctly because the caller guarantees the object is
+    ///               still fully alive)
+    ///            3. marks lifecycle_state() as RELEASED
+    ///
+    ///          ActionPlayer calls this on every action before removing it
+    ///          from its internal map, regardless of whether the action
+    ///          completed normally or was cancelled.
+    ///
+    /// \note After final_release() returns the object is still destructible
+    ///       (RAII members are untouched), but rewind() / clone() /
+    ///       next_frame() must not be called.
+    void final_release();
 
     /// \brief Get the internal unique identifier of the action.
     ///
@@ -226,23 +259,30 @@ class IActionObject
     /// \see nom::RepeatForAction, nom::RepeatForeverAction
     virtual void rewind(real32 delta_time);
 
-    /// \brief Free externally referenced resources held by the action.
+    /// \brief Hook for derived classes to free manually-held resources.
     ///
-    /// \note <b>This method should not normally need to be called externally!
-    /// Exceptions might include: a) implementing a new action; b) advanced
-    /// debugging</b>
+    /// \note <b>Do not call this directly from application code.</b>
+    ///       Use final_release() instead, which handles the lifecycle_state
+    ///       transition and short-circuits correctly when the action has
+    ///       already been torn down.
     ///
     /// \details
-    ///   - shared_ptr-held targets (Sprite, SpriteBatch, ...): reference is released.
-    ///   - Action-owned raw resources (internally allocated SoundBuffers, file
-    ///     handles, etc.): explicitly freed / deleted.
-    ///   - Non-owning observer pointers: cleared to nullptr (NOT deleted).
+    ///   - Derived classes override this to free non-RAII / manually-owned
+    ///     resources (raw-pointer SoundBuffers, C file handles, ...) and
+    ///     to drop observer pointers to external objects.
+    ///   - RAII members (unique_ptr, shared_ptr, std::vector, std::string,
+    ///     std::function, ...) do **not** need to be touched here -- the
+    ///     compiler-generated derived destructors will destroy them in the
+    ///     normal bottom-up order.
+    ///   - Container actions (Sequence / Group / Repeat) override this to
+    ///     recursively final_release() their children, mirroring the
+    ///     ownership tree.
     ///
-    /// \post lifecycle_state() == RELEASED
-    /// \post Calling next_frame / prev_frame after release() is safe and
-    ///       immediately returns COMPLETED.
+    /// \post The base-class implementation sets lifecycle_state() to
+    ///       RELEASED; derived overrides must chain to IActionObject::release()
+    ///       at the end (or equivalent).
     ///
-    /// \see nom::RemoveAction
+    /// \see nom::IActionObject::final_release
     virtual void release();
 
   protected:

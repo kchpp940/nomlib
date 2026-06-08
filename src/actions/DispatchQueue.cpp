@@ -62,6 +62,15 @@ DispatchQueue::~DispatchQueue()
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION, NOM_LOG_PRIORITY_VERBOSE);
 }
 
+void DispatchQueue::final_release_all()
+{
+  for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
+    if( *itr != nullptr && (*itr)->action != nullptr ) {
+      (*itr)->action->final_release();
+    }
+  }
+}
+
 nom::size_type DispatchQueue::num_actions() const
 {
   return this->num_actions_;
@@ -154,12 +163,14 @@ DispatchQueue::update(uint32 player_state, real32 delta_time)
 
     NOM_ASSERT(this->num_actions_ >= 0);
 
-    // Unified lifecycle exit: release any owned resources (audio buffers, file
-    // handles, etc.) as soon as the action finishes.  The shared_ptr keeps the
-    // wrapper alive until this DispatchQueue is erased from ActionPlayer, but
-    // the action itself is now marked RELEASED and will short-circuit any
-    // further next_frame() calls.
-    action->release();
+    // NOTE: We deliberately do NOT call action->release() / final_release()
+    // here.  The action may still be referenced by:
+    //   * the caller (they might want to rewind() / clone() it later)
+    //   * a container action (RepeatFor / RepeatForever expects to rewind
+    //     children between iterations)
+    //
+    // Resource teardown happens exactly once, in ActionPlayer, right before
+    // the action is erased from the scheduling map (via final_release()).
 
     // Holla back
     if( completion_func != nullptr ) {
