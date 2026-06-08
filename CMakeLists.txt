@@ -540,6 +540,26 @@ add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
 
+# ============================================================================
+# Build-option validation regression target.
+#
+# Runs the full 18-case CMake build-option matrix defined in
+# bin/check_build_options.sh, verifying that nom_validate_build_options()
+# (cmake/macros.cmake) correctly accepts valid configurations and rejects
+# invalid ones BEFORE compilation starts.
+#
+# Usage:
+#   make check-build-options          # from a configured build directory
+#   cmake --build . --target check-build-options
+#   bin/check_build_options.sh        # directly, from project root
+# ============================================================================
+add_custom_target( check-build-options
+  COMMAND "${PROJECT_SOURCE_DIR}/bin/check_build_options.sh"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  COMMENT "Running 18-case CMake build-option validation matrix..."
+  VERBATIM
+)
+
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )
   # CPack configuration

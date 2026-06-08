@@ -130,6 +130,62 @@ cmake -D CMAKE_INSTALL_PREFIX=~/Library/Frameworks ..
 
 Removal is provided by executing **make uninstall** within your current build directory.
 
+### Build-Option Validation & Module Dependencies
+
+The project enforces build-option dependencies **before compilation** to catch
+misconfigurations early with clear error messages. The centralized validation
+macro lives in `cmake/macros.cmake` (`nom_validate_build_options()`) and runs
+twice: once from the root `CMakeLists.txt` (right after third-party detection)
+and once from `src/CMakeLists.txt` (right before source compilation).
+
+The hard module-dependency graph enforced by the validator:
+
+| Module                | Requires these build units                                   | Requires external libraries      |
+|-----------------------|--------------------------------------------------------------|----------------------------------|
+| `NOM_BUILD_CORE_UNIT`  | *(none)*                                                     | SDL2                             |
+| `NOM_BUILD_MATH_UNIT`  | *(none — leaf utility)*                                      | *(none)*                         |
+| `NOM_BUILD_FILE_UNIT`  | `CORE`                                                       | *(none)*                         |
+| `NOM_BUILD_SYSTEM_UNIT`| `CORE`, `MATH`, `FILE`                                        | SDL2, SDL2_image, SDL2_ttf       |
+| `NOM_BUILD_PTREE_UNIT` | `CORE`                                                       | *(none)*                         |
+| `NOM_BUILD_SERIALIZERS_UNIT` | `CORE`, `PTREE`                                        | JsonCpp, RapidXml                |
+| `NOM_BUILD_GRAPHICS_UNIT` | `CORE`, `MATH`, `FILE`, `SERIALIZERS`, `SYSTEM`         | *(via system unit)*              |
+| `NOM_BUILD_AUDIO_UNIT` | `CORE`, `MATH`, `SYSTEM`                                     | OpenAL / OpenAL-Soft, libsndfile |
+| `NOM_BUILD_GUI_UNIT`   | `GRAPHICS`                                                   | libRocket                        |
+| `NOM_BUILD_ACTIONS_UNIT` | `CORE`, `MATH`, `SYSTEM`, `GRAPHICS`, `AUDIO`           | *(via deps above)*               |
+| `EXAMPLES`             | `CORE`, `SYSTEM`, `GRAPHICS`, `GUI`, `AUDIO`, `ACTIONS`     | *(via deps above)*               |
+| `NOM_BUILD_TESTS`      | `CORE` (plus each sub-test unit requires its matching build unit) | GTest (optional)           |
+
+Any invalid combination aborts CMake configuration with a
+**Build Option Validation FAILED** banner that lists the exact missing modules
+and, when applicable, the concrete sub-actions / sub-examples that won't be
+available.
+
+**Valid (minimal) builds** that are explicitly supported by the validator:
+
+- *Base only*: keep `NOM_BUILD_ACTIONS_UNIT`, `NOM_BUILD_AUDIO_UNIT`,
+  `NOM_BUILD_GUI_UNIT`, `EXAMPLES`, `NOM_BUILD_TESTS` all `OFF` — only
+  `core / math / file / system / ptree / serializers` (+ `graphics` if desired)
+  are compiled.
+
+#### Verifying the validation layer
+
+A 18-case regression matrix ships with the project and can be invoked with either:
+
+```shell
+# From the project source tree (no prior CMake configure required):
+bin/check_build_options.sh
+
+# After configuring a build directory:
+make check-build-options
+# or
+cmake --build . --target check-build-options
+```
+
+This matrix covers every combination of `actions / audio / graphics / gui /
+examples / tests` listed above — both the valid trimmed configurations (which
+must pass) and every known-invalid one (which must fail with the distinctive
+banner, never reaching compilation).
+
 **IMPORTANT:** If you are building multiple target types with the generated MSVCPP or Xcode project files, each of these targets **must** be kept in separate build directories!
 
 ## Mac OS X Dependencies
