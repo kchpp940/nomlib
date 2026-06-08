@@ -152,7 +152,8 @@ bool EventHandler::EventConverter::convert_mouse_motion(
 
   Point2i pos(ev->motion.x, ev->motion.y);
   Point2i delta(ev->motion.xrel, ev->motion.yrel);
-  if( cvt != nullptr ) {
+  const bool converted = (cvt != nullptr && cvt->is_active());
+  if( converted ) {
     pos = cvt->to_logical(pos);
     delta = cvt->to_logical_delta(delta);
   }
@@ -160,6 +161,7 @@ bool EventHandler::EventConverter::convert_mouse_motion(
   out.motion.y = pos.y;
   out.motion.x_rel = delta.x;
   out.motion.y_rel = delta.y;
+  out.motion.coord_space = converted ? MOUSE_COORD_LOGICAL : MOUSE_COORD_WINDOW;
 
   out.motion.state = ev->motion.state;
   out.motion.window_id = ev->motion.windowID;
@@ -190,11 +192,13 @@ bool EventHandler::EventConverter::convert_mouse_button(
   out.mouse.id = ev->button.which;
 
   Point2i pos(ev->button.x, ev->button.y);
-  if( cvt != nullptr ) {
+  const bool converted = (cvt != nullptr && cvt->is_active());
+  if( converted ) {
     pos = cvt->to_logical(pos);
   }
   out.mouse.x = pos.x;
   out.mouse.y = pos.y;
+  out.mouse.coord_space = converted ? MOUSE_COORD_LOGICAL : MOUSE_COORD_WINDOW;
 
   out.mouse.button = button;
   out.mouse.state = ev->button.state;
@@ -563,15 +567,10 @@ bool EventHandler::DeviceLifecycleManager::handle_device_event(
       Event dev_event;
       if( EventConverter::convert_controller_device(ev, dev_event) ) {
         auto dev_id = dev_event.cdevice.id;
-        auto joy_dev = evt_handler->joystick(dev_id);
-        if( joy_dev != nullptr ) {
-          NOM_LOG_INFO( NOM_LOG_CATEGORY_EVENT,
-                        "Game controller instance ID", dev_id,
-                        "has been remapped" );
-        } else {
+        if( evt_handler->remap_joystick(dev_id) == false ) {
           NOM_LOG_WARN( NOM_LOG_CATEGORY_EVENT,
                         "Game controller instance ID", dev_id,
-                        "remapped but device not found in pool" );
+                        "remap failed; device no longer in pool" );
         }
         return true;
       }
@@ -613,9 +612,20 @@ void EventHandler::EventDispatcher::dispatch(const Event& ev, EventHandler& owne
 EventHandler::CoordinateSpaceConverter::CoordinateSpaceConverter() = default;
 EventHandler::CoordinateSpaceConverter::~CoordinateSpaceConverter() = default;
 
+bool EventHandler::CoordinateSpaceConverter::is_active() const
+{
+  return this->scale_bound || static_cast<bool>(this->converter);
+}
+
 Point2i
 EventHandler::CoordinateSpaceConverter::to_logical(const Point2i& window_pos) const
 {
+  if( this->scale_bound ) {
+    const float sx = (this->scale_x > 0.0f) ? this->scale_x : 1.0f;
+    const float sy = (this->scale_y > 0.0f) ? this->scale_y : 1.0f;
+    return Point2i( static_cast<int>(window_pos.x / sx),
+                    static_cast<int>(window_pos.y / sy) );
+  }
   if( this->converter ) {
     return this->converter(window_pos);
   }
@@ -626,6 +636,12 @@ Point2i
 EventHandler::CoordinateSpaceConverter::to_logical_delta(
     const Point2i& window_delta) const
 {
+  if( this->scale_bound ) {
+    const float sx = (this->scale_x > 0.0f) ? this->scale_x : 1.0f;
+    const float sy = (this->scale_y > 0.0f) ? this->scale_y : 1.0f;
+    return Point2i( static_cast<int>(window_delta.x / sx),
+                    static_cast<int>(window_delta.y / sy) );
+  }
   if( this->converter ) {
     Point2i origin = this->converter(Point2i(0, 0));
     Point2i shifted = this->converter(window_delta);
@@ -755,6 +771,25 @@ void EventHandler::remove_event_watchers()
 void EventHandler::set_mouse_coordinate_converter(const MouseCoordinateFn& fn)
 {
   this->coord_converter_.converter = fn;
+}
+
+void EventHandler::bind_logical_viewport(float scale_x, float scale_y)
+{
+  this->coord_converter_.scale_x = (scale_x > 0.0f) ? scale_x : 1.0f;
+  this->coord_converter_.scale_y = (scale_y > 0.0f) ? scale_y : 1.0f;
+  this->coord_converter_.scale_bound = true;
+}
+
+void EventHandler::unbind_logical_viewport()
+{
+  this->coord_converter_.scale_x = 1.0f;
+  this->coord_converter_.scale_y = 1.0f;
+  this->coord_converter_.scale_bound = false;
+}
+
+bool EventHandler::has_logical_viewport() const
+{
+  return this->coord_converter_.is_active();
 }
 
 void EventHandler::push_event(const Event& ev)
@@ -950,6 +985,7 @@ Event create_mouse_button_click(uint8 button, uint8 clicks, uint32 window_id)
   result.mouse.state = InputState::PRESSED;
   result.mouse.clicks = clicks;
   result.mouse.window_id = window_id;
+  result.mouse.coord_space = MOUSE_COORD_WINDOW;
 
   return result;
 }
@@ -963,6 +999,7 @@ Event create_mouse_button_release(uint8 button, uint8 clicks, uint32 window_id)
   result.mouse.state = InputState::RELEASED;
   result.mouse.clicks = clicks;
   result.mouse.window_id = window_id;
+  result.mouse.coord_space = MOUSE_COORD_WINDOW;
 
   return result;
 }

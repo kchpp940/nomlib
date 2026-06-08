@@ -76,6 +76,17 @@ class GameControllerEventHandler
     /// \returns void
     void remove_joysticks();
 
+    /// \brief Refresh a game controller's internal mapping.
+    ///
+    /// Called when an SDL_CONTROLLERDEVICEREMAPPED event is received. Closes
+    /// the existing device handle and re-opens it so that SDL picks up the
+    /// new mapping for the controller. The device instance ID should remain
+    /// the same across a remap.
+    ///
+    /// \returns Boolean TRUE if the joystick was found in the pool and
+    ///          successfully re-opened, and boolean FALSE otherwise.
+    bool remap_joystick(JoystickID dev_id);
+
   private:
     typedef std::map<JoystickID, std::unique_ptr<GameController>> joysticks;
 

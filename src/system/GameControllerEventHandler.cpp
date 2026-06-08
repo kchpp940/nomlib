@@ -143,4 +143,70 @@ void GameControllerEventHandler::remove_joysticks() {
   }
 }
 
+bool GameControllerEventHandler::remap_joystick(JoystickID dev_id)
+{
+  auto res = this->joysticks_.find(dev_id);
+  if(res == this->joysticks_.end()) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
+                 "Cannot remap game controller", dev_id,
+                 ": device not found in pool");
+    return false;
+  }
+
+  std::unique_ptr<GameController>& existing = res->second;
+  if(existing == nullptr) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
+                 "Cannot remap game controller", dev_id,
+                 ": device pointer is null");
+    return false;
+  }
+
+  JoystickIndex device_index = -1;
+  const int num_joysticks = SDL_NumJoysticks();
+  for(int i = 0; i < num_joysticks; ++i) {
+    Joystick joy;
+    if(joy.open(i) == true) {
+      if(joy.device_id() == dev_id) {
+        device_index = i;
+        break;
+      }
+    }
+  }
+
+  if(device_index < 0) {
+    NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
+                 "Cannot remap game controller", dev_id,
+                 ": device index not re-discoverable");
+    return false;
+  }
+
+  existing->close();
+  existing.reset();
+
+  auto new_dev = nom::make_unique_game_controller();
+  if(new_dev != nullptr && new_dev->open(device_index) == true) {
+    JoystickID new_id = new_dev->device_id();
+    if(new_id == dev_id) {
+      existing = std::move(new_dev);
+      NOM_LOG_INFO(NOM_LOG_CATEGORY_EVENT,
+                   "Game controller", dev_id,
+                   "mapping refreshed successfully");
+      return true;
+    } else {
+      NOM_LOG_WARN(NOM_LOG_CATEGORY_EVENT,
+                   "Game controller remap changed instance ID",
+                   dev_id, "→", new_id);
+      this->joysticks_.erase(res);
+      this->joysticks_[new_id] = std::move(new_dev);
+      return true;
+    }
+  }
+
+  NOM_LOG_ERR(NOM_LOG_CATEGORY_EVENT,
+              "Failed to re-open game controller", dev_id,
+              "after remap event");
+  this->joysticks_.erase(res);
+  return false;
+}
+
 } // namespace nom

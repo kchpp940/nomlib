@@ -56,6 +56,29 @@ enum MouseButton: uint8
   X2_MOUSE_BUTTON,
 };
 
+/// \brief Mouse coordinate space indicators.
+///
+/// Indicates which reference frame the x/y coordinates of a mouse event are
+/// expressed in. Consumers of mouse events can use this flag to determine
+/// whether additional conversion is necessary.
+enum MouseCoordinateSpace: uint8
+{
+  /// \brief Raw window pixel coordinates (physical pixels).
+  ///
+  /// The default for events when no logical viewport is bound to the
+  /// EventHandler. If the application uses independent resolution scaling
+  /// (SDL_RenderSetLogicalSize), these coordinates must be divided by the
+  /// render scale factor before use in logical-space calculations.
+  MOUSE_COORD_WINDOW = 0,
+
+  /// \brief Logical viewport coordinates (post-scaling).
+  ///
+  /// The EventHandler has applied the logical viewport transformation,
+  /// dividing the raw window coordinates by the render scale. These
+  /// coordinates are in the same space as Renderer::logical_size.
+  MOUSE_COORD_LOGICAL,
+};
+
 typedef int64 TouchID;
 typedef int64 FingerID;
 
@@ -169,6 +192,11 @@ struct MouseMotionEvent
 
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
+
+  /// \brief Indicates the coordinate space of x, y, x_rel, y_rel.
+  ///
+  /// \see nom::MouseCoordinateSpace
+  uint8 coord_space;
 };
 
 /// \brief A structure containing information on a mouse button event.
@@ -206,6 +234,11 @@ struct MouseButtonEvent
 
   /// \brief The identifier of the window at the moment of the event.
   uint32 window_id;
+
+  /// \brief Indicates the coordinate space of x, y.
+  ///
+  /// \see nom::MouseCoordinateSpace
+  uint8 coord_space;
 };
 
 /// \brief A structure containing information on a mouse wheel event.

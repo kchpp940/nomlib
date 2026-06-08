@@ -181,6 +181,45 @@ class EventHandler
     /// \see nom::Renderer::set_logical_size, nom::Renderer::scale
     void set_mouse_coordinate_converter(const MouseCoordinateFn& fn);
 
+    /// \brief Bind the EventHandler's mouse coordinate conversion to the
+    ///        logical viewport scale produced by SDL_RenderSetLogicalSize.
+    ///
+    /// After calling this method, all mouse motion and mouse button events
+    /// will have their x, y (and x_rel, y_rel) coordinates divided by the
+    /// supplied scale factors, and the event's coord_space field will be
+    /// set to nom::MOUSE_COORD_LOGICAL.
+    ///
+    /// This is the preferred approach when working with a Renderer that uses
+    /// independent resolution scaling:
+    /// \code
+    ///   renderer.set_logical_size(logical_w, logical_h);
+    ///   Point2f scale = renderer.scale();
+    ///   evt_handler.bind_logical_viewport(scale.x, scale.y);
+    /// \endcode
+    ///
+    /// \param scale_x Horizontal render scale (logical = window / scale_x).
+    ///                A value <= 0 is treated as 1.0f.
+    /// \param scale_y Vertical render scale (logical = window / scale_y).
+    ///                A value <= 0 is treated as 1.0f.
+    ///
+    /// \see nom::EventHandler::unbind_logical_viewport,
+    ///      nom::Renderer::scale, nom::Renderer::set_logical_size
+    void bind_logical_viewport(float scale_x, float scale_y);
+
+    /// \brief Remove the logical viewport binding set by bind_logical_viewport.
+    ///
+    /// Subsequent mouse events will retain raw window pixel coordinates and
+    /// their coord_space field will be nom::MOUSE_COORD_WINDOW.
+    ///
+    /// \see nom::EventHandler::bind_logical_viewport
+    void unbind_logical_viewport();
+
+    /// \brief Query whether a logical viewport is currently bound.
+    ///
+    /// \returns True if bind_logical_viewport has been called and not yet
+    ///          cleared by unbind_logical_viewport or a nullptr callback.
+    bool has_logical_viewport() const;
+
   private:
     // -----------------------------------------------------------------------
     // Internal helper components (forward declarations)
@@ -253,12 +292,20 @@ class EventHandler
     ///
     /// Translates raw window pixel coordinates to a logical coordinate
     /// space (e.g. independent resolution scaling via SDL_RenderSetLogicalSize).
-    /// The actual conversion is provided by the application via a callback,
-    /// to keep the system module independent of the graphics module.
+    /// Supports two modes:
+    ///   1. Direct scale binding (bind_logical_viewport) — uses internal
+    ///      scale_x / scale_y factors for the common SDL_RenderSetLogicalSize
+    ///      use case.
+    ///   2. Custom callback (set_mouse_coordinate_converter) — user-provided
+    ///      arbitrary transformation for special cases.
     struct CoordinateSpaceConverter
     {
       CoordinateSpaceConverter();
       ~CoordinateSpaceConverter();
+
+      /// \brief Returns true if either scale binding or a custom converter
+      ///        callback is active.
+      bool is_active() const;
 
       /// \brief Convert a raw window-space mouse position to logical space.
       /// If no converter is installed, returns the input unchanged.
@@ -268,6 +315,9 @@ class EventHandler
       /// If no converter is installed, returns the input unchanged.
       Point2i to_logical_delta(const Point2i& window_delta) const;
 
+      float scale_x = 1.0f;
+      float scale_y = 1.0f;
+      bool scale_bound = false;
       MouseCoordinateFn converter;
     };
 

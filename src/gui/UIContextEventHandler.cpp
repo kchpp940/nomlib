@@ -36,7 +36,37 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/gui/UIContext.hpp"
 #include "nomlib/system/Event.hpp"
 
+// Private headers
+#include "nomlib/graphics/RenderWindow.hpp"
+#include "nomlib/gui/RocketSDL2RenderInterface.hpp"
+
+#include <SDL.h>
+
 namespace nom {
+
+namespace {
+
+/// \brief Helper to query SDL's current render scale (logical viewport).
+///
+/// \returns Point2f(1, 1) if no render interface is available or the scale
+///          cannot be determined.
+Point2f get_render_scale()
+{
+  Point2f scale(1.0f, 1.0f);
+
+  auto target = NOM_DYN_PTR_CAST(
+      nom::RocketSDL2RenderInterface*,
+      Rocket::Core::GetRenderInterface() );
+  if( target != nullptr && target->window_ != nullptr ) {
+    SDL_RenderGetScale( target->window_->renderer(), &scale.x, &scale.y );
+    if( scale.x <= 0.0f ) scale.x = 1.0f;
+    if( scale.y <= 0.0f ) scale.y = 1.0f;
+  }
+
+  return scale;
+}
+
+} // anonymous namespace
 
 UIContextEventHandler::UIContextEventHandler( UIContext* ctx ) :
   ctx_( ctx )
@@ -75,8 +105,17 @@ void UIContextEventHandler::process_event(const nom::Event& ev)
 
     case nom::Event::MOUSE_MOTION:
     {
-      this->ctx_->context()->ProcessMouseMove(  ev.motion.x,
-                                                ev.motion.y,
+      int mx = ev.motion.x;
+      int my = ev.motion.y;
+
+      if( ev.motion.coord_space == MOUSE_COORD_WINDOW ) {
+        Point2f scale = get_render_scale();
+        mx = static_cast<int>(mx / scale.x);
+        my = static_cast<int>(my / scale.y);
+      }
+
+      this->ctx_->context()->ProcessMouseMove(  mx,
+                                                my,
                                                 this->translate_key_modifiers(ev) );
     } break;
 
