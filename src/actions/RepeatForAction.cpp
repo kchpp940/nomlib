@@ -56,10 +56,6 @@ RepeatForAction::~RepeatForAction()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       nom::NOM_LOG_PRIORITY_VERBOSE );
-
-  // Safety net: ensure the wrapped action is properly final-released even if
-  // this container is destroyed outside the ActionPlayer lifecycle.
-  this->final_release();
 }
 
 std::unique_ptr<IActionObject> RepeatForAction::clone() const
@@ -75,6 +71,10 @@ std::unique_ptr<IActionObject> RepeatForAction::clone() const
       cloned_obj->action_ = this->action_->clone();
     }
 
+    // IMPORTANT: This is done to prevent the cloned action from being erased
+    // from a running queue at the same time as the original instance!
+    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+
     return std::move(cloned_obj);
   } else {
     return nullptr;
@@ -87,23 +87,14 @@ RepeatForAction::update(real32 delta_time, uint32 direction)
   IActionObject::FrameState obj_status;
   IActionObject* action = this->action_.get();
 
-  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
-    this->set_status(FrameState::COMPLETED);
-    return this->status();
-  }
-
-  this->set_lifecycle_state(LifecycleState::RUNNING);
-
   if( action == nullptr ) {
     // No action to repeat!
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
     return this->status();
   }
 
   if( this->elapsed_repeats_ == this->num_repeats_ ) {
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
     return this->status();
   }
 
@@ -121,7 +112,6 @@ RepeatForAction::update(real32 delta_time, uint32 direction)
       action->rewind(delta_time);
     } else {
       this->set_status(FrameState::COMPLETED);
-      this->set_lifecycle_state(LifecycleState::FINISHED);
       NOM_ASSERT(this->num_repeats_ == this->elapsed_repeats_);
     }
 
@@ -145,8 +135,6 @@ IActionObject::FrameState RepeatForAction::prev_frame(real32 delta_time)
 
 void RepeatForAction::pause(real32 delta_time)
 {
-  IActionObject::pause(delta_time);
-
   if( this->action_ != nullptr ) {
     this->action_->pause(delta_time);
   }
@@ -154,8 +142,6 @@ void RepeatForAction::pause(real32 delta_time)
 
 void RepeatForAction::resume(real32 delta_time)
 {
-  IActionObject::resume(delta_time);
-
   if( this->action_ != nullptr ) {
     this->action_->resume(delta_time);
   }
@@ -163,9 +149,8 @@ void RepeatForAction::resume(real32 delta_time)
 
 void RepeatForAction::rewind(real32 delta_time)
 {
-  IActionObject::rewind(delta_time);
-
   this->elapsed_repeats_ = 0;
+  this->set_status(FrameState::PLAYING);
 
   if( this->action_ != nullptr ) {
     this->action_->rewind(delta_time);
@@ -175,11 +160,10 @@ void RepeatForAction::rewind(real32 delta_time)
 void RepeatForAction::release()
 {
   if( this->action_ != nullptr ) {
-    this->action_->final_release();
+    this->action_->release();
   }
 
   this->action_.reset();
-  IActionObject::release();
 }
 
 void RepeatForAction::set_speed(real32 speed)

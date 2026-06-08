@@ -58,19 +58,7 @@ MoveByAction::~MoveByAction()
 
 std::unique_ptr<IActionObject> MoveByAction::clone() const
 {
-  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
-  if( cloned_obj != nullptr ) {
-
-    cloned_obj->set_status(FrameState::PLAYING);
-    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
-    cloned_obj->elapsed_frames_ = 0.0f;
-    cloned_obj->timer_.stop();
-    cloned_obj->initial_position_ = Point2i::zero;
-
-    return std::move(cloned_obj);
-  } else {
-    return nullptr;
-  }
+  return( nom::make_unique<self_type>( self_type(*this) ) );
 }
 
 IActionObject::FrameState
@@ -89,13 +77,6 @@ MoveByAction::update(real32 t, const Point2i& b, const Point2i& c, real32 d)
 
   Point2f displacement(Point2f::zero);
   Point2i displacement_as_integer(Point2i::zero);
-
-  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
-    this->set_status(FrameState::COMPLETED);
-    return this->status();
-  }
-
-  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   // Clamp delta values that go beyond maximal duration
   if( delta_time > (duration / this->speed() ) ) {
@@ -157,7 +138,6 @@ MoveByAction::update(real32 t, const Point2i& b, const Point2i& c, real32 d)
   } else {
     this->last_frame(delta_time);
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return this->status();
@@ -185,17 +165,19 @@ IActionObject::FrameState MoveByAction::prev_frame(real32 delta_time)
 
 void MoveByAction::pause(real32 delta_time)
 {
-  IActionObject::pause(delta_time);
+  this->timer_.pause();
 }
 
 void MoveByAction::resume(real32 delta_time)
 {
-  IActionObject::resume(delta_time);
+  this->timer_.unpause();
 }
 
 void MoveByAction::rewind(real32 delta_time)
 {
-  IActionObject::rewind(delta_time);
+  this->elapsed_frames_ = 0.0f;
+  this->timer_.stop();
+  this->set_status(FrameState::PLAYING);
 
   if( this->drawable_ != nullptr ) {
     this->drawable_->set_position(this->initial_position_);
@@ -209,7 +191,6 @@ void MoveByAction::release()
   }
 
   this->drawable_.reset();
-  IActionObject::release();
 }
 
 // Private scope

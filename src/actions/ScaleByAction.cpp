@@ -60,20 +60,7 @@ ScaleByAction::~ScaleByAction()
 
 std::unique_ptr<IActionObject> ScaleByAction::clone() const
 {
-  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
-  if( cloned_obj != nullptr ) {
-
-    cloned_obj->set_status(FrameState::PLAYING);
-    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
-    cloned_obj->elapsed_frames_ = 0.0f;
-    cloned_obj->timer_.stop();
-    cloned_obj->initial_size_ = Size2i::zero;
-    cloned_obj->size_ = Size2i::zero;
-
-    return std::move(cloned_obj);
-  } else {
-    return nullptr;
-  }
+  return( nom::make_unique<self_type>( self_type(*this) ) );
 }
 
 IActionObject::FrameState
@@ -92,13 +79,6 @@ ScaleByAction::update(real32 t, const Size2i& b, const Size2f& c, real32 d)
 
   Size2f displacement(Size2f::zero);
   Size2i displacement_as_integer(Size2i::zero);
-
-  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
-    this->set_status(FrameState::COMPLETED);
-    return this->status();
-  }
-
-  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   // Clamp delta values that go beyond maximal duration
   if( delta_time > (duration / this->speed() ) ) {
@@ -163,7 +143,6 @@ ScaleByAction::update(real32 t, const Size2i& b, const Size2f& c, real32 d)
   } else {
     this->last_frame(delta_time);
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return this->status();
@@ -194,19 +173,19 @@ IActionObject::FrameState ScaleByAction::prev_frame(real32 delta_time)
 
 void ScaleByAction::pause(real32 delta_time)
 {
-  IActionObject::pause(delta_time);
+  this->timer_.pause();
 }
 
 void ScaleByAction::resume(real32 delta_time)
 {
-  IActionObject::resume(delta_time);
+  this->timer_.unpause();
 }
 
 void ScaleByAction::rewind(real32 delta_time)
 {
-  IActionObject::rewind(delta_time);
-
-  this->size_ = Size2i::zero;
+  this->elapsed_frames_ = 0.0f;
+  this->timer_.stop();
+  this->set_status(FrameState::PLAYING);
 
   if( this->drawable_ != nullptr ) {
     this->drawable_->set_size(this->initial_size_);
@@ -220,8 +199,6 @@ void ScaleByAction::release()
   }
 
   this->drawable_.reset();
-
-  IActionObject::release();
 }
 
 // Private scope

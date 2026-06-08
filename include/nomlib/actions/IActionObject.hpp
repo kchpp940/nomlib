@@ -31,7 +31,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <functional>
 #include <vector>
-#include <cstdint>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Timer.hpp"
@@ -60,73 +59,11 @@ class IActionObject
       PLAYING,
     };
 
-    /// \brief The lifecycle state of the action, used for consistent
-    ///        state transitions in pause/resume/rewind/release.
-    enum LifecycleState
-    {
-      /// The action is freshly constructed or rewound, ready to start.
-      IDLE,
-      /// The action is currently executing (timer running).
-      RUNNING,
-      /// The action has been paused.
-      PAUSED,
-      /// The action has completed its execution.
-      FINISHED,
-      /// The action has released its external resources and is invalid.
-      RELEASED,
-    };
-
     IActionObject();
 
-    /// \brief Destructor.
-    ///
-    /// \note The destructor does **NOT** call the virtual release() hook:
-    ///       during a base-class destructor the derived vtable is no longer
-    ///       available, so only IActionObject::release() would run and any
-    ///       derived-class cleanup (unique_ptr members, manually-owned raw
-    ///       buffers, etc.) would silently leak.
-    ///
-    ///       Instead, RAII members (unique_ptr, shared_ptr, std::vector,
-    ///       std::string, ...) are destroyed by the compiler-generated chain
-    ///       of derived destructors running bottom-up.  Any non-RAII resource
-    ///       that must be released deterministically **before** destruction
-    ///       should be released via final_release() -- which is called by
-    ///       ActionPlayer when it actually removes the action from its
-    ///       scheduling map (at which point the full derived vtable is still
-    ///       intact).
     virtual ~IActionObject();
 
-    /// \brief Deterministic, safe entry point for releasing all owned resources.
-    ///
-    /// \details This is the **only** public entry point that should be used
-    ///          to tear down an action's resources.  It:
-    ///            1. short-circuits if lifecycle_state() is already RELEASED
-    ///            2. dispatches to the virtual release() hook (which works
-    ///               correctly because the caller guarantees the object is
-    ///               still fully alive)
-    ///            3. marks lifecycle_state() as RELEASED
-    ///
-    ///          ActionPlayer calls this on every action before removing it
-    ///          from its internal map, regardless of whether the action
-    ///          completed normally or was cancelled.
-    ///
-    /// \note After final_release() returns the object is still destructible
-    ///       (RAII members are untouched), but rewind() / clone() /
-    ///       next_frame() must not be called.
-    void final_release();
-
-    /// \brief Get the internal unique identifier of the action.
-    ///
-    /// \remarks This ID is auto-generated at construction time and is
-    ///          guaranteed to be unique across all IActionObject instances.
-    ///          It is the authoritative key used by ActionPlayer for
-    ///          scheduling; the user-visible name() is purely a cosmetic label.
-    uint64 id() const;
-
-    /// \brief Get the user-assigned label of the action (may be empty).
-    ///
-    /// \remarks This is **not** a unique identifier.  Use id() for
-    ///          addressing a specific action within ActionPlayer.
+    /// \brief Get the unique identifier of the action.
     const std::string& name() const;
 
     /// \brief Get the duration of the action.
@@ -149,11 +86,6 @@ class IActionObject
     /// \see nom::IActionObject::timing_curve_func
     const IActionObject::timing_curve_func& timing_curve() const;
 
-    /// \brief Get the current lifecycle state of the action.
-    ///
-    /// \see nom::IActionObject::LifecycleState
-    IActionObject::LifecycleState lifecycle_state() const;
-
     /// \brief Set the unique identifier of the action.
     void set_name(const std::string& action_id);
 
@@ -165,21 +97,12 @@ class IActionObject
     /// \see nom::IActionObject::timing_curve_func
     virtual void set_timing_curve(const IActionObject::timing_curve_func& mode);
 
-    /// \brief Create a deep copy instance of the action in its initial state.
+    /// \brief Create a deep copy instance of the action.
     ///
-    /// \returns A new action instance with:
-    ///   - A fresh unique id() (never collides with the original)
-    ///   - Construction parameters fully copied
-    ///   - The user-visible name() preserved unchanged
-    ///   - Shared target objects (Sprite, SpriteBatch, etc.) keep shared ownership
-    ///   - All runtime state (timer, elapsed_frames, iterators, initial_* values)
-    ///     reset to defaults as if freshly constructed
-    ///
-    /// \note External target objects (sprites, audio buffers) are NOT deep-copied;
-    ///       the cloned action shares them with the original via shared_ptr /
-    ///       observer pointer semantics.  Owned resources (e.g. internally
-    ///       allocated audio buffers, file handles) MUST be cloned or
-    ///       re-acquired by the derived action.
+    /// \remarks A cloned instance is created using the action's attributes
+    /// at the time of construction. External resources of the action --
+    /// i.e.: nom::Sprite -- are not modified, and you may need to reset the
+    /// state appropriately if the action has been ran previously.
     virtual std::unique_ptr<IActionObject> clone() const = 0;
 
     /// \brief Play the action forward in time by one time step.
@@ -189,9 +112,6 @@ class IActionObject
     /// \note <b>This method should not normally need to be called externally!
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
-    ///
-    /// \post If the action reaches its end, FrameState::COMPLETED is returned
-    ///       and lifecycle_state() becomes FINISHED.
     ///
     /// \see nom::DispatchQueue
     virtual IActionObject::FrameState next_frame(real32 delta_time) = 0;
@@ -205,13 +125,12 @@ class IActionObject
     /// debugging</b>
     ///
     /// \remarks Not all actions are reversible -- see the action's
-    /// documentation for its implementation details.  Non-reversible actions
-    /// should behave identically to next_frame().
+    /// documentation for its implementation details.
     ///
     /// \see nom::ReversedAction
     virtual IActionObject::FrameState prev_frame(real32 delta_time) = 0;
 
-    /// \brief Freeze the action's internal state and any held external resources.
+    /// \brief Freeze the action's internal state.
     ///
     /// \param delta_time Reserved for application-defined implementations.
     ///
@@ -219,14 +138,10 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
-    /// \post lifecycle_state() == PAUSED
-    /// \post The internal timer is stopped; any playing audio / animation is
-    ///       also paused at the current position.
-    ///
     /// \see nom::DispatchQueue
-    virtual void pause(real32 delta_time);
+    virtual void pause(real32 delta_time) = 0;
 
-    /// \brief Resume the internal state of the action from where it was paused.
+    /// \brief Resume the internal state of the action.
     ///
     /// \param delta_time Reserved for application-defined implementations.
     ///
@@ -234,13 +149,11 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
-    /// \post lifecycle_state() == RUNNING (if the action was not already FINISHED)
-    ///
     /// \see nom::DispatchQueue
-    virtual void resume(real32 delta_time);
+    virtual void resume(real32 delta_time) = 0;
 
     /// \brief Reset the internal state of the action back to its initial
-    /// starting values, making it safe to replay from the beginning.
+    /// starting values.
     ///
     /// \param delta_time Reserved for application-defined implementations.
     ///
@@ -248,42 +161,17 @@ class IActionObject
     /// Exceptions might include: a) implementing a new action; b) advanced
     /// debugging</b>
     ///
-    /// \post lifecycle_state() == IDLE
-    /// \post Timer is reset; elapsed_frames_ is zero; all internal iterators
-    ///       and counters are at their construction defaults; "first frame"
-    ///       flags are cleared so that first_frame() will fire again on the
-    ///       next next_frame() call.
-    /// \post Target objects are restored to their recorded initial state
-    ///       (position, frame, volume, etc.) when applicable.
-    ///
     /// \see nom::RepeatForAction, nom::RepeatForeverAction
-    virtual void rewind(real32 delta_time);
+    virtual void rewind(real32 delta_time) = 0;
 
-    /// \brief Hook for derived classes to free manually-held resources.
+    /// \brief Free externally referenced resources held by the action.
     ///
-    /// \note <b>Do not call this directly from application code.</b>
-    ///       Use final_release() instead, which handles the lifecycle_state
-    ///       transition and short-circuits correctly when the action has
-    ///       already been torn down.
+    /// \note <b>This method should not normally need to be called externally!
+    /// Exceptions might include: a) implementing a new action; b) advanced
+    /// debugging</b>
     ///
-    /// \details
-    ///   - Derived classes override this to free non-RAII / manually-owned
-    ///     resources (raw-pointer SoundBuffers, C file handles, ...) and
-    ///     to drop observer pointers to external objects.
-    ///   - RAII members (unique_ptr, shared_ptr, std::vector, std::string,
-    ///     std::function, ...) do **not** need to be touched here -- the
-    ///     compiler-generated derived destructors will destroy them in the
-    ///     normal bottom-up order.
-    ///   - Container actions (Sequence / Group / Repeat) override this to
-    ///     recursively final_release() their children, mirroring the
-    ///     ownership tree.
-    ///
-    /// \post The base-class implementation sets lifecycle_state() to
-    ///       RELEASED; derived overrides must chain to IActionObject::release()
-    ///       at the end (or equivalent).
-    ///
-    /// \see nom::IActionObject::final_release
-    virtual void release();
+    /// \see nom::RemoveAction
+    virtual void release() = 0;
 
   protected:
     /// \brief Get the current state of the action.
@@ -301,11 +189,6 @@ class IActionObject
     /// \param state One of the IActionObject::FrameState enumeration values.
     void set_status(FrameState state);
 
-    /// \brief Set the lifecycle state of the action.
-    ///
-    /// \param state One of the IActionObject::LifecycleState enumeration values.
-    void set_lifecycle_state(LifecycleState state);
-
     /// \brief Internal frames counter.
     ///
     /// \remarks This is intended purely for debugging convenience.
@@ -320,14 +203,7 @@ class IActionObject
     Timer timer_;
 
   private:
-    /// \brief Auto-generated unique identifier, assigned at construction.
-    ///
-    /// This is the authoritative key used by ActionPlayer.  It is intentionally
-    /// never copied by clone() -- each instance always gets a fresh id.
-    uint64 action_id_ = 0;
-
     FrameState status_ = FrameState::PLAYING;
-    LifecycleState lifecycle_state_ = LifecycleState::IDLE;
     std::string name_;
     real32 duration_ = 0.0f;
     real32 speed_ = 1.0f;

@@ -60,11 +60,6 @@ SequenceAction::~SequenceAction()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       nom::NOM_LOG_PRIORITY_VERBOSE );
-
-  // Safety net: ensure child actions are properly final-released even if this
-  // container is destroyed outside the ActionPlayer lifecycle.  final_release()
-  // is idempotent and short-circuits when already RELEASED.
-  this->final_release();
 }
 
 std::unique_ptr<IActionObject> SequenceAction::clone() const
@@ -84,6 +79,10 @@ std::unique_ptr<IActionObject> SequenceAction::clone() const
     cloned_obj->num_completed_ = 0;
     cloned_obj->num_actions_ = cloned_obj->actions_.size();
 
+    // IMPORTANT: This is done to prevent the cloned action from being erased
+    // from a running queue at the same time as the original instance!
+    cloned_obj->set_name( "__" + this->name() + "_cloned" );
+
     return std::move(cloned_obj);
   } else {
     return nullptr;
@@ -95,13 +94,6 @@ SequenceAction::update(real32 delta_time, uint32 direction)
 {
   std::string action_id = "action";
   FrameState action_status = FrameState::COMPLETED;
-
-  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
-    this->set_status(FrameState::COMPLETED);
-    return this->status();
-  }
-
-  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   // Program flow is structured to never call back here after the actions are
   // finished -- this serves only as a reminder to the intended flow.
@@ -144,7 +136,6 @@ SequenceAction::update(real32 delta_time, uint32 direction)
 
   if( this->num_completed_ == this->num_actions_ ) {
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
     return this->status();
   }
 
@@ -163,8 +154,6 @@ IActionObject::FrameState SequenceAction::prev_frame(real32 delta_time)
 
 void SequenceAction::pause(real32 delta_time)
 {
-  IActionObject::pause(delta_time);
-
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
     if( *itr != nullptr ) {
@@ -175,8 +164,6 @@ void SequenceAction::pause(real32 delta_time)
 
 void SequenceAction::resume(real32 delta_time)
 {
-  IActionObject::resume(delta_time);
-
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
     if( *itr != nullptr ) {
@@ -187,10 +174,9 @@ void SequenceAction::resume(real32 delta_time)
 
 void SequenceAction::rewind(real32 delta_time)
 {
-  IActionObject::rewind(delta_time);
-
   this->num_completed_ = 0;
   this->actions_iterator_ = this->actions_.begin();
+  this->set_status(FrameState::PLAYING);
 
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
@@ -205,12 +191,10 @@ void SequenceAction::release()
   for( auto itr = this->actions_.begin(); itr != this->actions_.end(); ++itr ) {
 
     if( *itr != nullptr ) {
-      (*itr)->final_release();
+      (*itr)->release();
       (*itr).reset();
     }
   }
-
-  IActionObject::release();
 }
 
 void SequenceAction::set_speed(real32 speed)

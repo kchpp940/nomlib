@@ -91,14 +91,6 @@ class DispatchQueue
     DispatchQueue::State
     update(uint32 player_state, real32 delta_time);
 
-    /// \brief Call IActionObject::final_release() on every enqueued action.
-    ///
-    /// \details This is called by ActionPlayer exactly once, right before the
-    ///          DispatchQueue is erased from the scheduling map.  It is safe
-    ///          to call multiple times -- final_release() itself short-circuits
-    ///          on already-released actions.
-    void final_release_all();
-
   private:
     static const char* DEBUG_CLASS_NAME;
 

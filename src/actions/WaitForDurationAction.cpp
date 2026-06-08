@@ -55,30 +55,12 @@ WaitForDurationAction::~WaitForDurationAction()
 
 std::unique_ptr<IActionObject> WaitForDurationAction::clone() const
 {
-  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
-  if( cloned_obj != nullptr ) {
-
-    cloned_obj->set_status(FrameState::PLAYING);
-    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
-    cloned_obj->elapsed_frames_ = 0.0f;
-    cloned_obj->timer_.stop();
-
-    return std::move(cloned_obj);
-  } else {
-    return nullptr;
-  }
+  return( nom::make_unique<self_type>( self_type(*this) ) );
 }
 
 IActionObject::FrameState WaitForDurationAction::next_frame(real32 delta_time)
 {
   delta_time = ( Timer::to_seconds( this->timer_.ticks() ) );
-
-  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
-    this->set_status(FrameState::COMPLETED);
-    return this->status();
-  }
-
-  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   if( this->timer_.started() == false ) {
     this->timer_.start();
@@ -107,7 +89,6 @@ IActionObject::FrameState WaitForDurationAction::next_frame(real32 delta_time)
     this->set_status(FrameState::PLAYING);
   } else {
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   return this->status();
@@ -121,22 +102,24 @@ IActionObject::FrameState WaitForDurationAction::prev_frame(real32 delta_time)
 
 void WaitForDurationAction::pause(real32 delta_time)
 {
-  IActionObject::pause(delta_time);
+  this->timer_.pause();
 }
 
 void WaitForDurationAction::resume(real32 delta_time)
 {
-  IActionObject::resume(delta_time);
+  this->timer_.unpause();
 }
 
 void WaitForDurationAction::rewind(real32 delta_time)
 {
-  IActionObject::rewind(delta_time);
+  this->elapsed_frames_ = 0.0f;
+  this->timer_.stop();
+  this->set_status(FrameState::PLAYING);
 }
 
 void WaitForDurationAction::release()
 {
-  IActionObject::release();
+  // Nothing to free!
 }
 
 //! [creating_custom_actions]

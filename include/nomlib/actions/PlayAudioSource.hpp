@@ -30,8 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_ACTIONS_PLAY_AUDIO_SOURCE_HPP
 
 #include <memory>
-#include <string>
-#include <vector>
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
@@ -46,12 +44,8 @@ class ISoundFileReader;
 
 } // namespace audio
 
-/// \brief Stream an audio file from disk, frame-by-frame.
-///
-/// \note This action owns the streaming file reader and the internal audio buffer
-///       queue; both are released in release() (and automatically on
-///       destruction if release() was not called manually).  The IOAudioEngine* is an
-///       observer pointer and is never freed by the action.
+/// \brief [TODO: Description]
+// TODO: Update comments!
 class PlayAudioSource: public virtual IActionObject
 {
   public:
@@ -60,14 +54,16 @@ class PlayAudioSource: public virtual IActionObject
 
     typedef PlayAudioSource self_type;
 
-    /// \brief Construct the action from an audio file on disk.
+    /// \brief Default constructor; create the action from an audio file on
+    /// disk.
     PlayAudioSource(audio::IOAudioEngine* dev, const char* filename);
+
+    /// \brief Construct the action from a pre-initialized audio buffer.
+    // PlayAudioSource(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer);
 
     /// \brief Destructor.
     virtual ~PlayAudioSource();
 
-    /// \brief Create a clone that independently re-opens the same audio file
-    ///        file from disk.
     virtual std::unique_ptr<IActionObject> clone() const override;
 
     virtual IActionObject::FrameState next_frame(real32 delta_time) override;
@@ -76,44 +72,38 @@ class PlayAudioSource: public virtual IActionObject
 
     virtual void pause(real32 delta_time) override;
 
+    /// \brief Resume logic for the animation object.
+    ///
+    /// \remarks Reserved for future implementation.
     virtual void resume(real32 delta_time) override;
 
-    /// \brief Seek the audio file back to frame zero and restore all internal
-    ///        buffers to their freshly opened state, making the action safe to replay
-    ///        replay from the beginning (including inside RepeatFor /
-    ///        RepeatForever).
     virtual void rewind(real32 delta_time) override;
 
-    /// \brief Free the owned streaming reader (ISoundFileReader, SoundBuffer
-    ///        queue and clear the observer IOAudioEngine pointer.
     virtual void release() override;
 
   private:
     static const char* DEBUG_CLASS_NAME;
 
+    /// \brief Execute the alpha blending logic for the animation.
     IActionObject::FrameState update(real32 t, uint8 b, int16 c, real32 d);
 
     void first_frame(real32 delta_time);
     void last_frame(real32 delta_time);
 
-    /// \brief (Re-)Open the audio file and allocate the streaming buffer
-    ///        queue.  Called from the constructor and rewind().
-    bool open_source();
+    /// \brief The initial alpha blending value.
+    // real32 initial_volume_;
+
+    /// \brief The total change in the alpha blending value.
+    // const real32 total_displacement_;
 
     nom::size_type curr_frame_ = 0;
 
-    /// \brief Observer pointer to the audio device -- never owned, never deleted.
     audio::IOAudioEngine* impl_ = nullptr;
 
-    /// \brief Path used to (re-)open the source on clone() / rewind().
-    std::string source_filename_;
-
-    /// \brief Owned streaming file reader.
-    std::unique_ptr<audio::ISoundFileReader> fp_;
+    audio::ISoundFileReader* fp_ = nullptr;
 
     typedef std::vector<audio::SoundBuffer*> audio_buffers;
     audio_buffers::iterator current_buffer_;
-    /// \brief Owned streaming audio buffer queue -- freed in release().
     audio_buffers audible_;
 
     uint32 input_pos_ = 0;

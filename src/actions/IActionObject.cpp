@@ -33,59 +33,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace nom {
 
-namespace {
-// Global monotonically increasing counter used to assign every IActionObject
-// a unique identity at construction time.  We deliberately use a process-wide
-// counter so that ids are stable even across multiple ActionPlayer instances.
-static uint64 next_action_id_counter = 0;
-} // namespace (anonymous)
-
 IActionObject::IActionObject() :
   timing_curve_(nom::Linear::ease_in_out)
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       NOM_LOG_PRIORITY_VERBOSE );
-
-  this->action_id_ = ++(next_action_id_counter);
 }
 
 IActionObject::~IActionObject()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       NOM_LOG_PRIORITY_VERBOSE );
-
-  // NOTE: We deliberately do NOT call release() / final_release() here.  In
-  // a C++ base-class destructor the derived vtable has already been torn
-  // down, so invoking the virtual release() hook would only run
-  // IActionObject::release() and silently skip every derived override --
-  // leaking unique_ptr members, raw SoundBuffer pointers, and any other
-  // resource owned by a subclass.
-  //
-  // The correct release path is:
-  //   ActionPlayer (removes action from map)
-  //     -> action->final_release()  [non-virtual, dispatches to virtual release()]
-  //       -> ~IActionObject()       [RAII members destroyed bottom-up]
-}
-
-void IActionObject::final_release()
-{
-  if( this->lifecycle_state_ == LifecycleState::RELEASED ) {
-    return;
-  }
-
-  // Dispatch to the virtual release() hook.  Because final_release() is
-  // called while the object is still fully alive (typically by ActionPlayer
-  // just before erasing it from its map), the vtable is intact and the
-  // correct derived override runs.
-  this->release();
-
-  // Guard against a derived override that forgot to chain up.
-  this->lifecycle_state_ = LifecycleState::RELEASED;
-}
-
-uint64 IActionObject::id() const
-{
-  return this->action_id_;
 }
 
 const std::string& IActionObject::name() const
@@ -109,11 +67,6 @@ IActionObject::timing_curve_func& IActionObject::timing_curve() const
   return this->timing_curve_;
 }
 
-IActionObject::LifecycleState IActionObject::lifecycle_state() const
-{
-  return this->lifecycle_state_;
-}
-
 void IActionObject::set_name(const std::string& action_id)
 {
   this->name_ = action_id;
@@ -132,38 +85,6 @@ IActionObject::set_timing_curve(const IActionObject::timing_curve_func& mode)
   this->timing_curve_ = mode;
 }
 
-void IActionObject::pause(real32 delta_time)
-{
-  (void)delta_time;
-  if( this->lifecycle_state_ == LifecycleState::RUNNING ) {
-    this->timer_.pause();
-    this->lifecycle_state_ = LifecycleState::PAUSED;
-  }
-}
-
-void IActionObject::resume(real32 delta_time)
-{
-  (void)delta_time;
-  if( this->lifecycle_state_ == LifecycleState::PAUSED ) {
-    this->timer_.unpause();
-    this->lifecycle_state_ = LifecycleState::RUNNING;
-  }
-}
-
-void IActionObject::rewind(real32 delta_time)
-{
-  (void)delta_time;
-  this->elapsed_frames_ = 0.0f;
-  this->timer_.stop();
-  this->status_ = FrameState::PLAYING;
-  this->lifecycle_state_ = LifecycleState::IDLE;
-}
-
-void IActionObject::release()
-{
-  this->lifecycle_state_ = LifecycleState::RELEASED;
-}
-
 // Protected scope
 
 IActionObject::FrameState IActionObject::status() const
@@ -179,11 +100,6 @@ void IActionObject::set_duration(real32 seconds)
 void IActionObject::set_status(FrameState state)
 {
   this->status_ = state;
-}
-
-void IActionObject::set_lifecycle_state(LifecycleState state)
-{
-  this->lifecycle_state_ = state;
 }
 
 } // namespace nom

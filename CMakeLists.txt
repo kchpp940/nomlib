@@ -78,6 +78,202 @@ project( nomlib
   #LANGUAGES "en"
 )
 
+# ============================================================================
+# Build Option Dependency Validation
+# ============================================================================
+# Validate build option combinations BEFORE entering the compilation stage.
+# These checks ensure that required dependencies are enabled when their
+# dependents are requested, and that required third-party libraries are
+# available when their corresponding modules are enabled.
+
+set( _NOM_VALIDATION_ERRORS "" )
+
+# ---------------------------------------------------------------------------
+# 1. NOM_BUILD_ACTIONS_UNIT dependencies
+# ---------------------------------------------------------------------------
+if( NOM_BUILD_ACTIONS_UNIT )
+
+  # Actions always requires: core, math, system
+  foreach( _req_unit CORE MATH SYSTEM )
+    if( NOT NOM_BUILD_${_req_unit}_UNIT )
+      string( APPEND _NOM_VALIDATION_ERRORS
+        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_${_req_unit}_UNIT to be ON.\n" )
+    endif()
+  endforeach()
+
+  # If graphics is disabled, warn that graphics-related actions will be skipped
+  if( NOT NOM_BUILD_GRAPHICS_UNIT )
+    message( STATUS
+      "[WARNING] NOM_BUILD_GRAPHICS_UNIT is OFF; graphics-related animation "
+      "actions (AnimateTextures, FadeIn/Out, FadeAlphaBy, MoveBy, ScaleBy, "
+      "SpriteBatch) will NOT be built." )
+  endif()
+
+  # If audio is disabled, warn that audio-related actions will be skipped
+  if( NOT NOM_BUILD_AUDIO_UNIT )
+    message( STATUS
+      "[WARNING] NOM_BUILD_AUDIO_UNIT is OFF; audio-related animation actions "
+      "(FadeAudioGainBy, PlayAudioSource) will NOT be built." )
+  endif()
+
+endif( NOM_BUILD_ACTIONS_UNIT )
+
+# ---------------------------------------------------------------------------
+# 2. NOM_BUILD_GRAPHICS_UNIT dependencies
+# ---------------------------------------------------------------------------
+if( NOM_BUILD_GRAPHICS_UNIT )
+
+  foreach( _req_unit CORE MATH FILE SERIALIZERS SYSTEM )
+    if( NOT NOM_BUILD_${_req_unit}_UNIT )
+      string( APPEND _NOM_VALIDATION_ERRORS
+        "  [ERROR] NOM_BUILD_GRAPHICS_UNIT requires NOM_BUILD_${_req_unit}_UNIT to be ON.\n" )
+    endif()
+  endforeach()
+
+endif( NOM_BUILD_GRAPHICS_UNIT )
+
+# ---------------------------------------------------------------------------
+# 3. NOM_BUILD_AUDIO_UNIT dependencies (modules + external libraries)
+# ---------------------------------------------------------------------------
+if( NOM_BUILD_AUDIO_UNIT )
+
+  # Audio always requires: core, math, system
+  foreach( _req_unit CORE MATH SYSTEM )
+    if( NOT NOM_BUILD_${_req_unit}_UNIT )
+      string( APPEND _NOM_VALIDATION_ERRORS
+        "  [ERROR] NOM_BUILD_AUDIO_UNIT requires NOM_BUILD_${_req_unit}_UNIT to be ON.\n" )
+    endif()
+  endforeach()
+
+  # Check for required external libraries: OpenAL and libsndfile
+  # We do a preliminary check here; the actual find_package calls happen in
+  # src/audio/CMakeLists.txt, but we want to fail early with a clear message.
+  find_package( OpenAL QUIET )
+  if( NOT OPENAL_FOUND )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_AUDIO_UNIT requires OpenAL, but it was NOT found.\n"
+      "          Please install OpenAL (or OpenAL-Soft) development headers/libraries,\n"
+      "          or set OPENALDIR / OPENAL_ROOT to the installation path,\n"
+      "          or disable NOM_BUILD_AUDIO_UNIT.\n" )
+  endif()
+
+  find_package( libsndfile QUIET )
+  if( NOT LIBSNDFILE_FOUND )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_AUDIO_UNIT requires libsndfile, but it was NOT found.\n"
+      "          Please install libsndfile development headers/libraries,\n"
+      "          or set LIBSNDFILEDIR / LIBSNDFILE_ROOT to the installation path,\n"
+      "          or disable NOM_BUILD_AUDIO_UNIT.\n" )
+  endif()
+
+endif( NOM_BUILD_AUDIO_UNIT )
+
+# ---------------------------------------------------------------------------
+# 4. NOM_BUILD_GUI_UNIT dependencies (modules + external libraries)
+# ---------------------------------------------------------------------------
+if( NOM_BUILD_GUI_UNIT )
+
+  # GUI requires graphics
+  if( NOT NOM_BUILD_GRAPHICS_UNIT )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_GUI_UNIT requires NOM_BUILD_GRAPHICS_UNIT to be ON.\n"
+      "          Either enable NOM_BUILD_GRAPHICS_UNIT or disable NOM_BUILD_GUI_UNIT.\n" )
+  endif()
+
+  # Check for required external library: LibRocket
+  find_package( LibRocket QUIET )
+  if( NOT LIBROCKET_FOUND )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_GUI_UNIT requires libRocket, but it was NOT found.\n"
+      "          Please install libRocket development headers/libraries,\n"
+      "          or set LIBROCKETDIR / LIBROCKET_ROOT to the installation path,\n"
+      "          or disable NOM_BUILD_GUI_UNIT.\n" )
+  endif()
+
+endif( NOM_BUILD_GUI_UNIT )
+
+# ---------------------------------------------------------------------------
+# 5. EXAMPLES dependency check
+# ---------------------------------------------------------------------------
+if( EXAMPLES )
+
+  # Examples require at minimum core, system, graphics
+  foreach( _req_unit CORE SYSTEM GRAPHICS )
+    if( NOT NOM_BUILD_${_req_unit}_UNIT )
+      string( APPEND _NOM_VALIDATION_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_${_req_unit}_UNIT to be ON.\n" )
+    endif()
+  endforeach()
+
+  # Most examples also use GUI; warn if GUI is off
+  if( NOT NOM_BUILD_GUI_UNIT )
+    message( STATUS
+      "[WARNING] NOM_BUILD_GUI_UNIT is OFF; some examples (e.g. 'app', "
+      "'device_info') will NOT be built." )
+  endif()
+
+  # If audio example is enabled but audio unit is off
+  if( NOT NOM_BUILD_AUDIO_UNIT )
+    message( STATUS
+      "[WARNING] NOM_BUILD_AUDIO_UNIT is OFF; the 'audio' example will NOT be built." )
+  endif()
+
+endif( EXAMPLES )
+
+# ---------------------------------------------------------------------------
+# 6. NOM_BUILD_TESTS dependency check
+# ---------------------------------------------------------------------------
+if( NOM_BUILD_TESTS )
+
+  # Tests require core
+  if( NOT NOM_BUILD_CORE_UNIT )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_TESTS requires NOM_BUILD_CORE_UNIT to be ON.\n" )
+  endif()
+
+  # Tests for specific modules require those modules to be enabled
+  if( NOM_BUILD_AUDIO_TESTS AND NOT NOM_BUILD_AUDIO_UNIT )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_AUDIO_TESTS requires NOM_BUILD_AUDIO_UNIT to be ON.\n"
+      "          Either enable NOM_BUILD_AUDIO_UNIT or disable NOM_BUILD_AUDIO_TESTS.\n" )
+  endif()
+
+  if( NOM_BUILD_GRAPHICS_TESTS AND NOT NOM_BUILD_GRAPHICS_UNIT )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_GRAPHICS_TESTS requires NOM_BUILD_GRAPHICS_UNIT to be ON.\n"
+      "          Either enable NOM_BUILD_GRAPHICS_UNIT or disable NOM_BUILD_GRAPHICS_TESTS.\n" )
+  endif()
+
+  if( NOM_BUILD_ACTIONS_TESTS AND NOT NOM_BUILD_ACTIONS_UNIT )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_ACTIONS_TESTS requires NOM_BUILD_ACTIONS_UNIT to be ON.\n"
+      "          Either enable NOM_BUILD_ACTIONS_UNIT or disable NOM_BUILD_ACTIONS_TESTS.\n" )
+  endif()
+
+  if( NOM_BUILD_GUI_TESTS AND NOT NOM_BUILD_GUI_UNIT )
+    string( APPEND _NOM_VALIDATION_ERRORS
+      "  [ERROR] NOM_BUILD_GUI_TESTS requires NOM_BUILD_GUI_UNIT to be ON.\n"
+      "          Either enable NOM_BUILD_GUI_UNIT or disable NOM_BUILD_GUI_TESTS.\n" )
+  endif()
+
+endif( NOM_BUILD_TESTS )
+
+# ---------------------------------------------------------------------------
+# Emit all collected errors and abort if any validation failed
+# ---------------------------------------------------------------------------
+if( _NOM_VALIDATION_ERRORS )
+  message( FATAL_ERROR
+    "\n==========================================================================\n"
+    "Build Option Validation FAILED with the following errors:\n"
+    "\n"
+    "${_NOM_VALIDATION_ERRORS}"
+    "==========================================================================\n" )
+endif( _NOM_VALIDATION_ERRORS )
+
+# Clean up
+unset( _NOM_VALIDATION_ERRORS )
+unset( _req_unit )
+
 # Platform detection
 include ( "${CMAKE_SOURCE_DIR}/cmake/platform.cmake" )
 # Utility macro helpers

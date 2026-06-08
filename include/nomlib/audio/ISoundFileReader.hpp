@@ -46,7 +46,7 @@ class ISoundFileReader
                          NOM_LOG_PRIORITY_VERBOSE);
     }
 
-    virtual ~ISoundFileReader()
+    ~ISoundFileReader()
     {
       NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO,
                          NOM_LOG_PRIORITY_VERBOSE);

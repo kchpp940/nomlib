@@ -63,30 +63,12 @@ CallbackAction::~CallbackAction()
 
 std::unique_ptr<IActionObject> CallbackAction::clone() const
 {
-  auto cloned_obj = nom::make_unique<self_type>( self_type(*this) );
-  if( cloned_obj != nullptr ) {
-
-    cloned_obj->set_status(FrameState::PLAYING);
-    cloned_obj->set_lifecycle_state(LifecycleState::IDLE);
-    cloned_obj->elapsed_frames_ = 0.0f;
-    cloned_obj->timer_.stop();
-
-    return std::move(cloned_obj);
-  } else {
-    return nullptr;
-  }
+  return( nom::make_unique<self_type>( self_type(*this) ) );
 }
 
 IActionObject::FrameState CallbackAction::next_frame(real32 delta_time)
 {
   delta_time = ( Timer::to_seconds( this->timer_.ticks() ) );
-
-  if( this->lifecycle_state() == LifecycleState::RELEASED ) {
-    this->set_status(FrameState::COMPLETED);
-    return this->status();
-  }
-
-  this->set_lifecycle_state(LifecycleState::RUNNING);
 
   if( this->timer_.started() == false ) {
     this->timer_.start();
@@ -112,7 +94,6 @@ IActionObject::FrameState CallbackAction::next_frame(real32 delta_time)
     }
 
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
 
   } else if( delta_time < (this->duration() / this->speed() ) ) {
 
@@ -126,7 +107,6 @@ IActionObject::FrameState CallbackAction::next_frame(real32 delta_time)
 
   } else {
     this->set_status(FrameState::COMPLETED);
-    this->set_lifecycle_state(LifecycleState::FINISHED);
   }
 
   NOM_LOG_DEBUG(  NOM_LOG_CATEGORY_ACTION, DEBUG_CLASS_NAME,
@@ -144,29 +124,22 @@ IActionObject::FrameState CallbackAction::prev_frame(real32 delta_time)
 
 void CallbackAction::pause(real32 delta_time)
 {
-  IActionObject::pause(delta_time);
+  // Not supported
 }
 
 void CallbackAction::resume(real32 delta_time)
 {
-  IActionObject::resume(delta_time);
+  // Not supported
 }
 
 void CallbackAction::rewind(real32 delta_time)
 {
-  IActionObject::rewind(delta_time);
-
-  // Stop the timer so the next run through next_frame() will re-enter the
-  // first_frame "begin" branch (timer_.started() == false).  This is required
-  // for correct behaviour when the action is wrapped inside RepeatFor or
-  // RepeatForever.
-  this->timer_.stop();
+  // Not supported
 }
 
 void CallbackAction::release()
 {
-  this->action_ = nullptr;
-  IActionObject::release();
+  this->action_.~function();
 }
 
 } // namespace nom
