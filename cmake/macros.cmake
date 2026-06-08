@@ -100,46 +100,43 @@ endmacro(NOM_LOG_CRIT msg)
 # nom_validate_build_options()
 #
 # Centralized validation of CMake build option dependencies.
-# Must be called AFTER third-party dependency detection (find_package calls
-# for OpenAL, libsndfile, LibRocket, SDL2, etc.) so that *_FOUND variables
-# are populated.
 #
-# All validation failures are FATAL_ERROR -- no silent warnings, no
-# demotion to partial builds. Invalid configurations must be fixed by the
-# user before compilation can proceed.
+# Prerequisites:
+#   - nom_probe_third_party() must have been called first so that the
+#     NOM_HAVE_OPENAL / NOM_HAVE_LIBSNDFILE / NOM_HAVE_LIBROCKET
+#     normalized booleans are defined.
+#
+# Design rules:
+#   * Only STRONG (hard) dependencies produce FATAL_ERROR.
+#   * Optional / conditional dependencies are NOT enforced — the source
+#     trees already guard them with if(NOM_BUILD_*_UNIT) blocks, so turning
+#     off graphics/audio while actions is ON is a valid "minimal build"
+#     configuration (only the base actions are compiled).
+#   * External-library availability is checked via the NOM_HAVE_*
+#     project-owned variables, never directly via *_FOUND from Find
+#     modules (whose naming is inconsistent across modules).
 # ============================================================================
 macro(nom_validate_build_options)
 
   set(_NOM_ERRORS "")
 
   # -------------------------------------------------------------------------
-  # 1. NOM_BUILD_ACTIONS_UNIT module dependencies
+  # 1. NOM_BUILD_ACTIONS_UNIT — strong deps only (CORE / MATH / SYSTEM)
+  #    GRAPHICS and AUDIO are optional: their action subsets are guarded by
+  #    if(NOM_BUILD_GRAPHICS_UNIT) / if(NOM_BUILD_AUDIO_UNIT) in
+  #    src/actions/CMakeLists.txt and may be legitimately trimmed.
   # -------------------------------------------------------------------------
   if(NOM_BUILD_ACTIONS_UNIT)
-
     foreach(_req CORE MATH SYSTEM)
       if(NOT NOM_BUILD_${_req}_UNIT)
         string(APPEND _NOM_ERRORS
           "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_${_req}_UNIT=ON.\n")
       endif()
     endforeach()
-
-    if(NOT NOM_BUILD_GRAPHICS_UNIT)
-      string(APPEND _NOM_ERRORS
-        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_GRAPHICS_UNIT=ON "
-        "(graphics animation actions depend on nomlib-graphics).\n")
-    endif()
-
-    if(NOT NOM_BUILD_AUDIO_UNIT)
-      string(APPEND _NOM_ERRORS
-        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_AUDIO_UNIT=ON "
-        "(audio animation actions depend on nomlib-audio).\n")
-    endif()
-
   endif()
 
   # -------------------------------------------------------------------------
-  # 2. NOM_BUILD_GRAPHICS_UNIT module dependencies
+  # 2. NOM_BUILD_GRAPHICS_UNIT — strong deps
   # -------------------------------------------------------------------------
   if(NOM_BUILD_GRAPHICS_UNIT)
     foreach(_req CORE MATH FILE SERIALIZERS SYSTEM)
@@ -151,7 +148,9 @@ macro(nom_validate_build_options)
   endif()
 
   # -------------------------------------------------------------------------
-  # 3. NOM_BUILD_AUDIO_UNIT module + external library dependencies
+  # 3. NOM_BUILD_AUDIO_UNIT — strong module deps + external-library deps
+  #    External-library check uses the normalized NOM_HAVE_* booleans set
+  #    by nom_probe_third_party().
   # -------------------------------------------------------------------------
   if(NOM_BUILD_AUDIO_UNIT)
 
@@ -162,14 +161,14 @@ macro(nom_validate_build_options)
       endif()
     endforeach()
 
-    if(NOT OPENAL_FOUND)
+    if(NOT NOM_HAVE_OPENAL)
       string(APPEND _NOM_ERRORS
         "  [ERROR] NOM_BUILD_AUDIO_UNIT requires OpenAL, but it was NOT found.\n"
         "          Install OpenAL/OpenAL-Soft, set OPENALDIR/OPENAL_ROOT,\n"
         "          or disable NOM_BUILD_AUDIO_UNIT.\n")
     endif()
 
-    if(NOT LIBSNDFILE_FOUND)
+    if(NOT NOM_HAVE_LIBSNDFILE)
       string(APPEND _NOM_ERRORS
         "  [ERROR] NOM_BUILD_AUDIO_UNIT requires libsndfile, but it was NOT found.\n"
         "          Install libsndfile, set LIBSNDFILEDIR/LIBSNDFILE_ROOT,\n"
@@ -179,7 +178,7 @@ macro(nom_validate_build_options)
   endif()
 
   # -------------------------------------------------------------------------
-  # 4. NOM_BUILD_GUI_UNIT module + external library dependencies
+  # 4. NOM_BUILD_GUI_UNIT — strong module dep + external-library dep
   # -------------------------------------------------------------------------
   if(NOM_BUILD_GUI_UNIT)
 
@@ -189,7 +188,7 @@ macro(nom_validate_build_options)
         "          Enable NOM_BUILD_GRAPHICS_UNIT or disable NOM_BUILD_GUI_UNIT.\n")
     endif()
 
-    if(NOT LIBROCKET_FOUND)
+    if(NOT NOM_HAVE_LIBROCKET)
       string(APPEND _NOM_ERRORS
         "  [ERROR] NOM_BUILD_GUI_UNIT requires libRocket, but it was NOT found.\n"
         "          Install libRocket, set LIBROCKETDIR/LIBROCKET_ROOT,\n"
@@ -199,39 +198,24 @@ macro(nom_validate_build_options)
   endif()
 
   # -------------------------------------------------------------------------
-  # 5. EXAMPLES module dependencies
+  # 5. EXAMPLES — strong deps only
+  #    Examples that depend on optional modules (app→gui/actions,
+  #    audio→audio/actions, etc.) are individually guarded by
+  #    if(NOM_BUILD_*_EXAMPLE) in examples/CMakeLists.txt and are
+  #    automatically skipped when their deps are off. Only the modules
+  #    required by EVERY example are enforced here.
   # -------------------------------------------------------------------------
   if(EXAMPLES)
-
     foreach(_req CORE SYSTEM GRAPHICS)
       if(NOT NOM_BUILD_${_req}_UNIT)
         string(APPEND _NOM_ERRORS
           "  [ERROR] EXAMPLES requires NOM_BUILD_${_req}_UNIT=ON.\n")
       endif()
     endforeach()
-
-    if(NOT NOM_BUILD_GUI_UNIT)
-      string(APPEND _NOM_ERRORS
-        "  [ERROR] EXAMPLES requires NOM_BUILD_GUI_UNIT=ON "
-        "('app' and 'device_info' examples depend on nomlib-gui).\n")
-    endif()
-
-    if(NOT NOM_BUILD_AUDIO_UNIT)
-      string(APPEND _NOM_ERRORS
-        "  [ERROR] EXAMPLES requires NOM_BUILD_AUDIO_UNIT=ON "
-        "('audio' example depends on nomlib-audio).\n")
-    endif()
-
-    if(NOT NOM_BUILD_ACTIONS_UNIT)
-      string(APPEND _NOM_ERRORS
-        "  [ERROR] EXAMPLES requires NOM_BUILD_ACTIONS_UNIT=ON "
-        "('app' and 'audio' examples depend on nomlib-actions).\n")
-    endif()
-
   endif()
 
   # -------------------------------------------------------------------------
-  # 6. NOM_BUILD_TESTS module dependencies
+  # 6. NOM_BUILD_TESTS — strong deps
   # -------------------------------------------------------------------------
   if(NOM_BUILD_TESTS)
 

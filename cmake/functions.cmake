@@ -75,6 +75,65 @@ function(install_resource_dir spath dpath)
     PATTERN ".*" EXCLUDE )
 endfunction()
 
+# ============================================================================
+# nom_probe_third_party()
+#
+# Centralized detection of all optional/conditional third-party libraries.
+#
+# Different CMake Find modules produce *_FOUND variables with inconsistent
+# naming conventions, and some modules may not be present on all systems.
+# This function wraps each find_package call and normalizes the result into
+# project-owned boolean variables that the validation macro and source-tree
+# CMakeLists can rely on without worrying about Find-module internals.
+#
+# Output variables (set in parent scope):
+#   NOM_HAVE_OPENAL     — TRUE if OpenAL (or OpenAL-Soft / Apple OpenAL)
+#                         headers and libraries were located.
+#   NOM_HAVE_LIBSNDFILE — TRUE if libsndfile headers and library were located.
+#   NOM_HAVE_LIBROCKET  — TRUE if libRocket (Core + Controls + Debugger)
+#                         headers and libraries were located.
+#
+# This function should be called exactly ONCE from the root CMakeLists.txt,
+# AFTER platform-specific environment variables (OPENALDIR, LIBSNDFILEDIR,
+# LIBROCKETDIR, etc.) have been populated.
+# ============================================================================
+function(nom_probe_third_party)
+
+  # -- OpenAL ----------------------------------------------------------------
+  # CMake built-in FindOpenAL.cmake sets OPENAL_FOUND.
+  find_package(OpenAL QUIET)
+  if(OPENAL_FOUND)
+    set(NOM_HAVE_OPENAL TRUE PARENT_SCOPE)
+    message(STATUS "Third-party: OpenAL found (OPENAL_INCLUDE_DIR=${OPENAL_INCLUDE_DIR})")
+  else()
+    set(NOM_HAVE_OPENAL FALSE PARENT_SCOPE)
+    message(STATUS "Third-party: OpenAL NOT found — audio module will be unavailable.")
+  endif()
+
+  # -- libsndfile ------------------------------------------------------------
+  # Project custom Findlibsndfile.cmake sets LIBSNDFILE_FOUND.
+  find_package(libsndfile QUIET)
+  if(LIBSNDFILE_FOUND)
+    set(NOM_HAVE_LIBSNDFILE TRUE PARENT_SCOPE)
+    message(STATUS "Third-party: libsndfile found (LIBSNDFILE_INCLUDE_DIR=${LIBSNDFILE_INCLUDE_DIR})")
+  else()
+    set(NOM_HAVE_LIBSNDFILE FALSE PARENT_SCOPE)
+    message(STATUS "Third-party: libsndfile NOT found — audio module will be unavailable.")
+  endif()
+
+  # -- libRocket -------------------------------------------------------------
+  # Project custom FindLibRocket.cmake sets LIBROCKET_FOUND.
+  find_package(LibRocket QUIET)
+  if(LIBROCKET_FOUND)
+    set(NOM_HAVE_LIBROCKET TRUE PARENT_SCOPE)
+    message(STATUS "Third-party: libRocket found (LIBROCKET_INCLUDE_DIRS=${LIBROCKET_INCLUDE_DIRS})")
+  else()
+    set(NOM_HAVE_LIBROCKET FALSE PARENT_SCOPE)
+    message(STATUS "Third-party: libRocket NOT found — GUI module will be unavailable.")
+  endif()
+
+endfunction(nom_probe_third_party)
+
 #
 # target parameter is not implemented; reserved for future implementation.
 #

@@ -303,26 +303,24 @@ if ( PLATFORM_LINUX OR PLATFORM_POSIX )
 endif( PLATFORM_LINUX OR PLATFORM_POSIX )
 
 # ============================================================================
-# Third-party library pre-detection
+# Third-party library detection
 # ============================================================================
-# Run find_package for all optional/conditional external dependencies BEFORE
-# validating build options, so *_FOUND variables are populated when the
-# validation macro inspects them.
+# Detect all optional/conditional external libraries and normalize results
+# into project-owned NOM_HAVE_* booleans via nom_probe_third_party().
+# This must happen BEFORE build-option validation so that the validation
+# macro can read the normalized availability flags.
 #
-# We use QUIET here because the validation macro will produce the actual,
-# user-facing error messages if something required is missing.
+# Actual REQUIRED find_package calls for active modules still happen inside
+# each subdirectory's CMakeLists (e.g. src/audio/CMakeLists.txt).
 # ============================================================================
 
-find_package( OpenAL QUIET )
-find_package( libsndfile QUIET )
-find_package( LibRocket QUIET )
+nom_probe_third_party()
 
 # ============================================================================
 # Build Option Dependency Validation
 # ============================================================================
 # Centralized check — see nom_validate_build_options() in cmake/macros.cmake.
-# This must run AFTER third-party find_package calls above so that *_FOUND
-# cache variables are available.
+# Must run AFTER nom_probe_third_party() so NOM_HAVE_* are populated.
 # ============================================================================
 
 nom_validate_build_options()
