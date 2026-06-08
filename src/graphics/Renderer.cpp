@@ -107,6 +107,36 @@ const IntRect Renderer::viewport ( void ) const
   return IntRect ( v.x, v.y, v.w, v.h );
 }
 
+ViewportManager& Renderer::viewport_manager()
+{
+  return this->viewport_mgr_;
+}
+
+const ViewportManager& Renderer::viewport_manager() const
+{
+  return this->viewport_mgr_;
+}
+
+void Renderer::sync_viewport()
+{
+  if( this->renderer_valid() == false ) {
+    this->viewport_mgr_.bound = false;
+    return;
+  }
+
+  SDL_Rect vp;
+  SDL_RenderGetViewport(this->renderer(), &vp);
+  this->viewport_mgr_.viewport = IntRect(vp.x, vp.y, vp.w, vp.h);
+
+  Point2f scale_factor;
+  SDL_RenderGetScale(this->renderer(), &scale_factor.x, &scale_factor.y);
+  if( scale_factor.x <= 0.0f ) scale_factor.x = 1.0f;
+  if( scale_factor.y <= 0.0f ) scale_factor.y = 1.0f;
+  this->viewport_mgr_.scale = scale_factor;
+
+  this->viewport_mgr_.bound = true;
+}
+
 const SDL_BlendMode Renderer::blend_mode ( void ) const
 {
   SDL_BlendMode blend;
@@ -248,6 +278,7 @@ bool Renderer::set_logical_size( int width, int height )
     return false;
   }
 
+  this->sync_viewport();
   return true;
 }
 
@@ -264,6 +295,7 @@ bool Renderer::set_scale( const Point2f& scale_factor )
     return false;
   }
 
+  this->sync_viewport();
   return true;
 }
 
@@ -278,6 +310,7 @@ bool Renderer::set_viewport ( const IntRect& bounds )
       return false;
     }
 
+    this->sync_viewport();
     return true;
   }
 
@@ -289,6 +322,7 @@ bool Renderer::set_viewport ( const IntRect& bounds )
     return false;
   }
 
+  this->sync_viewport();
   return true;
 }
 

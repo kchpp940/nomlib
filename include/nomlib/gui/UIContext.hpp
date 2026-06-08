@@ -209,18 +209,30 @@ class UIContext
 
     /// \brief Access the ViewportManager used by this UI context.
     ///
-    /// The ViewportManager tracks the render viewport offset and scale for
-    /// independent resolution scaling. UIContextEventHandler uses this as
-    /// the fallback coordinate conversion source when an event's
-    /// coord_space is MOUSE_COORD_WINDOW.
+    /// When set via set_viewport_manager (typically pointing to the
+    /// RenderWindow's ViewportManager), this is the shared source of truth
+    /// for mouse coordinate conversion. If no external ViewportManager has
+    /// been bound, returns a fallback internal instance kept in sync by
+    /// set_size.
     ///
-    /// Application code should keep this ViewportManager in sync with the
-    /// main Renderer, or bind it to the same ViewportManager used by the
-    /// EventHandler via bind_viewport_manager.
+    /// UIContextEventHandler uses this as the fallback coordinate conversion
+    /// source when an event's coord_space is MOUSE_COORD_WINDOW.
     ///
-    /// \see nom::EventHandler::bind_viewport_manager, nom::ViewportManager
+    /// \see nom::UIContext::set_viewport_manager,
+    ///      nom::Renderer::viewport_manager,
+    ///      nom::EventHandler::bind_viewport_manager,
+    ///      nom::ViewportManager
     ViewportManager& viewport_manager();
     const ViewportManager& viewport_manager() const;
+
+    /// \brief Bind an external ViewportManager to this UI context.
+    ///
+    /// Passing nullptr clears the binding and falls back to the internal
+    /// instance. Bind the Renderer/RenderWindow's ViewportManager here to
+    /// share the exact same coordinate state used by EventHandler.
+    ///
+    /// \param vm Non-owned pointer to the ViewportManager, or nullptr.
+    void set_viewport_manager(ViewportManager* vm);
 
   private:
     /// \brief Initialize libRocket's visual debugger tool.
@@ -257,11 +269,20 @@ class UIContext
     /// \brief The dimensions of the context.
     Size2i res_;
 
-    /// \brief Shared viewport state used for mouse coordinate conversion.
+    /// \brief Non-owned pointer to the externally-bound ViewportManager.
     ///
-    /// Updated from the Renderer in set_size(). Can also be externally
-    /// synchronized with an EventHandler via bind_viewport_manager.
-    ViewportManager viewport_mgr_;
+    /// When non-null, viewport_manager() returns this object (typically the
+    /// RenderWindow/Renderer's ViewportManager shared with EventHandler).
+    /// When null, viewport_manager() falls back to viewport_mgr_fallback_.
+    ///
+    /// \see nom::UIContext::set_viewport_manager
+    ViewportManager* viewport_mgr_ = nullptr;
+
+    /// \brief Fallback ViewportManager used when no external one is bound.
+    ///
+    /// Kept in sync by set_size(). Intended for simple use cases where a
+    /// single shared ViewportManager is not needed.
+    ViewportManager viewport_mgr_fallback_;
 };
 
 } // namespace nom
