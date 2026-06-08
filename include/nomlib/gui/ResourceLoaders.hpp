@@ -81,10 +81,11 @@ class GuiDocumentLoader : public IResourceTypeLoader
 // ============================================================================
 // Convenience helpers — adapt libRocket path-only APIs.
 //
-// These go through CachedResourceLoader::load<std::string>() via the
-// ResourceFilePathLoader adapter (from nomlib/system/ResourceLoaders.hpp).
-// They **never** call resolve_path() directly — all path resolution is
-// routed through the loader's cache, type validation, and release machinery.
+// These call CachedResourceLoader::resolve_path(expected_type, id), which
+// first validates the manifest entry's type tag (TrueTypeFont for fonts,
+// GuiDocument for RML files), then returns the absolute file path. No
+// FilePath pseudo-types, no caching of raw std::string objects as if they
+// were resources — the manifest type tag is the single source of truth.
 // ============================================================================
 
 /// \brief Load a font into a UIContext (libRocket desktop) from a resource

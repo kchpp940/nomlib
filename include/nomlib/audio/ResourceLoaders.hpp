@@ -102,10 +102,13 @@ class AudioBufferLoader : public IResourceTypeLoader
 // ============================================================================
 // Convenience helpers — audio module glue for CachedResourceLoader.
 //
-// These helpers **never** call CachedResourceLoader::resolve_path() directly.
-// They always go through CachedResourceLoader::load<T>(), which means the
-// resource is cached, type-validated, and tracked by the loader's lifecycle
-// machinery.
+// These helpers **never** bypass manifest type validation:
+//   - load_sound_buffer_from_resource: goes through load<SoundBuffer>()
+//     → TypeTraits → AudioBufferLoader
+//   - create_play_audio_action: goes through resolve_path(Audio, id), which
+//     first validates the manifest entry's type tag, then returns the
+//     absolute file path.
+// No FilePath pseudo-types, no std::string masquerading as resources.
 // ============================================================================
 
 /// \brief Convenience: load an audio::SoundBuffer through a CachedResourceLoader
@@ -123,10 +126,11 @@ SoundBuffer* load_sound_buffer_from_resource( CachedResourceLoader& loader,
 /// \brief Convenience: create a PlayAudioSource action that plays the audio
 ///        resource identified by manifest ID.
 ///
-/// This helper routes the path lookup through the CachedResourceLoader's
-/// FilePath loader (ResourceFilePathLoader) — so the resolved path is cached
-/// and tracked like any other resource — then hands the path off to the
-/// existing PlayAudioSource(filename) constructor.
+/// This helper calls CachedResourceLoader::resolve_path(Audio, id), which
+/// first validates that the manifest entry's type tag matches
+/// ResourceFile::Audio, resolves the absolute path, and verifies the file
+/// exists on disk. The path is then handed off to the existing
+/// PlayAudioSource(filename) constructor.
 ///
 /// \param loader     The resource loader to query.
 /// \param engine     The active audio engine.

@@ -150,11 +150,11 @@ class SpriteSheetLoader : public IResourceTypeLoader
 // ============================================================================
 // Convenience helpers — wrap "legacy" APIs that only consume raw file paths.
 //
-// These free functions look up a resource by manifest ID through the
-// CachedResourceLoader, resolve the absolute path, and hand it off to the
-// underlying API (RenderWindow, SpriteSheet, etc.). They exist so that
-// application-level code (examples, games) never needs to call
-// CachedResourceLoader::resolve_path() directly.
+// These free functions call CachedResourceLoader::resolve_path(expected_type,id),
+// which first validates the manifest entry's type tag, then returns the
+// absolute file path. No FilePath pseudo-types, no std::string masquerading
+// as a resource — the manifest type tag is the single source of truth.
+// Application-level code (examples, games) only passes resource IDs.
 // ============================================================================
 
 /// \brief Set a RenderWindow icon from a resource manifest ID.

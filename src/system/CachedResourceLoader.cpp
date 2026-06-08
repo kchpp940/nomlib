@@ -180,17 +180,12 @@ void* CachedResourceLoader::load_internal( const std::string& name,
       desc->type != ResourceFile::Type::Invalid &&
       expected_type != desc->type )
   {
-    // Allow FilePath to match any manifest type — this is the "last resort"
-    // loader for legacy APIs that only consume raw file paths.
-    if( expected_type != ResourceFile::Type::FilePath )
-    {
-      NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
-                   "CachedResourceLoader: type mismatch for '", name,
-                   "' — manifest says type=", static_cast<int>( desc->type ),
-                   " but caller requested type=",
-                   static_cast<int>( expected_type ) );
-      return nullptr;
-    }
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+                 "CachedResourceLoader: type mismatch for '", name,
+                 "' — manifest says type=", static_cast<int>( desc->type ),
+                 " but caller requested type=",
+                 static_cast<int>( expected_type ) );
+    return nullptr;
   }
 
   // 2. Check cache first
@@ -397,16 +392,66 @@ nom::size_type CachedResourceLoader::size( void ) const
 }
 
 // ---------------------------------------------------------------------------
-// Public convenience: resolve path by resource name
+// Public: resolve path by resource name WITH TYPE VALIDATION
 // ---------------------------------------------------------------------------
 
-std::string CachedResourceLoader::resolve_path( const std::string& name ) const
+std::string CachedResourceLoader::resolve_path( ResourceFile::Type expected_type,
+                                                const std::string& name ) const
 {
+  std::lock_guard<std::mutex> lock( this->mutex_ );
+
+  // 1. Look up in manifest
   const ResourceDescriptor* desc = this->manifest_.find( name );
   if( desc == nullptr )
   {
     NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
                   "CachedResourceLoader::resolve_path: '", name,
+                  "' not found in manifest" );
+    return std::string();
+  }
+
+  // 2. Validate type against manifest entry.
+  //    Special case: ResourceFile::Invalid is treated as "don't care" — this
+  //    allows internal callers that genuinely don't know the type to skip
+  //    the check, but external adapters should always pass a concrete type.
+  if( expected_type != ResourceFile::Type::Invalid &&
+      desc->type != ResourceFile::Type::Invalid &&
+      expected_type != desc->type )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+                 "CachedResourceLoader::resolve_path: type mismatch for '", name,
+                 "' — manifest says type=", static_cast<int>( desc->type ),
+                 " but caller requested type=",
+                 static_cast<int>( expected_type ) );
+    return std::string();
+  }
+
+  // 3. Resolve the absolute path and verify it exists on disk
+  const std::string full_path = this->search_path_.resolve( desc->path );
+
+  File fp;
+  if( fp.exists( full_path ) == false )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_SYSTEM,
+                 "CachedResourceLoader::resolve_path: resolved path for '", name,
+                 "' does not exist: ", full_path );
+    return std::string();
+  }
+
+  return full_path;
+}
+
+// ---------------------------------------------------------------------------
+// Internal: resolve path by resource name WITHOUT type checking
+// ---------------------------------------------------------------------------
+
+std::string CachedResourceLoader::resolve_path_unchecked( const std::string& name ) const
+{
+  const ResourceDescriptor* desc = this->manifest_.find( name );
+  if( desc == nullptr )
+  {
+    NOM_LOG_WARN( NOM_LOG_CATEGORY_SYSTEM,
+                  "CachedResourceLoader::resolve_path_unchecked: '", name,
                   "' not found in manifest" );
     return std::string();
   }

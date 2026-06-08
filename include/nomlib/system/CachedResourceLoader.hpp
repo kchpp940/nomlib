@@ -64,12 +64,6 @@ class Value;
 template <typename T>
 struct TypeTraits;
 
-// Built-in specializations for generic types.
-template <> struct TypeTraits<std::string>
-{
-  static constexpr ResourceFile::Type resource_type = ResourceFile::FilePath;
-};
-
 /// \brief Unified resource loader with caching, lifecycle management, and
 ///        preloading support.
 ///
@@ -255,17 +249,28 @@ class CachedResourceLoader
     // Debugging aids
     // ------------------------------------------------------------------
 
-    /// \brief Convenience: resolve the full absolute path for a resource by
-    ///        its logical name.
+    /// \brief Resolve the full absolute path for a resource, **with type
+    ///        validation** against the manifest.
     ///
-    /// This is useful for APIs that consume raw file paths (e.g. SDL window
-    /// icons, SpriteSheet JSON descriptors) instead of loaded resource
-    /// objects. It looks up the name in the manifest and delegates to
-    /// SearchPath::resolve under the hood.
+    /// This is the **only** public path-resolution API. It is intended for
+    /// use by **type adapter layers** (graphics, audio, gui, etc.) that need
+    /// to feed raw file paths to legacy APIs (SDL window icons, libRocket
+    /// font loading, PlayAudioSource streaming, SpriteSheet JSON, …).
+    ///
+    /// The type check is strict: `expected_type` must match the type tag
+    /// declared in the manifest for `name`. If they don't match, the call
+    /// fails with a logged error and returns an empty string — no silent
+    /// fallbacks, no wildcard types.
+    ///
+    /// \param expected_type The ResourceFile::Type that the caller expects
+    ///                      the manifest entry to have.
+    /// \param name          The logical resource name (manifest ID).
     ///
     /// \returns The resolved absolute path on success, or an empty string
-    ///          if the name is not in the manifest.
-    std::string resolve_path( const std::string& name ) const;
+    ///          if the name is not in the manifest, if the type does not
+    ///          match, or if the resolved file does not exist on disk.
+    std::string resolve_path( ResourceFile::Type expected_type,
+                              const std::string& name ) const;
 
     /// \brief Print the contents of the cache to the log.
     void dump( void ) const;
@@ -293,8 +298,17 @@ class CachedResourceLoader
                          ResourceFile::Type expected_type,
                          bool& out_loaded_from_cache );
 
-    /// \brief Internal: resolve the full absolute path for a resource descriptor.
+    /// \brief Internal: resolve the full absolute path for a resource
+    ///        descriptor — no manifest lookup, no type validation.
     std::string resolve_internal_path( const ResourceDescriptor& desc ) const;
+
+    /// \brief Internal: resolve the full absolute path for a resource name
+    ///        by looking it up in the manifest — **NO TYPE CHECKING**.
+    ///
+    /// \warning This is a deliberately low-level helper. All external
+    ///          callers MUST use the public resolve_path(expected_type, name)
+    ///          instead.
+    std::string resolve_path_unchecked( const std::string& name ) const;
 
     /// \brief Find a suitable type loader for the given resource type.
     IResourceTypeLoader* find_loader( ResourceFile::Type type ) const;

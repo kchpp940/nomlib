@@ -33,9 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/graphics/fonts/Font.hpp"
 #include "nomlib/graphics/sprite/SpriteSheet.hpp"
 #include "nomlib/graphics/RenderWindow.hpp"
-#include "nomlib/core/unique_ptr.hpp"
 #include "nomlib/system/CachedResourceLoader.hpp"
-#include "nomlib/system/ResourceLoaders.hpp"
 
 namespace nom {
 
@@ -230,38 +228,28 @@ void SpriteSheetLoader::unload( void* resource )
 // ===========================================================================
 // Convenience free functions — adapt legacy path-only APIs
 //
-// IMPORTANT: These helpers must **never** call CachedResourceLoader::resolve_path()
-// directly. They always go through CachedResourceLoader::load<std::string>(),
-// which means the resolved path is cached, type-validated, and tracked by the
-// loader's lifecycle machinery. The underlying TypeLoader for std::string is
-// ResourceFilePathLoader (from nomlib/system/ResourceLoaders.hpp).
+// IMPORTANT: These helpers must **never** bypass type validation. They call
+// CachedResourceLoader::resolve_path(expected_type, id), which first checks
+// that the manifest entry's type tag matches what the adapter expects,
+// then returns the absolute file path. No "FilePath" pseudo-types, no
+// std::string masquerading as a resource — the manifest type tag is the
+// single source of truth.
 // ===========================================================================
-
-namespace {
-inline void ensure_file_path_loader_registered( CachedResourceLoader& loader )
-{
-  // Always re-register — CachedResourceLoader::register_type_loader replaces
-  // any existing entry for the same type, so this is idempotent and safe.
-  loader.register_type_loader(
-    nom::make_unique<ResourceFilePathLoader>() );
-}
-} // anonymous namespace
 
 bool set_window_icon_from_resource( RenderWindow& window,
                                     CachedResourceLoader& loader,
                                     const std::string& resource_id )
 {
-  ensure_file_path_loader_registered( loader );
-
-  const std::string* path = loader.load<std::string>( resource_id );
-  if( path == nullptr || path->empty() )
+  const std::string path = loader.resolve_path( ResourceFile::Graphic,
+                                                resource_id );
+  if( path.empty() )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_GRAPHICS,
                  "set_window_icon_from_resource: failed to resolve manifest ID:",
                  resource_id );
     return false;
   }
-  return window.set_window_icon( *path );
+  return window.set_window_icon( path );
 }
 
 bool load_sprite_sheet_from_resource( SpriteSheet& sheet,
@@ -283,19 +271,19 @@ bool load_sprite_sheet_from_resource( SpriteSheet& sheet,
     return true;
   }
 
-  // Option 2 — fall back to FilePathLoader (so we still go through the
-  // cache + lifecycle machinery instead of bypassing it with resolve_path).
-  ensure_file_path_loader_registered( loader );
-
-  const std::string* path = loader.load<std::string>( resource_id );
-  if( path == nullptr || path->empty() )
+  // Option 2 — fall back to resolve_path with explicit SpriteSheet type tag.
+  // Still goes through CachedResourceLoader's manifest lookup and type
+  // validation — no bypass, no std::string pseudo-resources.
+  const std::string path = loader.resolve_path( ResourceFile::SpriteSheet,
+                                                resource_id );
+  if( path.empty() )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_GRAPHICS,
                  "load_sprite_sheet_from_resource: failed to resolve manifest ID:",
                  resource_id );
     return false;
   }
-  return sheet.load_file( *path );
+  return sheet.load_file( path );
 }
 
 } // namespace nom

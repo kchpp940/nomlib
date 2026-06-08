@@ -40,8 +40,6 @@ set(  NOM_SYSTEM_SOURCE
       ${SRC_DIR}/system/SearchPath.cpp
       ${INC_DIR}/system/SearchPath.hpp
       ${INC_DIR}/system/IResourceTypeLoader.hpp
-      ${SRC_DIR}/system/ResourceLoaders.cpp
-      ${INC_DIR}/system/ResourceLoaders.hpp
       ${SRC_DIR}/system/CachedResourceLoader.cpp
       ${INC_DIR}/system/CachedResourceLoader.hpp
 

@@ -32,7 +32,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/audio/SoundBuffer.hpp"
 #include "nomlib/core/unique_ptr.hpp"
 #include "nomlib/system/CachedResourceLoader.hpp"
-#include "nomlib/system/ResourceLoaders.hpp"
 #include "nomlib/actions/PlayAudioSource.hpp"
 #include "nomlib/actions/IActionObject.hpp"
 
@@ -131,12 +130,13 @@ create_play_audio_action( CachedResourceLoader& loader,
                           IOAudioEngine* engine,
                           const std::string& resource_id )
 {
-  // Register ResourceFilePathLoader if not already present — idempotent.
-  loader.register_type_loader(
-    nom::make_unique<ResourceFilePathLoader>() );
-
-  const std::string* path = loader.load<std::string>( resource_id );
-  if( path == nullptr || path->empty() )
+  // Resolve the path through CachedResourceLoader with explicit Audio type
+  // tag — this guarantees the manifest entry is validated before we hand
+  // the path off to PlayAudioSource. No FilePath pseudo-type, no std::string
+  // masquerading as a resource.
+  const std::string path = loader.resolve_path( ResourceFile::Audio,
+                                                resource_id );
+  if( path.empty() )
   {
     NOM_LOG_ERR( NOM_LOG_CATEGORY_AUDIO,
                  "create_play_audio_action: failed to resolve manifest ID:",
@@ -144,7 +144,7 @@ create_play_audio_action( CachedResourceLoader& loader,
     return nullptr;
   }
 
-  return nom::make_unique<PlayAudioSource>( engine, path->c_str() );
+  return nom::make_unique<PlayAudioSource>( engine, path.c_str() );
 }
 
 } // namespace audio
