@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <Rocket/Core/RenderInterface.h>
 
 #include "nomlib/config.hpp"
+#include "nomlib/math/Point2.hpp"
 
 #if defined(NOM_PLATFORM_WINDOWS)
   #define NOM_API_EXPORT __stdcall

@@ -43,7 +43,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
+#include <unordered_map>
+
 namespace nom {
+
+namespace {
+
+// ---------------------------------------------------------------------------
+// Private registry: Rocket::Core::Context* → nom::UIContext*
+//
+// We deliberately do NOT use Rocket::Core::Context::SetUserData / GetUserData
+// because that slot belongs to the caller and we would silently overwrite
+// anything they had already bound there.  This internal registry keyed by the
+// raw Rocket context pointer is fully opaque to the outside world and has
+// zero impact on user code.
+// ---------------------------------------------------------------------------
+typedef std::unordered_map<Rocket::Core::Context*, UIContext*> ContextRegistry;
+ContextRegistry& context_registry()
+{
+  static ContextRegistry registry;
+  return registry;
+}
+
+} // anonymous namespace
 
 UIContext::UIContext() :
   debugger_( false ),
@@ -55,6 +77,13 @@ UIContext::UIContext() :
 UIContext::~UIContext()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE, nom::LogPriority::NOM_LOG_PRIORITY_INFO );
+
+  // Safety net: if the user forgot to call shutdown(), make sure we at least
+  // don't leave a dangling pointer in the context registry.
+  if( this->context_ )
+  {
+    context_registry().erase( this->context_ );
+  }
 }
 
 void UIContext::shutdown()
@@ -63,7 +92,14 @@ void UIContext::shutdown()
 
   if( this->context_ )
   {
+    // Remove our registry entry before releasing the Rocket context so the
+    // dangling pointer can never be looked up by callbacks running on
+    // another UIContext's render thread.
+    context_registry().erase( this->context_ );
+
     this->context_->RemoveReference();
+    this->context_ = nullptr;
+    this->renderer_ = nullptr;
   }
 }
 
@@ -297,7 +333,12 @@ UIContext* UIContext::from_rocket_context( Rocket::Core::Context* ctx )
   if( ctx == nullptr ) {
     return nullptr;
   }
-  return static_cast<UIContext*>( ctx->GetUserData() );
+  ContextRegistry& reg = context_registry();
+  auto it = reg.find( ctx );
+  if( it != reg.end() ) {
+    return it->second;
+  }
+  return nullptr;
 }
 
 Size2i UIContext::size() const
@@ -341,12 +382,11 @@ bool UIContext::create_context( const std::string& name, const Size2i& res,
 
   if( this->context_ )
   {
-    // Bind ourselves to the underlying Rocket context so that callbacks
-    // (Decorators, etc.) can resolve the originating UIContext -- and hence
-    // the correct RenderWindow / Renderer -- without relying on the global
-    // Rocket::Core::GetRenderInterface(), which becomes ambiguous when
-    // multiple UIContexts or windows are active.
-    this->context_->SetUserData( this );
+    // Register the mapping from the raw Rocket context back to this
+    // UIContext.  We use our own private registry rather than
+    // Rocket::Core::Context::SetUserData so that we never overwrite any
+    // user-bound data on the context.
+    context_registry()[ this->context_ ] = this;
 
     // ::initialize_debugger depends on this value
     this->res_ = res;
