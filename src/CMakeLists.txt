@@ -1,109 +1,14 @@
 # Project modules source tree root
 
 # ============================================================================
-# Build Option Validation (src/ level)
+# Build Option Dependency Validation (src/ level)
 # ============================================================================
-# Additional validation that runs right before source compilation.
-# This complements the root-level checks and provides module-specific
-# verification tied to what is actually about to be built.
-
-set( _NOM_SRC_VALIDATION_ERRORS "" )
-
-# ---------------------------------------------------------------------------
-# 1. NOM_BUILD_ACTIONS_UNIT: verify core deps are ON
-# ---------------------------------------------------------------------------
-if( NOM_BUILD_ACTIONS_UNIT )
-  foreach( _req CORE MATH SYSTEM )
-    if( NOT NOM_BUILD_${_req}_UNIT )
-      string( APPEND _NOM_SRC_VALIDATION_ERRORS
-        "  [ERROR] Building nomlib-actions requires nomlib-${_req} (NOM_BUILD_${_req}_UNIT=ON).\n"
-        "          Actions depends on: nomlib-core, nomlib-math, nomlib-system.\n" )
-    endif()
-  endforeach()
-endif()
-
-# ---------------------------------------------------------------------------
-# 2. NOM_BUILD_GRAPHICS_UNIT: verify core deps are ON
-# ---------------------------------------------------------------------------
-if( NOM_BUILD_GRAPHICS_UNIT )
-  foreach( _req CORE MATH FILE SERIALIZERS SYSTEM )
-    if( NOT NOM_BUILD_${_req}_UNIT )
-      string( APPEND _NOM_SRC_VALIDATION_ERRORS
-        "  [ERROR] Building nomlib-graphics requires nomlib-${_req} (NOM_BUILD_${_req}_UNIT=ON).\n"
-        "          Graphics depends on: nomlib-core, nomlib-math, nomlib-file,\n"
-        "          nomlib-serializers, nomlib-system.\n" )
-    endif()
-  endforeach()
-endif()
-
-# ---------------------------------------------------------------------------
-# 3. NOM_BUILD_AUDIO_UNIT: verify modules + OpenAL/libsndfile availability
-# ---------------------------------------------------------------------------
-if( NOM_BUILD_AUDIO_UNIT )
-  foreach( _req CORE MATH SYSTEM )
-    if( NOT NOM_BUILD_${_req}_UNIT )
-      string( APPEND _NOM_SRC_VALIDATION_ERRORS
-        "  [ERROR] Building nomlib-audio requires nomlib-${_req} (NOM_BUILD_${_req}_UNIT=ON).\n"
-        "          Audio depends on: nomlib-core, nomlib-math, nomlib-system.\n" )
-    endif()
-  endforeach()
-
-  # Verify OpenAL is actually available
-  if( NOT OPENAL_FOUND )
-    find_package( OpenAL QUIET )
-  endif()
-  if( NOT OPENAL_FOUND )
-    string( APPEND _NOM_SRC_VALIDATION_ERRORS
-      "  [ERROR] Building nomlib-audio requires OpenAL, but OpenAL was NOT found.\n"
-      "          Install OpenAL or OpenAL-Soft, set OPENALDIR, or disable NOM_BUILD_AUDIO_UNIT.\n" )
-  endif()
-
-  # Verify libsndfile is actually available
-  if( NOT LIBSNDFILE_FOUND )
-    find_package( libsndfile QUIET )
-  endif()
-  if( NOT LIBSNDFILE_FOUND )
-    string( APPEND _NOM_SRC_VALIDATION_ERRORS
-      "  [ERROR] Building nomlib-audio requires libsndfile, but libsndfile was NOT found.\n"
-      "          Install libsndfile, set LIBSNDFILEDIR, or disable NOM_BUILD_AUDIO_UNIT.\n" )
-  endif()
-endif()
-
-# ---------------------------------------------------------------------------
-# 4. NOM_BUILD_GUI_UNIT: verify graphics + LibRocket availability
-# ---------------------------------------------------------------------------
-if( NOM_BUILD_GUI_UNIT )
-  if( NOT NOM_BUILD_GRAPHICS_UNIT )
-    string( APPEND _NOM_SRC_VALIDATION_ERRORS
-      "  [ERROR] Building nomlib-gui requires nomlib-graphics (NOM_BUILD_GRAPHICS_UNIT=ON).\n"
-      "          Either enable NOM_BUILD_GRAPHICS_UNIT or disable NOM_BUILD_GUI_UNIT.\n" )
-  endif()
-
-  # Verify LibRocket is actually available
-  if( NOT LIBROCKET_FOUND )
-    find_package( LibRocket QUIET )
-  endif()
-  if( NOT LIBROCKET_FOUND )
-    string( APPEND _NOM_SRC_VALIDATION_ERRORS
-      "  [ERROR] Building nomlib-gui requires libRocket, but libRocket was NOT found.\n"
-      "          Install libRocket, set LIBROCKETDIR, or disable NOM_BUILD_GUI_UNIT.\n" )
-  endif()
-endif()
-
-# ---------------------------------------------------------------------------
-# Abort if any validation failed
-# ---------------------------------------------------------------------------
-if( _NOM_SRC_VALIDATION_ERRORS )
-  message( FATAL_ERROR
-    "\n==========================================================================\n"
-    "src/ Build Validation FAILED — aborting before compilation:\n"
-    "\n"
-    "${_NOM_SRC_VALIDATION_ERRORS}"
-    "==========================================================================\n" )
-endif()
-
-unset( _NOM_SRC_VALIDATION_ERRORS )
-unset( _req )
+# Re-run the centralized validation macro defined in cmake/macros.cmake.
+# This serves as a second line of defense right before source compilation,
+# ensuring that any options modified after the root-level check are still
+# valid. Logic is NOT duplicated here — see nom_validate_build_options().
+# ============================================================================
+nom_validate_build_options()
 
 # Use common build output directories for MSVCPP && Xcode project files.
 #

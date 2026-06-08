@@ -95,3 +95,186 @@ endmacro(NOM_LOG_WARN msg)
 macro(NOM_LOG_CRIT msg)
   message( FATAL_ERROR "CRITICAL: ${msg}" )
 endmacro(NOM_LOG_CRIT msg)
+
+# ============================================================================
+# nom_validate_build_options()
+#
+# Centralized validation of CMake build option dependencies.
+# Must be called AFTER third-party dependency detection (find_package calls
+# for OpenAL, libsndfile, LibRocket, SDL2, etc.) so that *_FOUND variables
+# are populated.
+#
+# All validation failures are FATAL_ERROR -- no silent warnings, no
+# demotion to partial builds. Invalid configurations must be fixed by the
+# user before compilation can proceed.
+# ============================================================================
+macro(nom_validate_build_options)
+
+  set(_NOM_ERRORS "")
+
+  # -------------------------------------------------------------------------
+  # 1. NOM_BUILD_ACTIONS_UNIT module dependencies
+  # -------------------------------------------------------------------------
+  if(NOM_BUILD_ACTIONS_UNIT)
+
+    foreach(_req CORE MATH SYSTEM)
+      if(NOT NOM_BUILD_${_req}_UNIT)
+        string(APPEND _NOM_ERRORS
+          "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_${_req}_UNIT=ON.\n")
+      endif()
+    endforeach()
+
+    if(NOT NOM_BUILD_GRAPHICS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_GRAPHICS_UNIT=ON "
+        "(graphics animation actions depend on nomlib-graphics).\n")
+    endif()
+
+    if(NOT NOM_BUILD_AUDIO_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_AUDIO_UNIT=ON "
+        "(audio animation actions depend on nomlib-audio).\n")
+    endif()
+
+  endif()
+
+  # -------------------------------------------------------------------------
+  # 2. NOM_BUILD_GRAPHICS_UNIT module dependencies
+  # -------------------------------------------------------------------------
+  if(NOM_BUILD_GRAPHICS_UNIT)
+    foreach(_req CORE MATH FILE SERIALIZERS SYSTEM)
+      if(NOT NOM_BUILD_${_req}_UNIT)
+        string(APPEND _NOM_ERRORS
+          "  [ERROR] NOM_BUILD_GRAPHICS_UNIT requires NOM_BUILD_${_req}_UNIT=ON.\n")
+      endif()
+    endforeach()
+  endif()
+
+  # -------------------------------------------------------------------------
+  # 3. NOM_BUILD_AUDIO_UNIT module + external library dependencies
+  # -------------------------------------------------------------------------
+  if(NOM_BUILD_AUDIO_UNIT)
+
+    foreach(_req CORE MATH SYSTEM)
+      if(NOT NOM_BUILD_${_req}_UNIT)
+        string(APPEND _NOM_ERRORS
+          "  [ERROR] NOM_BUILD_AUDIO_UNIT requires NOM_BUILD_${_req}_UNIT=ON.\n")
+      endif()
+    endforeach()
+
+    if(NOT OPENAL_FOUND)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_AUDIO_UNIT requires OpenAL, but it was NOT found.\n"
+        "          Install OpenAL/OpenAL-Soft, set OPENALDIR/OPENAL_ROOT,\n"
+        "          or disable NOM_BUILD_AUDIO_UNIT.\n")
+    endif()
+
+    if(NOT LIBSNDFILE_FOUND)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_AUDIO_UNIT requires libsndfile, but it was NOT found.\n"
+        "          Install libsndfile, set LIBSNDFILEDIR/LIBSNDFILE_ROOT,\n"
+        "          or disable NOM_BUILD_AUDIO_UNIT.\n")
+    endif()
+
+  endif()
+
+  # -------------------------------------------------------------------------
+  # 4. NOM_BUILD_GUI_UNIT module + external library dependencies
+  # -------------------------------------------------------------------------
+  if(NOM_BUILD_GUI_UNIT)
+
+    if(NOT NOM_BUILD_GRAPHICS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_GUI_UNIT requires NOM_BUILD_GRAPHICS_UNIT=ON.\n"
+        "          Enable NOM_BUILD_GRAPHICS_UNIT or disable NOM_BUILD_GUI_UNIT.\n")
+    endif()
+
+    if(NOT LIBROCKET_FOUND)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_GUI_UNIT requires libRocket, but it was NOT found.\n"
+        "          Install libRocket, set LIBROCKETDIR/LIBROCKET_ROOT,\n"
+        "          or disable NOM_BUILD_GUI_UNIT.\n")
+    endif()
+
+  endif()
+
+  # -------------------------------------------------------------------------
+  # 5. EXAMPLES module dependencies
+  # -------------------------------------------------------------------------
+  if(EXAMPLES)
+
+    foreach(_req CORE SYSTEM GRAPHICS)
+      if(NOT NOM_BUILD_${_req}_UNIT)
+        string(APPEND _NOM_ERRORS
+          "  [ERROR] EXAMPLES requires NOM_BUILD_${_req}_UNIT=ON.\n")
+      endif()
+    endforeach()
+
+    if(NOT NOM_BUILD_GUI_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_GUI_UNIT=ON "
+        "('app' and 'device_info' examples depend on nomlib-gui).\n")
+    endif()
+
+    if(NOT NOM_BUILD_AUDIO_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_AUDIO_UNIT=ON "
+        "('audio' example depends on nomlib-audio).\n")
+    endif()
+
+    if(NOT NOM_BUILD_ACTIONS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_ACTIONS_UNIT=ON "
+        "('app' and 'audio' examples depend on nomlib-actions).\n")
+    endif()
+
+  endif()
+
+  # -------------------------------------------------------------------------
+  # 6. NOM_BUILD_TESTS module dependencies
+  # -------------------------------------------------------------------------
+  if(NOM_BUILD_TESTS)
+
+    if(NOT NOM_BUILD_CORE_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_TESTS requires NOM_BUILD_CORE_UNIT=ON.\n")
+    endif()
+
+    if(NOM_BUILD_AUDIO_TESTS AND NOT NOM_BUILD_AUDIO_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_AUDIO_TESTS requires NOM_BUILD_AUDIO_UNIT=ON.\n")
+    endif()
+
+    if(NOM_BUILD_GRAPHICS_TESTS AND NOT NOM_BUILD_GRAPHICS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_GRAPHICS_TESTS requires NOM_BUILD_GRAPHICS_UNIT=ON.\n")
+    endif()
+
+    if(NOM_BUILD_ACTIONS_TESTS AND NOT NOM_BUILD_ACTIONS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_ACTIONS_TESTS requires NOM_BUILD_ACTIONS_UNIT=ON.\n")
+    endif()
+
+    if(NOM_BUILD_GUI_TESTS AND NOT NOM_BUILD_GUI_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_GUI_TESTS requires NOM_BUILD_GUI_UNIT=ON.\n")
+    endif()
+
+  endif()
+
+  # -------------------------------------------------------------------------
+  # Emit collected errors
+  # -------------------------------------------------------------------------
+  if(_NOM_ERRORS)
+    message(FATAL_ERROR
+      "\n==========================================================================\n"
+      "Build Option Validation FAILED — fix the following before compiling:\n"
+      "\n"
+      "${_NOM_ERRORS}"
+      "==========================================================================\n")
+  endif()
+
+  unset(_NOM_ERRORS)
+  unset(_req)
+
+endmacro(nom_validate_build_options)
