@@ -41,13 +41,15 @@ namespace audio {
 
 // Forward declarations
 struct SoundBuffer;
+class IOAudioEngine;
 
 } // namespace audio
 
 /// \brief Action for fading audio gain (volume) by a delta value over time.
 ///
-/// This action dispatches volume changes through AudioMixer, ensuring
-/// proper bus volume application for stable music/sfx/voice control paths.
+/// Volume changes are dispatched through the global AudioMixer obtained via
+/// AudioDeviceLocator, ensuring bus volume (master/music/sfx/voice) is
+/// consistently applied regardless of which back-end is in use.
 class FadeAudioGainBy: public virtual IActionObject
 {
   public:
@@ -55,20 +57,31 @@ class FadeAudioGainBy: public virtual IActionObject
 
     typedef FadeAudioGainBy self_type;
 
-    /// \brief Construct from an audio file, using the default SFX bus.
+    /// \brief Construct from an audio file (public API, backward compatible).
+    ///
+    /// \param dev      An audio engine obtained from audio::init_audio().
+    /// \param filename Path to the audio file to load and fade.
+    /// \param delta    Total gain delta in percent (e.g. 100.0f for fade-in
+    ///                 from 0 to full volume, -100.0f for fade-out).
+    /// \param duration Action duration in seconds.
     FadeAudioGainBy(audio::IOAudioEngine* dev, const char* filename,
                     real32 delta, real32 duration);
 
-    /// \brief Construct from a pre-initialized audio buffer, default SFX bus.
+    /// \brief Construct from a pre-initialized audio buffer (public API).
+    ///
+    /// \param dev      An audio engine obtained from audio::init_audio().
+    /// \param buffer   A pre-loaded SoundBuffer (caller retains ownership).
+    /// \param delta    Total gain delta in percent.
+    /// \param duration Action duration in seconds.
     FadeAudioGainBy(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer,
                     real32 delta, real32 duration);
 
-    /// \brief Construct from an audio file with a specific mixer bus.
+    /// \brief Construct with an explicit mixer from an audio file (advanced).
     FadeAudioGainBy(audio::AudioMixer* mixer, const char* filename,
                     real32 delta, real32 duration,
                     audio::AudioBus bus = audio::AUDIO_BUS_SFX);
 
-    /// \brief Construct from a pre-initialized audio buffer with a specific bus.
+    /// \brief Construct with an explicit mixer from a buffer (advanced).
     FadeAudioGainBy(audio::AudioMixer* mixer, audio::SoundBuffer* buffer,
                     real32 delta, real32 duration,
                     audio::AudioBus bus = audio::AUDIO_BUS_SFX);
@@ -102,7 +115,6 @@ class FadeAudioGainBy: public virtual IActionObject
     const real32 total_displacement_;
 
     audio::AudioMixer* mixer_ = nullptr;
-    std::shared_ptr<audio::AudioMixer> owned_mixer_;
     audio::AudioBus bus_ = audio::AUDIO_BUS_SFX;
     std::string filename_;
 

@@ -26,13 +26,12 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ******************************************************************************/
-#ifndef NOMLIB_AUDIO_AUDIO_DEVICE_LOCATOR_HPP
-#define NOMLIB_AUDIO_AUDIO_DEVICE_LOCATOR_HPP
+#ifndef NOMLIB_AUDIO_DEVICE_LOCATOR_HPP
+#define NOMLIB_AUDIO_DEVICE_LOCATOR_HPP
 
 #include <memory>
 
 #include "nomlib/config.hpp"
-#include "nomlib/audio/NullAudioDevice.hpp"
 
 namespace nom {
 
@@ -40,9 +39,16 @@ namespace nom {
 namespace audio {
 class IAudioDevice;
 class NullAudioDevice;
+class IOAudioEngine;
+class AudioMixer;
 } // namespace audio
 
 /// \brief Service Locator pattern implementation for audio device access.
+///
+/// This is the central entry point for the audio subsystem. It manages:
+/// - Audio device provider registration and fallback (NullAudioDevice)
+/// - AudioMixer lifecycle and bus state management
+/// - IOAudioEngine registration from init_audio() / shutdown_audio()
 ///
 /// \see http://gameprogrammingpatterns.com/service-locator.html
 class AudioDeviceLocator
@@ -50,14 +56,46 @@ class AudioDeviceLocator
   public:
     ~AudioDeviceLocator( void );
 
+    /// \brief Initialize the locator with NullAudioDevice as fallback.
     static void initialize( void );
+
+    /// \brief Get the current audio device provider.
     static audio::IAudioDevice& audio_device( void );
+
+    /// \brief Get the global AudioMixer instance for bus control.
+    static audio::AudioMixer& mixer( void );
+
+    /// \brief Look up the mixer associated with a given engine.
+    ///
+    /// \returns The global mixer if engine matches the registered one,
+    ///          otherwise nullptr.
+    static audio::AudioMixer* mixer_for_engine( audio::IOAudioEngine* engine );
+
+    /// \brief Register an IOAudioEngine with the locator.
+    ///
+    /// Called by audio::init_audio() after successfully opening a device.
+    /// The engine is attached to the global AudioMixer.
+    static void register_engine( audio::IOAudioEngine* engine );
+
+    /// \brief Unregister the current IOAudioEngine.
+    ///
+    /// Called by audio::shutdown_audio(). The global AudioMixer is detached
+    /// and falls back to a null state.
+    static void unregister_engine( audio::IOAudioEngine* engine );
+
+    /// \brief Replace the audio device provider.
+    ///
+    /// If service is nullptr, falls back to NullAudioDevice.
+    /// The locator takes ownership of the provided device.
     static void set_provider( audio::IAudioDevice* service );
 
   private:
     static audio::IAudioDevice* audio_;
     static audio::NullAudioDevice null_audio_;
     static audio::IAudioDevice* owned_provider_;
+
+    static std::unique_ptr<audio::AudioMixer> mixer_;
+    static audio::IOAudioEngine* active_engine_;
 };
 
 } // namespace nom

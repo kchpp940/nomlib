@@ -33,6 +33,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/math/math_helpers.hpp"
 #include "nomlib/audio/audio_defs.hpp"
 #include "nomlib/audio/IOAudioEngine.hpp"
+#include "nomlib/audio/AudioDeviceLocator.hpp"
 
 // Forward declarations
 #include "nomlib/audio/libsndfile/SoundFileReader.hpp"
@@ -52,8 +53,10 @@ PlayAudioSource(audio::IOAudioEngine* dev, const char* filename)
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
 
-  this->owned_mixer_.reset(new audio::AudioMixer(dev));
-  this->mixer_ = this->owned_mixer_.get();
+  this->mixer_ = AudioDeviceLocator::mixer_for_engine(dev);
+  if( this->mixer_ == nullptr ) {
+    this->mixer_ = &AudioDeviceLocator::mixer();
+  }
 
   audio::SoundBuffer* buffer = nullptr;
   audio::SoundInfo metadata = {};
@@ -112,6 +115,10 @@ PlayAudioSource(audio::AudioMixer* mixer, const char* filename,
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
+
+  if( this->mixer_ == nullptr ) {
+    this->mixer_ = &AudioDeviceLocator::mixer();
+  }
 
   audio::SoundBuffer* buffer = nullptr;
   audio::SoundInfo metadata = {};

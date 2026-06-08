@@ -43,13 +43,15 @@ namespace audio {
 // Forward declarations
 struct SoundBuffer;
 class ISoundFileReader;
+class IOAudioEngine;
 
 } // namespace audio
 
 /// \brief Action for playing streaming audio from a file source.
 ///
-/// This action dispatches playback through AudioMixer, ensuring stable
-/// music/sfx/voice control paths with proper bus volume application.
+/// The playback is dispatched through the global AudioMixer obtained via
+/// AudioDeviceLocator, ensuring bus volume (master/music/sfx/voice) is
+/// consistently applied regardless of which back-end is in use.
 class PlayAudioSource: public virtual IActionObject
 {
   public:
@@ -57,10 +59,21 @@ class PlayAudioSource: public virtual IActionObject
 
     typedef PlayAudioSource self_type;
 
-    /// \brief Construct from an audio file, using the default SFX bus.
+    /// \brief Construct from an audio file (public API, backward compatible).
+    ///
+    /// \param dev      An audio engine obtained from audio::init_audio().
+    ///                 The mixer used for playback is resolved through
+    ///                 AudioDeviceLocator, which tracks the registered engine.
+    /// \param filename Path to an audio file readable by the sound file
+    ///                 reader back-end (e.g. WAV via libsndfile).
     PlayAudioSource(audio::IOAudioEngine* dev, const char* filename);
 
-    /// \brief Construct from an audio file with a specific mixer bus.
+    /// \brief Construct with an explicit mixer and bus (advanced API).
+    ///
+    /// \param mixer    The AudioMixer to dispatch through. If nullptr the
+    ///                 global mixer from AudioDeviceLocator is used.
+    /// \param filename Path to an audio file.
+    /// \param bus      Which audio bus to play on (defaults to SFX).
     PlayAudioSource(audio::AudioMixer* mixer, const char* filename,
                     audio::AudioBus bus = audio::AUDIO_BUS_SFX);
 
@@ -91,7 +104,6 @@ class PlayAudioSource: public virtual IActionObject
     nom::size_type curr_frame_ = 0;
 
     audio::AudioMixer* mixer_ = nullptr;
-    std::shared_ptr<audio::AudioMixer> owned_mixer_;
     audio::AudioBus bus_ = audio::AUDIO_BUS_SFX;
 
     std::shared_ptr<audio::ISoundFileReader> fp_;

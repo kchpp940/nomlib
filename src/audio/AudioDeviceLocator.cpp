@@ -30,6 +30,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nomlib/audio/IAudioDevice.hpp"
 #include "nomlib/audio/NullAudioDevice.hpp"
+#include "nomlib/audio/IOAudioEngine.hpp"
+#include "nomlib/audio/AudioMixer.hpp"
 
 namespace nom {
 
@@ -38,19 +40,81 @@ audio::IAudioDevice* AudioDeviceLocator::audio_ = nullptr;
 audio::NullAudioDevice AudioDeviceLocator::null_audio_;
 audio::IAudioDevice* AudioDeviceLocator::owned_provider_ = nullptr;
 
+std::unique_ptr<audio::AudioMixer> AudioDeviceLocator::mixer_;
+audio::IOAudioEngine* AudioDeviceLocator::active_engine_ = nullptr;
+
 AudioDeviceLocator::~AudioDeviceLocator( void )
 {
   NOM_DELETE_PTR( AudioDeviceLocator::owned_provider_ );
+  AudioDeviceLocator::mixer_.reset();
+  AudioDeviceLocator::active_engine_ = nullptr;
 }
 
 void AudioDeviceLocator::initialize( void )
 {
   AudioDeviceLocator::audio_ = &AudioDeviceLocator::null_audio_;
+
+  if( AudioDeviceLocator::mixer_ == nullptr ) {
+    AudioDeviceLocator::mixer_.reset( new audio::AudioMixer() );
+  }
+  AudioDeviceLocator::active_engine_ = nullptr;
 }
 
 audio::IAudioDevice& AudioDeviceLocator::audio_device( void )
 {
+  if( AudioDeviceLocator::audio_ == nullptr ) {
+    AudioDeviceLocator::initialize();
+  }
   return *AudioDeviceLocator::audio_;
+}
+
+audio::AudioMixer& AudioDeviceLocator::mixer( void )
+{
+  if( AudioDeviceLocator::mixer_ == nullptr ) {
+    AudioDeviceLocator::initialize();
+  }
+  return *AudioDeviceLocator::mixer_;
+}
+
+audio::AudioMixer*
+AudioDeviceLocator::mixer_for_engine( audio::IOAudioEngine* engine )
+{
+  if( AudioDeviceLocator::mixer_ == nullptr ) {
+    AudioDeviceLocator::initialize();
+  }
+  if( engine == nullptr || engine == AudioDeviceLocator::active_engine_ ) {
+    return AudioDeviceLocator::mixer_.get();
+  }
+  return nullptr;
+}
+
+void AudioDeviceLocator::register_engine( audio::IOAudioEngine* engine )
+{
+  if( AudioDeviceLocator::mixer_ == nullptr ) {
+    AudioDeviceLocator::initialize();
+  }
+  if( engine != nullptr ) {
+    AudioDeviceLocator::mixer_->set_engine( engine );
+    AudioDeviceLocator::active_engine_ = engine;
+
+    NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO,
+                  "AudioDeviceLocator: registered audio engine with mixer" );
+  }
+}
+
+void AudioDeviceLocator::unregister_engine( audio::IOAudioEngine* engine )
+{
+  if( AudioDeviceLocator::mixer_ == nullptr ) {
+    return;
+  }
+  if( engine == nullptr || engine == AudioDeviceLocator::active_engine_ ) {
+    AudioDeviceLocator::mixer_->close();
+    AudioDeviceLocator::mixer_->set_engine( nullptr );
+    AudioDeviceLocator::active_engine_ = nullptr;
+
+    NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO,
+                  "AudioDeviceLocator: unregistered audio engine from mixer" );
+  }
 }
 
 void AudioDeviceLocator::set_provider( audio::IAudioDevice* service )

@@ -37,6 +37,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/system/Timer.hpp"
 #include "nomlib/audio/AL/osx/apple_extensions.hpp"
 #include "nomlib/math/math_helpers.hpp"
+#include "nomlib/audio/AudioDeviceLocator.hpp"
 
 // Forward declarations
 #include "nomlib/audio/AL/OpenAL.hpp"
@@ -1098,12 +1099,18 @@ init_audio(const audio::AudioSpec* request, audio::AudioSpec* spec)
     // initialization
   }
 
+  if(driver != nullptr) {
+    AudioDeviceLocator::register_engine(driver);
+  }
+
   return driver;
 }
 
 void shutdown_audio(IOAudioEngine* impl)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
+
+  AudioDeviceLocator::unregister_engine(impl);
 
   if(impl != nullptr && impl->valid() == true) {
     impl->close();
