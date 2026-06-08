@@ -123,6 +123,7 @@ class App: public nom::SDLApp
 
       nom::ResourceManifest manifest;
       nom::CachedResourceLoader res_loader;
+      nom::gui::CachedResourceLoader gui_res_loader;
       std::string manifest_file = "app_manifest.json";
 
       if( manifest.load_file( manifest_file ) == false )
@@ -132,6 +133,7 @@ class App: public nom::SDLApp
         return false;
       }
       res_loader.set_manifest( manifest );
+      gui_res_loader.set_manifest( manifest );
 
       res_loader.manifest().dump();
 
@@ -213,21 +215,23 @@ class App: public nom::SDLApp
 
       this->desktop.set_event_handler(this->evt_handler);
 
-      if( nom::load_ui_font( res_loader.manifest(), "font_delicious_bold", this->desktop ) == false )
+      gui_res_loader.set_context( &this->desktop );
+
+      if( gui_res_loader.get_font( "font_delicious_bold" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_delicious_bold'" );
         return false;
       }
 
-      if( nom::load_ui_font( res_loader.manifest(), "font_opensans_regular", this->desktop ) == false )
+      if( gui_res_loader.get_font( "font_opensans_regular" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_opensans_regular'" );
         return false;
       }
 
-      if( nom::load_ui_font( res_loader.manifest(), "font_opensans_bold", this->desktop ) == false )
+      if( gui_res_loader.get_font( "font_opensans_bold" ) == false )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest font 'font_opensans_bold'" );
@@ -242,6 +246,9 @@ class App: public nom::SDLApp
 
       res_loader.preload_eager();
       res_loader.dump();
+
+      gui_res_loader.preload_eager();
+      gui_res_loader.dump();
 
       auto sprite_frames = res_loader.get_spritesheet( "cursors_sheet" );
       if( sprite_frames == nullptr ) {
@@ -299,7 +306,7 @@ class App: public nom::SDLApp
       this->window[0].make_current();
 
       this->info_box[0].set_context(&this->desktop);
-      if( nom::load_ui_document( res_loader.manifest(), "ui_messagebox", this->desktop ) == nullptr )
+      if( gui_res_loader.create_document( "ui_messagebox" ) == nullptr )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );
@@ -313,7 +320,7 @@ class App: public nom::SDLApp
       this->info_box[0].show();
 
       this->info_box[1].set_context(&this->desktop);
-      if( nom::load_ui_document( res_loader.manifest(), "ui_messagebox", this->desktop ) == nullptr )
+      if( gui_res_loader.create_document( "ui_messagebox" ) == nullptr )
       {
         NOM_LOG_CRIT( NOM_LOG_CATEGORY_APPLICATION,
                       "Could not load manifest UI 'ui_messagebox'" );
@@ -330,6 +337,7 @@ class App: public nom::SDLApp
       this->ani_sprite->set_position( nom::Point2i(this->info_box[0].position().x + this->info_box[0].size().w + this->sprite.size().w, this->info_box[0].position().y) );
 
       this->res_loader_ = std::move(res_loader);
+      this->gui_res_loader_ = std::move(gui_res_loader);
 
       return true;
     } // onInit
@@ -675,6 +683,7 @@ class App: public nom::SDLApp
     nom::sint selected_text_string;
 
     nom::CachedResourceLoader res_loader_;
+    nom::gui::CachedResourceLoader gui_res_loader_;
 
     nom::sint select_font_size ( void )
     {
