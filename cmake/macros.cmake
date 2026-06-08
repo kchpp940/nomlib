@@ -121,18 +121,45 @@ macro(nom_validate_build_options)
   set(_NOM_ERRORS "")
 
   # -------------------------------------------------------------------------
-  # 1. NOM_BUILD_ACTIONS_UNIT — strong deps only (CORE / MATH / SYSTEM)
-  #    GRAPHICS and AUDIO are optional: their action subsets are guarded by
-  #    if(NOM_BUILD_GRAPHICS_UNIT) / if(NOM_BUILD_AUDIO_UNIT) in
-  #    src/actions/CMakeLists.txt and may be legitimately trimmed.
+  # 1. NOM_BUILD_ACTIONS_UNIT — hard deps
+  #    Source split (see src/actions/CMakeLists.txt):
+  #      * Core actions   — always compiled, require CORE/MATH/SYSTEM.
+  #      * Graphics actions — require GRAPHICS (AnimateTextures, FadeIn,
+  #        FadeOut, FadeAlphaBy, MoveBy, ScaleBy, SpriteBatch).
+  #      * Audio actions    — require AUDIO (FadeAudioGainBy, PlayAudioSource).
+  #    Per user requirement, ALL of the above must be available when
+  #    NOM_BUILD_ACTIONS_UNIT is ON — partial / trimmed action builds are
+  #    rejected at configure time with an explicit list of the unavailable
+  #    sub-actions.
   # -------------------------------------------------------------------------
   if(NOM_BUILD_ACTIONS_UNIT)
+
     foreach(_req CORE MATH SYSTEM)
       if(NOT NOM_BUILD_${_req}_UNIT)
         string(APPEND _NOM_ERRORS
           "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_${_req}_UNIT=ON.\n")
       endif()
     endforeach()
+
+    if(NOT NOM_BUILD_GRAPHICS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_GRAPHICS_UNIT=ON.\n"
+        "          Missing graphics animation actions:\n"
+        "            · AnimateTexturesAction\n"
+        "            · FadeInAction / FadeOutAction / FadeAlphaByAction\n"
+        "            · MoveByAction / ScaleByAction / SpriteBatchAction\n"
+        "          Enable NOM_BUILD_GRAPHICS_UNIT or disable NOM_BUILD_ACTIONS_UNIT.\n")
+    endif()
+
+    if(NOT NOM_BUILD_AUDIO_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] NOM_BUILD_ACTIONS_UNIT requires NOM_BUILD_AUDIO_UNIT=ON.\n"
+        "          Missing audio animation actions:\n"
+        "            · FadeAudioGainBy\n"
+        "            · PlayAudioSource\n"
+        "          Enable NOM_BUILD_AUDIO_UNIT or disable NOM_BUILD_ACTIONS_UNIT.\n")
+    endif()
+
   endif()
 
   # -------------------------------------------------------------------------
@@ -198,20 +225,47 @@ macro(nom_validate_build_options)
   endif()
 
   # -------------------------------------------------------------------------
-  # 5. EXAMPLES — strong deps only
-  #    Examples that depend on optional modules (app→gui/actions,
-  #    audio→audio/actions, etc.) are individually guarded by
-  #    if(NOM_BUILD_*_EXAMPLE) in examples/CMakeLists.txt and are
-  #    automatically skipped when their deps are off. Only the modules
-  #    required by EVERY example are enforced here.
+  # 5. EXAMPLES — hard deps
+  #    Each example's dependencies are checked explicitly. Examples that
+  #    depend on optional modules (app→gui/actions, audio→audio/actions,
+  #    etc.) MUST have those modules available when EXAMPLES=ON.
   # -------------------------------------------------------------------------
   if(EXAMPLES)
+
+    # Required by ALL examples
     foreach(_req CORE SYSTEM GRAPHICS)
       if(NOT NOM_BUILD_${_req}_UNIT)
         string(APPEND _NOM_ERRORS
           "  [ERROR] EXAMPLES requires NOM_BUILD_${_req}_UNIT=ON.\n")
       endif()
     endforeach()
+
+    if(NOT NOM_BUILD_ACTIONS_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_ACTIONS_UNIT=ON.\n"
+        "          Missing examples:\n"
+        "            · app\n"
+        "            · audio\n"
+        "          Enable NOM_BUILD_ACTIONS_UNIT or disable EXAMPLES.\n")
+    endif()
+
+    if(NOT NOM_BUILD_GUI_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_GUI_UNIT=ON.\n"
+        "          Missing examples:\n"
+        "            · app\n"
+        "            · device_info\n"
+        "          Enable NOM_BUILD_GUI_UNIT or disable EXAMPLES.\n")
+    endif()
+
+    if(NOT NOM_BUILD_AUDIO_UNIT)
+      string(APPEND _NOM_ERRORS
+        "  [ERROR] EXAMPLES requires NOM_BUILD_AUDIO_UNIT=ON.\n"
+        "          Missing examples:\n"
+        "            · audio\n"
+        "          Enable NOM_BUILD_AUDIO_UNIT or disable EXAMPLES.\n")
+    endif()
+
   endif()
 
   # -------------------------------------------------------------------------
