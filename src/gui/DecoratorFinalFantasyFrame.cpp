@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Private headers
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/math/Size2.hpp"
+#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/FinalFantasyDecorator.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
@@ -125,6 +126,10 @@ void DecoratorFinalFantasyFrame::RenderElement(Rocket::Core::Element* element, R
 
     decorator_->set_bounds( IntRect(this->bounds_) );
   }
+
+  // --- SDL / GL State Isolation ------------------------------------------------
+  // See DecoratorSpriteBatch::RenderElement for rationale.
+  RenderStateGuard guard( context->renderer(), RenderStateGuard::Scope::All );
 
   decorator_->draw( *context );
 }

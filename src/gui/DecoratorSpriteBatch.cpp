@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Private headers
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/math/Size2.hpp"
+#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketFileInterface.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
@@ -125,13 +126,18 @@ void DecoratorSpriteBatch::RenderElement(Rocket::Core::Element* element, Rocket:
   const RenderWindow* context = target->window_;
 
   NOM_ASSERT( context != nullptr );
-  if( context )
+  if( context != nullptr && this->sprite_ != nullptr )
   {
-    if( this->sprite_ )
-    {
-      this->sprite_->set_position( Point2i(pos.x, pos.y) );
-      this->sprite_->draw( *context );
-    }
+    // --- SDL / GL State Isolation ------------------------------------------------
+    // This method is called from inside libRocket's render loop, where the GL
+    // state has been modified by RocketSDL2RenderInterface (vertex arrays,
+    // blend, current color, etc).  nom::SpriteBatch::draw() goes through SDL's
+    // renderer API, which will itself touch GL state.  We must save+restore
+    // everything to avoid corrupting either side of the rendering pipeline.
+    RenderStateGuard guard( context->renderer(), RenderStateGuard::Scope::All );
+
+    this->sprite_->set_position( Point2i( pos.x, pos.y ) );
+    this->sprite_->draw( *context );
   }
 }
 

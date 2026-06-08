@@ -28,6 +28,9 @@ if( NOM_BUILD_GRAPHICS_UNIT )
         ${SRC_DIR}/graphics/Renderer.cpp
         ${INC_DIR}/graphics/Renderer.hpp
 
+        ${SRC_DIR}/graphics/RenderStateGuard.cpp
+        ${INC_DIR}/graphics/RenderStateGuard.hpp
+
         ${SRC_DIR}/graphics/RendererInfo.cpp
         ${INC_DIR}/graphics/RendererInfo.hpp
 

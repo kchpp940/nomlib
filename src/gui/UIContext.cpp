@@ -40,6 +40,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Private headers
 #include "nomlib/graphics/RenderWindow.hpp"
+#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
 namespace nom {
@@ -465,8 +466,34 @@ void UIContext::update()
 
 void UIContext::draw()
 {
-  if( this->context_ )
+  if( this->context_ == nullptr ) {
+    return;
+  }
+
+  // --- GUI Rendering State Boundary ------------------------------------------
+  // The libRocket render interface (RocketSDL2RenderInterface) bypasses the
+  // SDL renderer for OpenGL calls and can potentially leave the GL/SDL state
+  // dirty.  We install an outer guard here at the UI context level so that
+  // even if a custom Decorator or a future change forgets to save/restore
+  // state internally, the rest of the engine (Sprite / Texture / Shape) is
+  // fully insulated.
+  //
+  // We also need to grab a RenderWindow pointer from the currently-installed
+  // render interface, since UIContext itself does not hold one.
+  nom::RocketSDL2RenderInterface* ri =
+    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
+                      Rocket::Core::GetRenderInterface() );
+
+  if( ri != nullptr && ri->window_ != nullptr )
   {
+    RenderStateGuard guard( ri->window_->renderer(),
+                            RenderStateGuard::Scope::All );
+    this->context_->Render();
+  }
+  else
+  {
+    // No render interface available; fall back to rendering without the
+    // outer state guard (the inner guard in RenderGeometry will still fire).
     this->context_->Render();
   }
 }

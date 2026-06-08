@@ -50,48 +50,63 @@ bool NullAudioDevice::valid() const
   return this->initialized_;
 }
 
+// void* NullAudioDevice::device() const
+// {
+//   return nullptr;
+// }
+
+// void* NullAudioDevice::context() const
+// {
+//   return nullptr;
+// }
+
 std::string NullAudioDevice::device_name() const
 {
   return this->device_name_;
 }
 
+// IOAudioEngine* NullAudioDevice::caps() const
+// {
+//   return this->impl_;
+// }
+
 IOAudioEngine* NullAudioDevice::open(const audio::AudioSpec* spec)
 {
-  (void)spec;
+  IOAudioEngine* engine = nullptr;
 
-  this->close();
+  if(spec != nullptr) {
+  }
 
   this->device_name_ = "NullAudioDevice";
 
-  this->engine_.reset(new NullAudioEngineCaps());
-  if(this->engine_ != nullptr) {
+  // this->impl_ = new NullAudioEngineCaps();
+  // if(this->impl_ != nullptr) {
+  //   this->initialized_ = true;
+  // }
+
+  // return(this->valid() == true);
+
+  engine = new NullAudioEngineCaps();
+  if(engine != nullptr) {
     this->initialized_ = true;
   }
 
-  return this->engine_.get();
+  return engine;
 }
 
 void NullAudioDevice::suspend()
 {
-  if(this->engine_ != nullptr) {
-    this->engine_->suspend();
-  }
+
 }
 
 void NullAudioDevice::resume()
 {
-  if(this->engine_ != nullptr) {
-    this->engine_->resume();
-  }
+
 }
 
 void NullAudioDevice::close()
 {
-  if(this->engine_ != nullptr) {
-    this->engine_->close();
-    this->engine_.reset();
-  }
-  this->initialized_ = false;
+  // NOM_DELETE_PTR(this->impl_);
 }
 
 IOAudioEngine* create_null_audio_device(const audio::AudioSpec* spec)

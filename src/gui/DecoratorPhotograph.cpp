@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Private headers
 #include <SDL_image.h>
 
+#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/math/Size2.hpp"
@@ -117,16 +118,7 @@ void DecoratorPhotograph::ReleaseElementData(Rocket::Core::DecoratorDataHandle R
 
 void DecoratorPhotograph::RenderElement(Rocket::Core::Element* element, Rocket::Core::DecoratorDataHandle ROCKET_UNUSED_PARAMETER(element_data))
 {
-  // ROCKET_UNUSED(element_data);
-
-  // Rocket::Core::Vector2f pos_margins = element->GetAbsoluteOffset(Rocket::Core::Box::MARGIN);
   Rocket::Core::Vector2f pos = element->GetAbsoluteOffset(Rocket::Core::Box::PADDING);
-
-  // Rocket::Core::Vector2f size = element->GetBox().GetSize(Rocket::Core::Box::PADDING);
-
-  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "position_margins:", pos_margins.x, pos_margins.y);
-  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "pos:", pos.x, pos.y);
-  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "size:", this->image_.size().w, this->image_.size().h );
 
   nom::RocketSDL2RenderInterface* p = NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, Rocket::Core::GetRenderInterface() );
 
@@ -134,8 +126,10 @@ void DecoratorPhotograph::RenderElement(Rocket::Core::Element* element, Rocket::
   {
     const RenderWindow* target = p->window_;
 
+    // --- SDL / GL State Isolation ------------------------------------------------
+    RenderStateGuard guard( target->renderer(), RenderStateGuard::Scope::All );
+
     this->image_.set_position( Point2i( pos.x, pos.y ) );
-    // this->image_.set_position( Point2i( 0, 0 ) );
     this->image_.draw( target->renderer() );
   }
 }

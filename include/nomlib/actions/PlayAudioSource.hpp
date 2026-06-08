@@ -30,53 +30,38 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define NOMLIB_ACTIONS_PLAY_AUDIO_SOURCE_HPP
 
 #include <memory>
-#include <vector>
-#include <string>
 
 #include "nomlib/config.hpp"
 #include "nomlib/actions/IActionObject.hpp"
-#include "nomlib/audio/AudioMixer.hpp"
 
 namespace nom {
 namespace audio {
 
 // Forward declarations
+class IOAudioEngine;
 struct SoundBuffer;
 class ISoundFileReader;
-class IOAudioEngine;
 
 } // namespace audio
 
-/// \brief Action for playing streaming audio from a file source.
-///
-/// The playback is dispatched through the global AudioMixer obtained via
-/// AudioDeviceLocator, ensuring bus volume (master/music/sfx/voice) is
-/// consistently applied regardless of which back-end is in use.
+/// \brief [TODO: Description]
+// TODO: Update comments!
 class PlayAudioSource: public virtual IActionObject
 {
   public:
+    /// \brief Allow access into our private parts for unit testing.
     friend class ActionTest;
 
     typedef PlayAudioSource self_type;
 
-    /// \brief Construct from an audio file (public API, backward compatible).
-    ///
-    /// \param dev      An audio engine obtained from audio::init_audio().
-    ///                 The mixer used for playback is resolved through
-    ///                 AudioDeviceLocator, which tracks the registered engine.
-    /// \param filename Path to an audio file readable by the sound file
-    ///                 reader back-end (e.g. WAV via libsndfile).
+    /// \brief Default constructor; create the action from an audio file on
+    /// disk.
     PlayAudioSource(audio::IOAudioEngine* dev, const char* filename);
 
-    /// \brief Construct with an explicit mixer and bus (advanced API).
-    ///
-    /// \param mixer    The AudioMixer to dispatch through. If nullptr the
-    ///                 global mixer from AudioDeviceLocator is used.
-    /// \param filename Path to an audio file.
-    /// \param bus      Which audio bus to play on (defaults to SFX).
-    PlayAudioSource(audio::AudioMixer* mixer, const char* filename,
-                    audio::AudioBus bus = audio::AUDIO_BUS_SFX);
+    /// \brief Construct the action from a pre-initialized audio buffer.
+    // PlayAudioSource(audio::IOAudioEngine* dev, audio::SoundBuffer* buffer);
 
+    /// \brief Destructor.
     virtual ~PlayAudioSource();
 
     virtual std::unique_ptr<IActionObject> clone() const override;
@@ -87,6 +72,9 @@ class PlayAudioSource: public virtual IActionObject
 
     virtual void pause(real32 delta_time) override;
 
+    /// \brief Resume logic for the animation object.
+    ///
+    /// \remarks Reserved for future implementation.
     virtual void resume(real32 delta_time) override;
 
     virtual void rewind(real32 delta_time) override;
@@ -96,18 +84,23 @@ class PlayAudioSource: public virtual IActionObject
   private:
     static const char* DEBUG_CLASS_NAME;
 
+    /// \brief Execute the alpha blending logic for the animation.
     IActionObject::FrameState update(real32 t, uint8 b, int16 c, real32 d);
 
     void first_frame(real32 delta_time);
     void last_frame(real32 delta_time);
 
+    /// \brief The initial alpha blending value.
+    // real32 initial_volume_;
+
+    /// \brief The total change in the alpha blending value.
+    // const real32 total_displacement_;
+
     nom::size_type curr_frame_ = 0;
 
-    audio::AudioMixer* mixer_ = nullptr;
-    audio::AudioBus bus_ = audio::AUDIO_BUS_SFX;
+    audio::IOAudioEngine* impl_ = nullptr;
 
-    std::shared_ptr<audio::ISoundFileReader> fp_;
-    std::string filename_;
+    audio::ISoundFileReader* fp_ = nullptr;
 
     typedef std::vector<audio::SoundBuffer*> audio_buffers;
     audio_buffers::iterator current_buffer_;

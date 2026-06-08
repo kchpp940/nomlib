@@ -37,8 +37,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nomlib/system/Timer.hpp"
 #include "nomlib/audio/AL/osx/apple_extensions.hpp"
 #include "nomlib/math/math_helpers.hpp"
-#include "nomlib/audio/AudioDeviceLocator.hpp"
-#include "nomlib/audio/AL/ALAudioDeviceWrapper.hpp"
 
 // Forward declarations
 #include "nomlib/audio/AL/OpenAL.hpp"
@@ -1090,33 +1088,28 @@ init_audio(const audio::AudioSpec* request, audio::AudioSpec* spec)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_VERBOSE);
 
-  bool use_openal = true;
+  IOAudioEngine* driver = nullptr;
   if(request != nullptr && request->engine != nullptr) {
-    if(nom::compare_cstr_insensitive(request->engine, "openal") != 0) {
-      use_openal = false;
+    if(nom::compare_cstr_insensitive(request->engine, "openal") == 0) {
+      driver = audio::init_openal_output(request, spec);
     }
+
+    // TODO(jeff): Implement general purpose code for NULL device
+    // initialization
   }
 
-  if(use_openal) {
-    audio::ALAudioDeviceWrapper* wrapper = new audio::ALAudioDeviceWrapper();
-    AudioDeviceLocator::set_provider( wrapper, request );
-  } else {
-    AudioDeviceLocator::set_provider( nullptr, nullptr );
-  }
-
-  if(spec != nullptr) {
-    std::memset(spec, 0, sizeof(audio::AudioSpec));
-  }
-
-  return AudioDeviceLocator::active_engine();
+  return driver;
 }
 
 void shutdown_audio(IOAudioEngine* impl)
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_AUDIO, NOM_LOG_PRIORITY_DEBUG);
 
-  (void)impl;
-  AudioDeviceLocator::set_provider( nullptr, nullptr );
+  if(impl != nullptr && impl->valid() == true) {
+    impl->close();
+  }
+
+  impl = nullptr;
 }
 
 // const char* audio_device_name(IOAudioEngine* target)

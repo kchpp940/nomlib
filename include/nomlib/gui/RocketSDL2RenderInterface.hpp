@@ -120,6 +120,9 @@ class RocketSDL2RenderInterface: public Rocket::Core::RenderInterface
     RenderWindow* window_;
 
   private:
+    /// \brief Query the current SDL logical resolution scale factor.
+    Point2f logical_scale() const;
+
     /// \brief Shader context function pointer
     ///
     /// \note We bypass the use of GLEW by requesting this extension through
