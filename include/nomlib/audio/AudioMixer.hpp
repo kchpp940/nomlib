@@ -142,13 +142,22 @@ class AudioMixer
     void resume_engine();
 
     /// \brief Stop and free every registered source, reset all bus states
-    ///        to defaults, detach the engine and mark mixer as invalid.
+    ///        to defaults, and detach the engine pointer.
+    ///
+    /// Does **not** call engine->close() — ownership and lifetime of the
+    /// engine belong to the IAudioDevice provider that created it. Callers
+    /// (AudioDeviceLocator::detach_current_provider) are responsible for
+    /// invoking provider::close() after mixer::reset().
     ///
     /// Called by AudioDeviceLocator when the provider is detached or
     /// replaced, so no stale sources remain bound to a defunct engine.
     void reset();
 
-    /// \brief Close the engine (called by reset()).
+    /// \brief Close the engine directly.
+    ///
+    /// Normally unnecessary — the IAudioDevice provider owns the engine and
+    /// is responsible for closing it in its own close(). Use this only when
+    /// you need to force-close the engine outside the provider lifecycle.
     void close();
 
   private:

@@ -40,7 +40,6 @@ namespace audio {
 // Forward declarations — these are implemented in ALAudioDevice.cpp
 IOAudioEngine* init_openal_output(const audio::AudioSpec* request,
                                   audio::AudioSpec* spec);
-void shutdown_audio(IOAudioEngine* impl);
 
 ALAudioDeviceWrapper::ALAudioDeviceWrapper( void )
 {
@@ -100,8 +99,8 @@ void ALAudioDeviceWrapper::close( void )
     NOM_LOG_INFO( NOM_LOG_CATEGORY_AUDIO,
                   "ALAudioDeviceWrapper: closing audio device" );
 
-    IOAudioEngine* raw = this->engine_.release();
-    audio::shutdown_audio( raw );
+    this->engine_->close();
+    this->engine_.reset();
   }
 }
 

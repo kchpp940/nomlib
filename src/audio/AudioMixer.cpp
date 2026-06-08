@@ -267,7 +267,6 @@ void AudioMixer::reset()
   }
   this->sources_.clear();
 
-  this->close();
   this->engine_ = nullptr;
   this->reset_bus_states();
 }
