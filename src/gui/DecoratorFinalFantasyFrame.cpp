@@ -34,10 +34,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Private headers
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/math/Size2.hpp"
-#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/FinalFantasyDecorator.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
-#include "nomlib/gui/UIContext.hpp"
 
 // Forward declarations
 #include "nomlib/gui/IDecorator.hpp"
@@ -82,22 +80,18 @@ void DecoratorFinalFantasyFrame::RenderElement(Rocket::Core::Element* element, R
   Rocket::Core::Vector2f position = element->GetAbsoluteOffset(Rocket::Core::Box::PADDING);
   Rocket::Core::Vector2f size = element->GetBox().GetSize(Rocket::Core::Box::PADDING);
 
-  // Resolve the correct render target through the callback element's owning context
-  // (bound by UIContext::create_context via SetUserData).  Avoid the global
-  // Rocket::Core::GetRenderInterface() so that multiple active UIContexts / windows
-  // don't accidentally draw into each other's renderers.
-  Rocket::Core::Context* rkt_ctx = element ? element->GetContext() : nullptr;
-  UIContext* ui_ctx = UIContext::from_rocket_context( rkt_ctx );
-  nom::RocketSDL2RenderInterface* target = ui_ctx ?
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, ui_ctx->render_interface() ) : nullptr;
+  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "position:", position.x, position.y);
+  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "size:", size.x, size.y);
+
+  nom::RocketSDL2RenderInterface* target = NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, Rocket::Core::GetRenderInterface() );
 
   NOM_ASSERT( target != nullptr );
   if( target == nullptr ) return;
 
-  const RenderWindow* context_window = target->window_;
+  const RenderWindow* context = target->window_;
 
-  NOM_ASSERT( context_window != nullptr );
-  if( context_window == nullptr ) return;
+  NOM_ASSERT( context != nullptr );
+  if( context == nullptr ) return;
 
   // Not ready to render yet; this can happen when there is no width or height
   // defined in 'body.window'.
@@ -132,11 +126,7 @@ void DecoratorFinalFantasyFrame::RenderElement(Rocket::Core::Element* element, R
     decorator_->set_bounds( IntRect(this->bounds_) );
   }
 
-  // --- SDL / GL State Isolation ------------------------------------------------
-  // See DecoratorSpriteBatch::RenderElement for rationale.
-  RenderStateGuard guard( context_window->renderer(), RenderStateGuard::Scope::All );
-
-  decorator_->draw( *context_window );
+  decorator_->draw( *context );
 }
 
 } // namespace nom

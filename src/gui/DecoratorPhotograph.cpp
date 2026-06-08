@@ -35,9 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Private headers
 #include <SDL_image.h>
 
-#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
-#include "nomlib/gui/UIContext.hpp"
 #include "nomlib/math/Point2.hpp"
 #include "nomlib/math/Size2.hpp"
 
@@ -52,8 +50,16 @@ DecoratorPhotograph::~DecoratorPhotograph()
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_GUI, nom::NOM_LOG_PRIORITY_VERBOSE);
 }
 
-bool DecoratorPhotograph::Initialise(const Rocket::Core::String& image_source, const Rocket::Core::String& ROCKET_UNUSED_PARAMETER(image_path) )
+bool DecoratorPhotograph::Initialise(const Rocket::Core::String& image_source, const Rocket::Core::String& image_path )
 {
+  // this->image_idx = LoadTexture(image_source, image_path);
+  // if ( this->image_idx == -1)
+  // {
+  //   return false;
+  // }
+
+  // return true;
+
   Rocket::Core::FileInterface* file_interface = Rocket::Core::GetFileInterface();
   Rocket::Core::FileHandle file_handle = file_interface->Open( image_source );
 
@@ -85,11 +91,6 @@ bool DecoratorPhotograph::Initialise(const Rocket::Core::String& image_source, c
   nom::Image img;
   img.initialize( IMG_LoadTyped_RW(SDL_RWFromMem(buffer, buffer_size), 1, extension.CString() ) );
 
-  // NOTE: IMG_LoadTyped_RW takes ownership of the RWops (the '1' above) which
-  // in turn does *not* take ownership of the memory buffer, so we must free
-  // it ourselves on every return path.
-  delete[] buffer;
-
   if( img.valid() )
   {
     this->image_.create( img );
@@ -116,25 +117,25 @@ void DecoratorPhotograph::ReleaseElementData(Rocket::Core::DecoratorDataHandle R
 
 void DecoratorPhotograph::RenderElement(Rocket::Core::Element* element, Rocket::Core::DecoratorDataHandle ROCKET_UNUSED_PARAMETER(element_data))
 {
+  // ROCKET_UNUSED(element_data);
+
+  // Rocket::Core::Vector2f pos_margins = element->GetAbsoluteOffset(Rocket::Core::Box::MARGIN);
   Rocket::Core::Vector2f pos = element->GetAbsoluteOffset(Rocket::Core::Box::PADDING);
 
-  // Resolve the correct render target through the callback element's owning context
-  // (bound by UIContext::create_context via SetUserData).  Avoid the global
-  // Rocket::Core::GetRenderInterface() so that multiple active UIContexts / windows
-  // don't accidentally draw into each other's renderers.
-  Rocket::Core::Context* rkt_ctx = element ? element->GetContext() : nullptr;
-  UIContext* ui_ctx = UIContext::from_rocket_context( rkt_ctx );
-  nom::RocketSDL2RenderInterface* p = ui_ctx ?
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, ui_ctx->render_interface() ) : nullptr;
+  // Rocket::Core::Vector2f size = element->GetBox().GetSize(Rocket::Core::Box::PADDING);
+
+  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "position_margins:", pos_margins.x, pos_margins.y);
+  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "pos:", pos.x, pos.y);
+  // NOM_DUMP_VAR( NOM_LOG_CATEGORY_GUI, "size:", this->image_.size().w, this->image_.size().h );
+
+  nom::RocketSDL2RenderInterface* p = NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, Rocket::Core::GetRenderInterface() );
 
   if( p )
   {
     const RenderWindow* target = p->window_;
 
-    // --- SDL / GL State Isolation ------------------------------------------------
-    RenderStateGuard guard( target->renderer(), RenderStateGuard::Scope::All );
-
     this->image_.set_position( Point2i( pos.x, pos.y ) );
+    // this->image_.set_position( Point2i( 0, 0 ) );
     this->image_.draw( target->renderer() );
   }
 }

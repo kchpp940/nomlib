@@ -43,7 +43,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // Private headers
 #include "nomlib/graphics/Image.hpp"
 #include "nomlib/graphics/Texture.hpp"
-#include "nomlib/graphics/RenderStateGuard.hpp"
 
 namespace nom {
 
@@ -52,11 +51,15 @@ priv::glUseProgramObjectARB_func RocketSDL2RenderInterface::ctx_ = nullptr;
 // static
 bool RocketSDL2RenderInterface::gl_init( int width, int height )
 {
+  // Initialize OpenGL for SDL2 + libRocket play along
   SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
   glMatrixMode( GL_PROJECTION | GL_MODELVIEW );
   glLoadIdentity();
   glOrtho( 0, width, height, 0, 0, 1 );
 
+  // Without shader extensions, we cannot disable the SDL shaders that
+  // result in unreadable, blocky text when rendered with libRocket's font
+  // subsystem.
   if( SDL_GL_ExtensionSupported("GL_ARB_shader_objects") == false ) {
     NOM_LOG_WARN( NOM_LOG_CATEGORY_APPLICATION,
                   "OpenGL extension 'GL_ARB_shader_objects' is unsupported." );
@@ -78,6 +81,10 @@ bool RocketSDL2RenderInterface::gl_init( int width, int height )
     return false;
   }
 
+  // It may be unsafe (CRASH) to use this function pointer when
+  // SDL_GL_ExtensionSupported returns FALSE as per SDL2 wiki documentation [1]
+  //
+  // 1. https://wiki.libsdl.org/SDL_GL_GetProcAddress
   RocketSDL2RenderInterface::ctx_ =
     (priv::glUseProgramObjectARB_func) SDL_GL_GetProcAddress("glUseProgramObjectARB");
 
@@ -86,12 +93,28 @@ bool RocketSDL2RenderInterface::gl_init( int width, int height )
     return false;
   }
 
+  // TODO: Consider restructuring how (when) we initialize the rendering
+  // window. SDL rendering hints like the following aren't working because the
+  // hint's value is checked only during renderer creation (for us, that means
+  // when nom::RenderWindow is constructed). Resolving the initialization order
+  // issue would let us to simplify things by removing the SDL_GL_ calls made
+  // above.
+
+  // If this fails, a side-effect may be unreadable, blocky text by anything
+  // that is rendered using libRocket's interface.
+  // if( nom::set_hint(SDL_HINT_RENDER_OPENGL_SHADERS, "0" ) == false ) {
+    // NOM_LOG_WARN( NOM_LOG_CATEGORY_APPLICATION,
+                  // "Could not disable OpenGL shaders; rendering side-effects may occur." );
+  // }
+
   return true;
 }
 
 RocketSDL2RenderInterface::RocketSDL2RenderInterface( RenderWindow* window )
 {
   this->window_ = window;
+
+  // SDL_GLContext glcontext = SDL_GL_CreateContext( this->window_->window() );
 }
 
 RocketSDL2RenderInterface::~RocketSDL2RenderInterface()
@@ -106,60 +129,40 @@ void RocketSDL2RenderInterface::Release()
   delete this;
 }
 
-Point2f RocketSDL2RenderInterface::logical_scale() const
-{
-  NOM_ASSERT( this->window_ != nullptr );
-  Point2f scale( 1.0f, 1.0f );
-
-  if( this->window_ != nullptr ) {
-    SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
-  }
-
-  return scale;
-}
-
 void RocketSDL2RenderInterface::
 RenderGeometry( Rocket::Core::Vertex* vertices, int num_vertices, int* indices,
                 int num_indices, Rocket::Core::TextureHandle texture_handle,
                 const Rocket::Core::Vector2f& translation )
 {
-  NOM_ASSERT( this->window_ != nullptr );
-  if( this->window_ == nullptr ) {
-    return;
-  }
+  SDL_Texture* sdl_texture = NULL;
 
-  // --- Render State Isolation ----------------------------------------------
-  // Save the full SDL + OpenGL state BEFORE we touch anything. This guard
-  // ensures that when libRocket's GL bypass code exits, all rendering state
-  // (color, blend, viewport, scissor, texture binding, vertex arrays, ...)
-  // is restored to exactly what it was before we entered. This prevents
-  // GUI rendering from polluting subsequent Sprite / Texture / Shape draws.
-  RenderStateGuard state_guard( this->window_->renderer(),
-                                RenderStateGuard::Scope::All );
+  // Support for independent resolution scale -- SDL2 logical viewport -- we
+  // translate positioning coordinates in respect to the current scale
+  Point2f scale;
+  SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
 
-  SDL_Texture* sdl_texture = nullptr;
-  Point2f scale = this->logical_scale();
-
+  // SDL uses shaders that we need to disable here
   if( RocketSDL2RenderInterface::ctx_ ) {
-    RocketSDL2RenderInterface::ctx_(0);
+    RocketSDL2RenderInterface::ctx_(0); // glUseProgramObjectARB(0);
   }
 
   glPushMatrix();
-  glTranslatef( translation.x * scale.x, translation.y * scale.y, 0.0f );
+
+  glTranslatef(translation.x * scale.x, translation.y * scale.y, 0);
 
   std::vector<Rocket::Core::Vector2f> Positions(num_vertices);
   std::vector<Rocket::Core::Colourb> Colors(num_vertices);
   std::vector<Rocket::Core::Vector2f> TexCoords(num_vertices);
-  float texw = 0.0f, texh = 0.0f;
+  float texw, texh;
 
   auto nom_texture = (nom::Texture*)texture_handle;
   if( nom_texture != nullptr ) {
-    glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     sdl_texture = (SDL_Texture*) nom_texture->texture();
-    SDL_GL_BindTexture( sdl_texture, &texw, &texh );
+    SDL_GL_BindTexture(sdl_texture, &texw, &texh);
   }
 
-  for( int i = 0; i < num_vertices; ++i )
+  for( int i = 0; i < num_vertices; i++ )
   {
     Positions[i].x = vertices[i].position.x * scale.x;
     Positions[i].y = vertices[i].position.y * scale.y;
@@ -173,57 +176,70 @@ RenderGeometry( Rocket::Core::Vertex* vertices, int num_vertices, int* indices,
     }
   }
 
-  glEnableClientState( GL_VERTEX_ARRAY );
-  glEnableClientState( GL_COLOR_ARRAY );
-  glVertexPointer( 2, GL_FLOAT, 0, &Positions[0] );
-  glColorPointer( 4, GL_UNSIGNED_BYTE, 0, &Colors[0] );
-  glTexCoordPointer( 2, GL_FLOAT, 0, &TexCoords[0] );
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glEnableClientState(GL_COLOR_ARRAY);
+  glVertexPointer(2, GL_FLOAT, 0, &Positions[0]);
+  glColorPointer(4, GL_UNSIGNED_BYTE, 0, &Colors[0]);
+  glTexCoordPointer(2, GL_FLOAT, 0, &TexCoords[0]);
 
-  glTexEnvf( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
-  glEnable( GL_BLEND );
-  glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-  glDrawElements( GL_TRIANGLES, num_indices, GL_UNSIGNED_INT, indices );
-
-  glDisableClientState( GL_VERTEX_ARRAY );
-  glDisableClientState( GL_COLOR_ARRAY );
+  glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDrawElements(GL_TRIANGLES, num_indices, GL_UNSIGNED_INT, indices);
+  glDisableClientState(GL_VERTEX_ARRAY);
+  glDisableClientState(GL_COLOR_ARRAY);
 
   if( sdl_texture != nullptr ) {
-    SDL_GL_UnbindTexture( sdl_texture );
-    glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+    SDL_GL_UnbindTexture(sdl_texture);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
   }
 
+  glColor4f(1.0, 1.0, 1.0, 1.0);
   glPopMatrix();
 
-  // NOTE: state_guard destructor fires here and restores EVERYTHING
-  // (draw color, blend mode, viewport, clip, GL matrices, scissor, ...).
+  /* Reset blending and draw a fake point just outside the screen to let SDL know that it needs to reset its state in case it wants to render a texture */
+  glDisable(GL_BLEND);
+  SDL_SetRenderDrawBlendMode(this->window_->renderer(), SDL_BLENDMODE_NONE);
+  SDL_RenderDrawPoint(this->window_->renderer(), -1, -1);
+
+  // Reset the renderer's drawing color; this is necessary because otherwise
+  // the GL color call above this statement overwrites any drawing colors set
+  // by nomlib's SDL2 rendering subsystem.
   //
-  // This cleanly replaces the previous hacks:
-  //   - glColor4f(1,1,1,1)  +  hardcoded set_color(Color4i::Blue)
-  //   - glDisable(GL_BLEND) + SDL_SetRenderDrawBlendMode(NONE)
-  //   - SDL_RenderDrawPoint(-1, -1) trick to flush SDL internal state
-}
-
-void RocketSDL2RenderInterface::EnableScissorRegion( bool enable )
-{
-  NOM_ASSERT( this->window_ != nullptr );
-
-  if( enable ) {
-    glEnable( GL_SCISSOR_TEST );
-  } else {
-    glDisable( GL_SCISSOR_TEST );
+  // I don't really know what I'm doing here! I just know that it appears to
+  // work in the instance I'm working in (custom libRocket decorator)...
+  if( this->window_->set_color( Color4i::Blue ) == false )
+  {
+    NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION, SDL_GetError() );
   }
 }
 
-void RocketSDL2RenderInterface::SetScissorRegion( int x, int y, int width, int height )
+void RocketSDL2RenderInterface::EnableScissorRegion(bool enable)
 {
-  NOM_ASSERT( this->window_ != nullptr );
-  if( this->window_ == nullptr ) {
-    return;
+  if(enable)
+  {
+    glEnable(GL_SCISSOR_TEST);
   }
+  else
+  {
+    glDisable(GL_SCISSOR_TEST);
+  }
+}
 
-  Point2f scale    = this->logical_scale();
-  IntRect viewport = this->window_->viewport();
-  Size2i output    = this->window_->output_size();
+void RocketSDL2RenderInterface::SetScissorRegion(int x, int y, int width, int height)
+{
+  // Size2i window = this->window_->size();
+  // glScissor(x, window.w - (y + height), width, height);
+
+  // Support for independent resolution scale -- SDL2 logical viewport) -- we
+  // translate positioning coordinates in respect to the current scale
+  Point2f scale;    // drawing scale
+  IntRect viewport; // viewport dimensions
+  Size2i output;    // rendering output dimensions
+  SDL_RenderGetScale( this->window_->renderer(), &scale.x, &scale.y );
+
+  viewport = this->window_->viewport();
+  output = this->window_->output_size();
 
   viewport.x = viewport.x * scale.x;
   viewport.y = viewport.y * scale.y;
@@ -236,72 +252,73 @@ void RocketSDL2RenderInterface::SetScissorRegion( int x, int y, int width, int h
   //
   // Incorrect calculations done here can result in bugs with libRocket's
   // scrollbar functionality.
-  glScissor(  viewport.x,
-              ( output.h - viewport.y - y - viewport.h ),
-              viewport.w,
-              viewport.h );
+  glScissor(  viewport.x, (output.h - viewport.y - y - viewport.h),
+              viewport.w, viewport.h );
 }
 
-bool RocketSDL2RenderInterface::LoadTexture( Rocket::Core::TextureHandle& texture_handle,
-                                             Rocket::Core::Vector2i& texture_dimensions,
-                                             const Rocket::Core::String& source )
+bool RocketSDL2RenderInterface::LoadTexture(Rocket::Core::TextureHandle& texture_handle, Rocket::Core::Vector2i& texture_dimensions, const Rocket::Core::String& source)
 {
   Rocket::Core::FileInterface* file_interface = Rocket::Core::GetFileInterface();
-  Rocket::Core::FileHandle file_handle = file_interface->Open( source );
+  Rocket::Core::FileHandle file_handle = file_interface->Open(source);
 
-  if( !file_handle ) {
+  if( !file_handle )
+  {
     NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                   "Could not obtain file handle for source:",
                   source.CString() );
     return false;
   }
 
-  file_interface->Seek( file_handle, 0, SEEK_END );
-  nom::size_type buffer_size = file_interface->Tell( file_handle );
-  file_interface->Seek( file_handle, 0, SEEK_SET );
+  file_interface->Seek(file_handle, 0, SEEK_END);
+  nom::size_type buffer_size = file_interface->Tell(file_handle);
+  file_interface->Seek(file_handle, 0, SEEK_SET);
 
   char* buffer = new char[buffer_size];
-  file_interface->Read( buffer, buffer_size, file_handle );
-  file_interface->Close( file_handle );
+  file_interface->Read(buffer, buffer_size, file_handle);
+  file_interface->Close(file_handle);
 
   nom::size_type i;
-  for( i = source.Length() - 1; i > 0; --i ) {
-    if( source[i] == '.' ) {
+  for(i = source.Length() - 1; i > 0; i--)
+  {
+    if(source[i] == '.')
+    {
       break;
     }
   }
 
-  Rocket::Core::String extension = source.Substring( i + 1, source.Length() - i );
+  Rocket::Core::String extension = source.Substring(i+1, source.Length()-i);
 
   Image surface;
   Texture* texture = new Texture();
-  NOM_ASSERT( texture != nullptr );
-
-  if( surface.load_memory( buffer, buffer_size, extension.CString() ) == true ) {
-    if( texture->create( surface ) == true ) {
+  NOM_ASSERT(texture != nullptr);
+  if( surface.load_memory( buffer, buffer_size, extension.CString() ) == true)
+  {
+    if( texture->create( surface ) == true )
+    {
+      // ::ReleaseTexture is responsible for freeing this pointer now
       texture_handle = (Rocket::Core::TextureHandle) texture;
+
       texture_dimensions =
-        Rocket::Core::Vector2i( surface.width(), surface.height() );
-    } else {
-      NOM_DELETE_PTR( texture );
+        Rocket::Core::Vector2i(surface.width(), surface.height() );
+    }
+    else
+    {
+      NOM_DELETE_PTR(texture);
       NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                     "Could not create texture handle from image source." );
-      delete[] buffer;
       return false;
     }
-    delete[] buffer;
+
     return true;
   }
 
-  delete[] buffer;
-  NOM_DELETE_PTR( texture );
-  NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION, "Could not create texture handle." );
+  NOM_DELETE_PTR(texture);
+  NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
+                "Could not create texture handle." );
   return false;
 }
 
-bool RocketSDL2RenderInterface::GenerateTexture( Rocket::Core::TextureHandle& texture_handle,
-                                                 const Rocket::Core::byte* source,
-                                                 const Rocket::Core::Vector2i& source_dimensions )
+bool RocketSDL2RenderInterface::GenerateTexture(Rocket::Core::TextureHandle& texture_handle, const Rocket::Core::byte* source, const Rocket::Core::Vector2i& source_dimensions)
 {
   #if SDL_BYTEORDER == SDL_BIG_ENDIAN
     Uint32 rmask = 0xff000000;
@@ -319,42 +336,51 @@ bool RocketSDL2RenderInterface::GenerateTexture( Rocket::Core::TextureHandle& te
   bool ret;
 
   ret = surface.initialize(
+                            // pixels
                             (void*) source,
+                            // width
                             source_dimensions.x,
+                            // height
                             source_dimensions.y,
+                            // bits per pixel
                             32,
+                            // pitch
                             source_dimensions.x * 4,
                             rmask, gmask, bmask, amask );
 
   Texture* texture = new Texture();
-  NOM_ASSERT( texture != nullptr );
+  NOM_ASSERT(texture != nullptr);
 
-  if( ret ) {
-    if( texture->create( surface ) == false ) {
+  if( ret )
+  {
+    if( texture->create(surface) == false )
+    {
       NOM_LOG_ERR(  NOM_LOG_CATEGORY_APPLICATION,
                     "Could not generate texture from pixel data." );
-      NOM_DELETE_PTR( texture );
+      NOM_DELETE_PTR(texture);
       return false;
     }
 
     SDL_SetTextureBlendMode( texture->texture(), SDL_BLENDMODE_BLEND );
+
+    // ::ReleaseTexture is responsible for freeing this pointer now
     texture_handle = (Rocket::Core::TextureHandle) texture;
 
     return true;
   }
 
-  NOM_DELETE_PTR( texture );
+  NOM_DELETE_PTR(texture);
 
   NOM_LOG_ERR( NOM_LOG_CATEGORY_APPLICATION, "Could not generate texture." );
   return false;
 }
 
 void RocketSDL2RenderInterface::
-ReleaseTexture( Rocket::Core::TextureHandle texture_handle )
+ReleaseTexture(Rocket::Core::TextureHandle texture_handle)
 {
-  auto texture = (nom::Texture*) texture_handle;
+  auto texture = (nom::Texture*)texture_handle;
   if( texture != nullptr ) {
-    NOM_DELETE_PTR( texture );
+    NOM_DELETE_PTR(texture);
   }
 }
 

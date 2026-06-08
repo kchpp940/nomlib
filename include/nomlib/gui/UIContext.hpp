@@ -147,20 +147,6 @@ class UIContext
     /// \see UIContext::create_context.
     Rocket::Core::Context* context() const;
 
-    /// \brief Get the render interface bound to this context.
-    Rocket::Core::RenderInterface* render_interface() const;
-
-    /// \brief Look up the nom::UIContext that owns the given libRocket Context.
-    ///
-    /// \returns The UIContext pointer previously bound via SetUserData, or
-    /// nullptr if the context has no binding (e.g. not created by us).
-    ///
-    /// \remarks This is how Decorators and other Rocket callbacks can resolve
-    /// the current render target **without** relying on the global
-    /// Rocket::Core::GetRenderInterface() — which can be wrong when multiple
-    /// UIContexts / windows are active.
-    static UIContext* from_rocket_context( Rocket::Core::Context* ctx );
-
     /// \brief Get the dimensions (width and height) of this context instance.
     ///
     /// \returns A nom::Size2i with a non-zero width and height in pixel units

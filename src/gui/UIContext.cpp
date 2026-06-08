@@ -40,32 +40,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Private headers
 #include "nomlib/graphics/RenderWindow.hpp"
-#include "nomlib/graphics/RenderStateGuard.hpp"
 #include "nomlib/gui/RocketSDL2RenderInterface.hpp"
 
-#include <unordered_map>
-
 namespace nom {
-
-namespace {
-
-// ---------------------------------------------------------------------------
-// Private registry: Rocket::Core::Context* → nom::UIContext*
-//
-// We deliberately do NOT use Rocket::Core::Context::SetUserData / GetUserData
-// because that slot belongs to the caller and we would silently overwrite
-// anything they had already bound there.  This internal registry keyed by the
-// raw Rocket context pointer is fully opaque to the outside world and has
-// zero impact on user code.
-// ---------------------------------------------------------------------------
-typedef std::unordered_map<Rocket::Core::Context*, UIContext*> ContextRegistry;
-ContextRegistry& context_registry()
-{
-  static ContextRegistry registry;
-  return registry;
-}
-
-} // anonymous namespace
 
 UIContext::UIContext() :
   debugger_( false ),
@@ -77,13 +54,6 @@ UIContext::UIContext() :
 UIContext::~UIContext()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE, nom::LogPriority::NOM_LOG_PRIORITY_INFO );
-
-  // Safety net: if the user forgot to call shutdown(), make sure we at least
-  // don't leave a dangling pointer in the context registry.
-  if( this->context_ )
-  {
-    context_registry().erase( this->context_ );
-  }
 }
 
 void UIContext::shutdown()
@@ -92,14 +62,7 @@ void UIContext::shutdown()
 
   if( this->context_ )
   {
-    // Remove our registry entry before releasing the Rocket context so the
-    // dangling pointer can never be looked up by callbacks running on
-    // another UIContext's render thread.
-    context_registry().erase( this->context_ );
-
     this->context_->RemoveReference();
-    this->context_ = nullptr;
-    this->renderer_ = nullptr;
   }
 }
 
@@ -323,24 +286,6 @@ Rocket::Core::Context* UIContext::context() const
   return this->context_;
 }
 
-Rocket::Core::RenderInterface* UIContext::render_interface() const
-{
-  return this->renderer_;
-}
-
-UIContext* UIContext::from_rocket_context( Rocket::Core::Context* ctx )
-{
-  if( ctx == nullptr ) {
-    return nullptr;
-  }
-  ContextRegistry& reg = context_registry();
-  auto it = reg.find( ctx );
-  if( it != reg.end() ) {
-    return it->second;
-  }
-  return nullptr;
-}
-
 Size2i UIContext::size() const
 {
   Rocket::Core::Vector2i dims( 0, 0 );
@@ -382,12 +327,6 @@ bool UIContext::create_context( const std::string& name, const Size2i& res,
 
   if( this->context_ )
   {
-    // Register the mapping from the raw Rocket context back to this
-    // UIContext.  We use our own private registry rather than
-    // Rocket::Core::Context::SetUserData so that we never overwrite any
-    // user-bound data on the context.
-    context_registry()[ this->context_ ] = this;
-
     // ::initialize_debugger depends on this value
     this->res_ = res;
 
@@ -484,17 +423,16 @@ void UIContext::set_size(const Size2i& dims)
   Point2f scale( 1.0f, 1.0f );
   Size2i res(Size2i::zero);
 
-  // Use the render interface bound to THIS context -- not the global one --
-  // so multi-window / multi-context setups pull the correct logical scale.
   nom::RocketSDL2RenderInterface* target =
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, this->renderer_ );
+    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*,
+                      Rocket::Core::GetRenderInterface() );
   NOM_ASSERT( target != nullptr );
 
-  const RenderWindow* context_window = target ? target->window_ : nullptr;
-  NOM_ASSERT( context_window != nullptr );
-  if( target && context_window )
+  const RenderWindow* context = target->window_;
+  NOM_ASSERT( context != nullptr );
+  if( target && context )
   {
-    SDL_RenderGetScale( context_window->renderer(), &scale.x, &scale.y );
+    SDL_RenderGetScale( context->renderer(), &scale.x, &scale.y );
   }
 
   // Translations for independent resolution scale dimensions (SDL2); this is
@@ -527,35 +465,8 @@ void UIContext::update()
 
 void UIContext::draw()
 {
-  if( this->context_ == nullptr ) {
-    return;
-  }
-
-  // --- GUI Rendering State Boundary ------------------------------------------
-  // The libRocket render interface (RocketSDL2RenderInterface) bypasses the
-  // SDL renderer for OpenGL calls and can potentially leave the GL/SDL state
-  // dirty.  We install an outer guard here at the UI context level so that
-  // even if a custom Decorator or a future change forgets to save/restore
-  // state internally, the rest of the engine (Sprite / Texture / Shape) is
-  // fully insulated.
-  //
-  // We pull the RenderWindow from the render interface **bound to this
-  // context** (this->renderer_), never from the global
-  // Rocket::Core::GetRenderInterface(), so multiple UIContexts / windows
-  // never cross wires.
-  nom::RocketSDL2RenderInterface* ri =
-    NOM_DYN_PTR_CAST( nom::RocketSDL2RenderInterface*, this->renderer_ );
-
-  if( ri != nullptr && ri->window_ != nullptr )
+  if( this->context_ )
   {
-    RenderStateGuard guard( ri->window_->renderer(),
-                            RenderStateGuard::Scope::All );
-    this->context_->Render();
-  }
-  else
-  {
-    // No render interface available; fall back to rendering without the
-    // outer state guard (the inner guard in RenderGeometry will still fire).
     this->context_->Render();
   }
 }

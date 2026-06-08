@@ -182,9 +182,6 @@ class Renderer
 
     bool set_color ( const Color4i& color );
 
-    /// \brief Get the current renderer drawing color.
-    Color4i draw_color() const;
-
     /// Set the color blending mode (fill and line).
     ///
     /// SDL_BLENDMODE_NONE

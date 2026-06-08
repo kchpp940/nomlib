@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <deque>
 #include <vector>
+#include <memory>
 
 #include "nomlib/config.hpp"
 #include "nomlib/system/Event.hpp"
@@ -145,6 +146,84 @@ class EventHandler
     void remove_event_watchers();
 
   private:
+    // -----------------------------------------------------------------------
+    // Internal helper components
+    // -----------------------------------------------------------------------
+
+    /// \brief SDL_Event to nom::Event converter.
+    ///
+    /// Handles translation of raw platform events into nomlib's event type.
+    /// Each converter method returns true if the event was recognized and
+    /// successfully converted, filling in the output Event parameter.
+    struct EventConverter
+    {
+      static bool convert_quit(const SDL_Event* ev, Event& out);
+      static bool convert_window(const SDL_Event* ev, Event& out);
+      static bool convert_key(const SDL_Event* ev, Event& out);
+      static bool convert_mouse_motion(const SDL_Event* ev, Event& out);
+      static bool convert_mouse_button(const SDL_Event* ev, Event& out);
+      static bool convert_mouse_wheel(const SDL_Event* ev, Event& out);
+      static bool convert_finger(const SDL_Event* ev, Event& out);
+      static bool convert_gesture(const SDL_Event* ev, Event& out);
+      static bool convert_drop(const SDL_Event* ev, Event& out);
+      static bool convert_text_input(const SDL_Event* ev, Event& out);
+      static bool convert_text_editing(const SDL_Event* ev, Event& out);
+      static bool convert_render_targets_reset(const SDL_Event* ev, Event& out);
+      static bool convert_user(const SDL_Event* ev, Event& out);
+      static bool convert_joystick_device(const SDL_Event* ev, Event& out);
+      static bool convert_joystick_button(const SDL_Event* ev, Event& out);
+      static bool convert_joystick_axis(const SDL_Event* ev, Event& out);
+      static bool convert_joystick_hat(const SDL_Event* ev, Event& out);
+      static bool convert_controller_device(const SDL_Event* ev, Event& out);
+      static bool convert_controller_button(const SDL_Event* ev, Event& out);
+      static bool convert_controller_axis(const SDL_Event* ev, Event& out);
+    };
+
+    /// \brief Manages hot-pluggable input device lifecycle.
+    ///
+    /// Handles creation/destruction of JoystickEventHandler and
+    /// GameControllerEventHandler instances, and routes device
+    /// added/removed events to the appropriate handler.
+    struct DeviceLifecycleManager
+    {
+      DeviceLifecycleManager();
+      ~DeviceLifecycleManager();
+
+      bool enable_joystick(EventHandler& owner);
+      bool enable_game_controller(EventHandler& owner);
+      void disable_joystick(EventHandler& owner);
+      void disable_game_controller(EventHandler& owner);
+      void shutdown(EventHandler& owner);
+
+      /// \brief Process a device add/remove event, updating the handler pool.
+      /// Returns true if the event was a device lifecycle event and was
+      /// handled (the event itself still needs conversion and dispatching).
+      bool handle_device_event(const SDL_Event* ev, EventHandler& owner);
+
+      JoystickHandlerType type = NO_EVENT_HANDLER;
+      void* handler = nullptr;
+    };
+
+    /// \brief Coordinates enqueuing and watcher notification for events.
+    ///
+    /// Provides a single consistent dispatch point used by keyboard, mouse,
+    /// and controller event paths.
+    struct EventDispatcher
+    {
+      EventDispatcher();
+      ~EventDispatcher();
+
+      /// \brief Dispatch a converted event: push to queue, notify watchers,
+      /// and update statistics.
+      void dispatch(const Event& ev, EventHandler& owner);
+
+      nom::size_type max_events_count = 0;
+    };
+
+    // -----------------------------------------------------------------------
+    // Private methods
+    // -----------------------------------------------------------------------
+
     bool pop_event(Event& ev);
 
     /// \brief Enumerate the available events from the underlying platform.
@@ -156,6 +235,10 @@ class EventHandler
     void process_joystick_event(const SDL_Event* ev);
     void process_game_controller_event(const SDL_Event* ev);
 
+    // -----------------------------------------------------------------------
+    // Data members
+    // -----------------------------------------------------------------------
+
     /// \brief Enqueued events.
     ///
     /// \see nom::EventHandler::process_event
@@ -163,12 +246,8 @@ class EventHandler
 
     std::vector<std::unique_ptr<event_watcher>> event_watchers_;
 
-    /// \brief The maximum number of events processed per queue cycle -- i.e.:
-    /// one frame of the game's update loop.
-    nom::size_type max_events_count_ = 0;
-
-    void* joystick_event_handler_ = nullptr;
-    JoystickHandlerType joystick_event_type_ = NO_EVENT_HANDLER;
+    DeviceLifecycleManager device_mgr_;
+    EventDispatcher dispatcher_;
 };
 
 Event create_key_press(int32 sym, uint16 mod, uint8 repeat);

@@ -35,7 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <Rocket/Core/RenderInterface.h>
 
 #include "nomlib/config.hpp"
-#include "nomlib/math/Point2.hpp"
 
 #if defined(NOM_PLATFORM_WINDOWS)
   #define NOM_API_EXPORT __stdcall
@@ -121,9 +120,6 @@ class RocketSDL2RenderInterface: public Rocket::Core::RenderInterface
     RenderWindow* window_;
 
   private:
-    /// \brief Query the current SDL logical resolution scale factor.
-    Point2f logical_scale() const;
-
     /// \brief Shader context function pointer
     ///
     /// \note We bypass the use of GLEW by requesting this extension through

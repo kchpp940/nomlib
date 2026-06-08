@@ -302,16 +302,6 @@ NOM_LOG_ERR ( NOM, SDL_GetError() );
   return true;
 }
 
-Color4i Renderer::draw_color() const
-{
-  Uint8 r = 0, g = 0, b = 0, a = 0;
-  if( SDL_GetRenderDrawColor( this->renderer(), &r, &g, &b, &a ) != 0 ) {
-    NOM_LOG_ERR( NOM, SDL_GetError() );
-    return Color4i::null;
-  }
-  return Color4i( r, g, b, a );
-}
-
 bool Renderer::set_blend_mode ( const SDL_BlendMode mode )
 {
   if ( SDL_SetRenderDrawBlendMode ( this->renderer(), mode ) != 0 )
@@ -324,12 +314,12 @@ NOM_LOG_ERR ( NOM, SDL_GetError() );
 
 bool Renderer::set_clip_bounds(const IntRect& bounds)
 {
-  SDL_Rect clip_rect;
   SDL_Rect* clip = nullptr;
 
   if( bounds != IntRect::null ) {
-    clip_rect = SDL_RECT(bounds);
-    clip = &clip_rect;
+    clip = new SDL_Rect( SDL_RECT(bounds) );
+  } else {
+    // Disable clipping bounds
   }
 
   if( SDL_RenderSetClipRect(this->renderer(), clip) != 0 ) {
