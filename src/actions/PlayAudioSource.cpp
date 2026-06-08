@@ -64,6 +64,17 @@ PlayAudioSource::~PlayAudioSource()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
+
+  // Safety net for objects that are destroyed outside the ActionPlayer
+  // lifecycle (e.g. a shared_ptr dropped early, or a stack-allocated action, or a
+  // container action destructed without going through final_release()).  The
+  // derived vtable is still fully intact here, so the virtual release() hook
+  // dispatches correctly to PlayAudioSource::release() and the owned
+  // SoundBuffer* queue / ISoundFileReader are actually freed.
+  //
+  // final_release() itself short-circuits when already RELEASED, so calling it here is
+  // harmless even if ActionPlayer already tore the action down.
+  this->final_release();
 }
 
 bool PlayAudioSource::open_source()

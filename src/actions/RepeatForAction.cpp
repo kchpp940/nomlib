@@ -56,6 +56,10 @@ RepeatForAction::~RepeatForAction()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       nom::NOM_LOG_PRIORITY_VERBOSE );
+
+  // Safety net: ensure the wrapped action is properly final-released even if
+  // this container is destroyed outside the ActionPlayer lifecycle.
+  this->final_release();
 }
 
 std::unique_ptr<IActionObject> RepeatForAction::clone() const

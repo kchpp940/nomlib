@@ -86,6 +86,11 @@ FadeAudioGainBy::~FadeAudioGainBy()
 {
   NOM_LOG_TRACE_PRIO(NOM_LOG_CATEGORY_TRACE_ACTION,
                      nom::NOM_LOG_PRIORITY_VERBOSE);
+
+  // Safety net for objects destroyed outside the ActionPlayer lifecycle.
+  // See PlayAudioSource::~PlayAudioSource() for rationale.  final_release() is
+  // idempotent: if we already ran through ActionPlayer this is a no-op.
+  this->final_release();
 }
 
 std::unique_ptr<IActionObject> FadeAudioGainBy::clone() const

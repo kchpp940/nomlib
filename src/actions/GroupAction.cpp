@@ -70,6 +70,11 @@ GroupAction::~GroupAction()
 {
   NOM_LOG_TRACE_PRIO( NOM_LOG_CATEGORY_TRACE_ACTION,
                       nom::NOM_LOG_PRIORITY_VERBOSE );
+
+  // Safety net: ensure child actions are properly final-released even if this
+  // container is destroyed outside the ActionPlayer lifecycle.  final_release()
+  // is idempotent.
+  this->final_release();
 }
 
 std::unique_ptr<IActionObject> GroupAction::clone() const
