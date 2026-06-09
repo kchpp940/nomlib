@@ -298,6 +298,14 @@ nomlib_cmd_docs() {
 }
 
 nomlib_cmd_ctags() {
+  for arg in "$@"; do
+    case "$arg" in
+      -h|--help)
+        nomlib_usage "$(basename "$0")"
+        ;;
+    esac
+  done
+
   local root="$NOMLIB_PROJECT_ROOT"
   local source_dir="${root}/src"
   local header_dir="${root}/include/nomlib/"
