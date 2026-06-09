@@ -522,13 +522,13 @@ if(Python3_Interpreter_FOUND)
   add_custom_target( check_resources
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Checking resources for consistency..."
+    COMMENT "Checking resources for consistency (non-strict mode)..."
     VERBATIM
   )
   add_custom_target( check_resources_strict
-    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py --strict
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Strict resource validation check (fail on warnings not implemented yet)"
+    COMMENT "Running STRICT resource validation (fail on duplicates/type mismatch/hardcoded paths/path concat)"
     VERBATIM
   )
 else()

@@ -8,19 +8,12 @@
 # PATH=/usr/bin:/usr/local/bin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-
-PYTHON_BIN=$(which python3)
-
-if [ -x "${PYTHON_BIN}" ] && [ -f "${PROJECT_ROOT}/bin/check_resources.py" ]; then
-  echo "Running pre-build resource checks..."
-  "${PYTHON_BIN}" "${PROJECT_ROOT}/bin/check_resources.py"
-  if [ $? -ne 0 ]; then
-    echo "Resource checks FAILED - aborting build."
-    exit 1
+if [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR}/_build_core.sh" ]; then
+  if [ "${NOM_STRICT_RESOURCE_CHECK}" = "1" ]; then
+    "${SCRIPT_DIR}/_build_core.sh" check-strict || exit 1
+  else
+    "${SCRIPT_DIR}/_build_core.sh" check || exit 1
   fi
-  echo "Resource checks passed."
-  echo
 fi
 
 BUILD_TYPE_ARG=$1

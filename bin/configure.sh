@@ -87,17 +87,13 @@ else
     rm -rf CMakeFiles
   fi
 
-  PYTHON_BIN=$(which python3)
-  RESOURCE_CHECKER="${WORKING_DIR}/../bin/check_resources.py"
-  if [ -x "${PYTHON_BIN}" ] && [ -f "${RESOURCE_CHECKER}" ]; then
-    echo "Running resource pre-checks..."
-    "${PYTHON_BIN}" "${RESOURCE_CHECKER}"
-    if [ $? -ne 0 ]; then
-      echo "Resource checks FAILED - aborting configure."
-      exit 1
+  SCRIPT_DIR_FOR_CORE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR_FOR_CORE}/_build_core.sh" ]; then
+    if [ "${NOM_STRICT_RESOURCE_CHECK}" = "1" ]; then
+      "${SCRIPT_DIR_FOR_CORE}/_build_core.sh" check-strict || exit 1
+    else
+      "${SCRIPT_DIR_FOR_CORE}/_build_core.sh" check || exit 1
     fi
-    echo "Resource checks passed."
-    echo
   fi
 
   echo "Generating ${BUILD_TYPE} project files..."

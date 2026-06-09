@@ -94,8 +94,9 @@ ERROR_MESSAGE_PREFIXES = (
 )
 
 class ResourceChecker:
-    def __init__(self, project_root):
+    def __init__(self, project_root, strict=False):
         self.project_root = Path(project_root).resolve()
+        self.strict = strict
         self.errors = []
         self.warnings = []
         self.manifest_paths = {}
@@ -111,7 +112,10 @@ class ResourceChecker:
             self._seen_errors.add(msg)
             self.errors.append(f'ERROR: {msg}')
 
-    def warning(self, msg):
+    def warning(self, msg, strict_error=False):
+        if self.strict and strict_error:
+            self.error(msg)
+            return
         if msg not in self._seen_warnings:
             self._seen_warnings.add(msg)
             self.warnings.append(f'WARNING: {msg}')
@@ -303,13 +307,22 @@ class ResourceChecker:
                 })
             for m in path_concat_pattern.finditer(clean_content):
                 filename = m.group(2)
+                line_no = clean_content[:m.start()].count('\n') + 1
+                in_examples = str(rel_src).startswith('examples/')
+                if in_examples or self.strict:
+                    self.error(
+                        f'{rel_src}:{line_no}: '
+                        f'Manual path concatenation detected '
+                        f'({m.group(1)}.path() + "{filename}"). '
+                        f'Use SearchPath::load_file() instead.'
+                    )
                 if filename in OUTPUT_FILENAME_PATTERNS or filename in FAKE_TEST_FILENAMES or filename in TEST_STRING_ONLY_FILENAMES:
                     continue
                 if any(filename.startswith(p) for p in OUTPUT_FILENAME_PREFIXES):
                     continue
                 referenced_resources.append({
                     'source': rel_src,
-                    'line': clean_content[:m.start()].count('\n') + 1,
+                    'line': line_no,
                     'name': f'{m.group(1)}.path()+',
                     'filename': filename,
                     'kind': 'path_concat',
@@ -355,6 +368,7 @@ class ResourceChecker:
                     'kind': 'string_literal',
                 })
             seen_hardcoded = set()
+            in_examples = str(rel_src).startswith('examples/')
             for m in hardcoded_path_pattern.finditer(clean_content):
                 path_val = m.group(1)
                 line_no = clean_content[:m.start()].count('\n') + 1
@@ -362,7 +376,7 @@ class ResourceChecker:
                 if key in seen_hardcoded:
                     continue
                 seen_hardcoded.add(key)
-                if path_val in HARDCODED_PATH_IGNORE:
+                if path_val in HARDCODED_PATH_IGNORE and not (in_examples or self.strict):
                     continue
                 self.error(
                     f'{rel_src}:{line_no}: '
@@ -431,7 +445,8 @@ class ResourceChecker:
                     self.warning(
                         f"{ref['source']}:{ref['line']}: "
                         f"File '{filename}' (type: {ref_type}) may not match expected "
-                        f"types for directory '{parent_dir}' (expected: {sorted(allowed)})"
+                        f"types for directory '{parent_dir}' (expected: {sorted(allowed)})",
+                        strict_error=True,
                     )
         for ref in missing:
             self.error(
@@ -506,7 +521,8 @@ class ResourceChecker:
                 if len(unique_locs) > 1:
                     self.warning(
                         f'Duplicate resource filename: {filename} found in '
-                        f'multiple locations: {sorted(unique_locs)}'
+                        f'multiple locations: {sorted(unique_locs)}',
+                        strict_error=True,
                     )
 
     def check_unreferenced_resources(self):
@@ -546,7 +562,8 @@ class ResourceChecker:
             self.warning(f'Potentially unreferenced resource: {f}')
 
     def run(self):
-        print(f'Checking resources in {self.project_root}')
+        mode = 'STRICT' if self.strict else 'normal'
+        print(f'Checking resources in {self.project_root} (mode: {mode})')
         print()
         print('== Checking manifest files ==')
         manifests = self.find_manifest_files()
@@ -589,8 +606,17 @@ class ResourceChecker:
         return 0
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='Validate nomlib resources, manifests and source references.'
+    )
+    parser.add_argument(
+        '--strict', action='store_true',
+        help='Fail on warnings (duplicates, type mismatches, unreferenced files).'
+    )
+    args = parser.parse_args()
     project_root = Path(__file__).resolve().parent.parent
-    checker = ResourceChecker(project_root)
+    checker = ResourceChecker(project_root, strict=args.strict)
     sys.exit(checker.run())
 
 if __name__ == '__main__':
