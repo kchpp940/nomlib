@@ -3,18 +3,26 @@
 #
 # nomlib Dependency Preflight CMake Integration
 #
-# This module runs the bin/preflight.sh dependency checker before the main
-# CMake configuration proceeds. It parses the JSON output and makes the
-# results available to both CMake and downstream scripts.
+# This module runs bin/preflight.sh AFTER all project options and third-party
+# path variables have been declared. It parses the JSON output and makes
+# results available as CMake variables, but does NOT stop the configuration
+# with FATAL_ERROR -- the outer build scripts (bin/_build_core.sh) and the
+# normal find_package() calls take responsibility for stopping the build on
+# missing dependencies.
 #
-# The following variables are defined after inclusion:
-#   PREFLIGHT_PASSED        - TRUE if all non-optional checks passed
-#   PREFLIGHT_CHECKS        - List of check names that were run
-#   PREFLIGHT_<NAME>_STATUS - PASS / FAIL / WARN for each check
-#   PREFLIGHT_<NAME>_FIX    - Fix suggestion for failed/warn checks
-#   PREFLIGHT_FAILED_CATEGORIES - List of failure category tags
+# Variables defined after inclusion:
+#   PREFLIGHT_PASSED              - TRUE if all non-optional checks passed
+#   PREFLIGHT_CHECKS              - List of check names that were run
+#   PREFLIGHT_<NAME>_STATUS       - PASS / FAIL / WARN for each check
+#   PREFLIGHT_<NAME>_CATEGORY     - Category tag (gui_missing, audio_missing, ...)
+#   PREFLIGHT_<NAME>_DETAIL       - Human-readable detail
+#   PREFLIGHT_<NAME>_FIX          - Fix suggestion
+#   PREFLIGHT_FAILED_CATEGORIES   - List of failure category tags
 #
-# To skip preflight (e.g. in CI), pass -DNOM_SKIP_PREFLIGHT=ON to CMake.
+# To skip preflight (e.g. in CI):
+#   cmake -DNOM_SKIP_PREFLIGHT=ON ..
+# or
+#   NOM_SKIP_PREFLIGHT=1 ./bin/configure.sh ...
 
 option(NOM_SKIP_PREFLIGHT "Skip the dependency preflight check" OFF)
 
@@ -27,7 +35,7 @@ endif()
 set(PREFLIGHT_SCRIPT "${CMAKE_SOURCE_DIR}/bin/preflight.sh")
 
 if(NOT EXISTS "${PREFLIGHT_SCRIPT}")
-  message(WARNING "Preflight script not found at ${PREFLIGHT_SCRIPT}; skipping preflight checks.")
+  message(STATUS "Preflight: script not found at ${PREFLIGHT_SCRIPT}; skipping.")
   set(PREFLIGHT_PASSED TRUE)
   return()
 endif()
@@ -62,7 +70,7 @@ if(PREFLIGHT_EXIT_CODE EQUAL 0)
 endif()
 
 if(NOT PREFLIGHT_JSON)
-  message(WARNING "Preflight produced no output; continuing without dependency validation.")
+  message(STATUS "Preflight: no JSON output; continuing without validation.")
   return()
 endif()
 
@@ -76,7 +84,10 @@ string(JSON PREFLIGHT_TARGET_ARCH GET "${PREFLIGHT_JSON}" "target_arch")
 string(JSON PREFLIGHT_HOST_ARCH GET "${PREFLIGHT_JSON}" "host_arch")
 string(JSON PREFLIGHT_PLATFORM GET "${PREFLIGHT_JSON}" "platform")
 
-message(STATUS "Preflight: ${PREFLIGHT_PASS_COUNT} passed, ${PREFLIGHT_FAIL_COUNT} failed, ${PREFLIGHT_WARN_COUNT} warnings (target=${PREFLIGHT_TARGET_ARCH})")
+message(STATUS
+  "Preflight: ${PREFLIGHT_PASS_COUNT} passed, ${PREFLIGHT_FAIL_COUNT} failed, "
+  "${PREFLIGHT_WARN_COUNT} warnings (target=${PREFLIGHT_TARGET_ARCH}, host=${PREFLIGHT_HOST_ARCH})"
+)
 
 string(JSON PREFLIGHT_CAT_ARRAY GET "${PREFLIGHT_JSON}" "failed_categories")
 string(JSON PREFLIGHT_CAT_LEN LENGTH "${PREFLIGHT_CAT_ARRAY}")
@@ -117,113 +128,75 @@ if(PREFLIGHT_CHECKS_LEN GREATER 0)
     string(TOUPPER "${_name_id}" _name_upper)
 
     list(APPEND PREFLIGHT_CHECKS "${_name}")
-    set("PREFLIGHT_${_name_upper}_STATUS" "${_status}" CACHE INTERNAL "Preflight status for ${_name}")
+    set("PREFLIGHT_${_name_upper}_STATUS"   "${_status}"   CACHE INTERNAL "Preflight status for ${_name}")
     set("PREFLIGHT_${_name_upper}_CATEGORY" "${_category}" CACHE INTERNAL "Preflight category for ${_name}")
-    set("PREFLIGHT_${_name_upper}_DETAIL" "${_detail}" CACHE INTERNAL "Preflight detail for ${_name}")
-    set("PREFLIGHT_${_name_upper}_FIX" "${_fix}" CACHE INTERNAL "Preflight fix for ${_name}")
+    set("PREFLIGHT_${_name_upper}_DETAIL"   "${_detail}"   CACHE INTERNAL "Preflight detail for ${_name}")
+    set("PREFLIGHT_${_name_upper}_FIX"      "${_fix}"      CACHE INTERNAL "Preflight fix for ${_name}")
   endforeach()
 endif()
 
-if(NOT PREFLIGHT_PASSED)
-  message("")
-  message("======================================================================")
-  message("  nomlib PREFLIGHT FAILED")
-  message("======================================================================")
-  message("")
-  message("  The following checks did not pass:")
-  message("")
+# ---------------------------------------------------------------------------
+# Report failures (WARNING only, no FATAL_ERROR -- shell and find_package handle it)
+# ---------------------------------------------------------------------------
 
+if(NOT PREFLIGHT_PASSED)
+  set(_fail_summary "")
   if(PREFLIGHT_CHECKS_LEN GREATER 0)
     math(EXPR PREFLIGHT_CHECKS_LAST "${PREFLIGHT_CHECKS_LEN} - 1")
     foreach(_idx RANGE 0 ${PREFLIGHT_CHECKS_LAST})
       string(JSON _check GET "${PREFLIGHT_CHECKS_ARRAY}" ${_idx})
       string(JSON _name GET "${_check}" "name")
       string(JSON _status GET "${_check}" "status")
-
       if(_status STREQUAL "FAIL")
-        string(JSON _fix_type TYPE "${_check}" "fix")
-        set(_fix_text "")
-        if(NOT _fix_type STREQUAL "null")
-          string(JSON _fix_text GET "${_check}" "fix")
-        endif()
         string(JSON _detail_type TYPE "${_check}" "detail")
         set(_detail_text "")
         if(NOT _detail_type STREQUAL "null")
           string(JSON _detail_text GET "${_check}" "detail")
         endif()
+        string(JSON _category GET "${_check}" "category")
 
-        message("    [FAIL] ${_name}")
-        if(_detail_text)
-          string(REPLACE "\n" "\n           " _detail_indented "${_detail_text}")
-          message("           ${_detail_indented}")
+        # Skip reporting failures for components that are disabled via options
+        set(_skip FALSE)
+        if(_category STREQUAL "audio_missing" AND DEFINED NOM_BUILD_AUDIO_UNIT AND NOT NOM_BUILD_AUDIO_UNIT)
+          set(_skip TRUE)
         endif()
-        if(_fix_text)
-          string(REPLACE "\n" "\n           " _fix_indented "${_fix_text}")
-          message("           Fix: ${_fix_indented}")
+        if(_category STREQUAL "gui_missing" AND DEFINED NOM_BUILD_GUI_UNIT AND NOT NOM_BUILD_GUI_UNIT)
+          set(_skip TRUE)
         endif()
-        message("")
+        if(_category STREQUAL "test_missing" AND DEFINED NOM_BUILD_TESTS AND NOT NOM_BUILD_TESTS)
+          set(_skip TRUE)
+        endif()
+
+        if(NOT _skip)
+          string(APPEND _fail_summary "    [FAIL] ${_name} (${_category})\n")
+          if(_detail_text)
+            string(REPLACE "\n" "\n           " _detail_indented "${_detail_text}")
+            string(APPEND _fail_summary "           ${_detail_indented}\n")
+          endif()
+        endif()
       endif()
     endforeach()
   endif()
 
-  message("  To re-run the preflight check manually:")
-  message("    ${PREFLIGHT_SCRIPT}")
-  message("")
-  message("  To view only fixes:")
-  message("    ${PREFLIGHT_SCRIPT} --fixes")
-  message("")
-  message("  To skip this check (not recommended):")
-  message("    cmake -DNOM_SKIP_PREFLIGHT=ON ..")
-  message("")
-  message("======================================================================")
-
-  set(_has_arch_mismatch FALSE)
-  set(_has_gui_missing FALSE)
-  set(_has_audio_missing FALSE)
-  set(_has_env_issue FALSE)
-
-  foreach(_cat ${PREFLIGHT_FAILED_CATEGORIES})
-    if(_cat STREQUAL "arch_mismatch")
-      set(_has_arch_mismatch TRUE)
-    elseif(_cat STREQUAL "gui_missing")
-      set(_has_gui_missing TRUE)
-    elseif(_cat STREQUAL "audio_missing")
-      set(_has_audio_missing TRUE)
-    elseif(_cat STREQUAL "env")
-      set(_has_env_issue TRUE)
-    endif()
-  endforeach()
-
-  if(_has_arch_mismatch)
-    message(FATAL_ERROR
-      "Preflight: Architecture mismatch detected (arm64/x86_64). "
-      "Please ensure all dependencies are built for the target architecture (${PREFLIGHT_TARGET_ARCH}). "
-      "Run '${PREFLIGHT_SCRIPT} --fixes' for detailed instructions."
-    )
-  elseif(_has_gui_missing)
-    message(FATAL_ERROR
-      "Preflight: Missing GUI dependencies (SDL2 / SDL2_image / SDL2_ttf / LibRocket). "
-      "Please install the required GUI libraries before building. "
-      "Run '${PREFLIGHT_SCRIPT} --fixes' for detailed instructions."
-    )
-  elseif(_has_audio_missing AND NOM_BUILD_AUDIO_UNIT)
-    message(FATAL_ERROR
-      "Preflight: Missing audio dependencies (OpenAL / libsndfile) but NOM_BUILD_AUDIO_UNIT=ON. "
-      "Either install the audio dependencies or disable the audio unit with -DNOM_BUILD_AUDIO_UNIT=OFF. "
-      "Run '${PREFLIGHT_SCRIPT} --fixes' for detailed instructions."
-    )
-  elseif(_has_env_issue)
-    message(FATAL_ERROR
-      "Preflight: Environment issue detected (third-party directory empty or misconfigured). "
-      "Please set up your build environment correctly. "
-      "Run '${PREFLIGHT_SCRIPT} --fixes' for detailed instructions."
+  if(_fail_summary)
+    message(WARNING
+      "\n"
+      "======================================================================\n"
+      "  nomlib PREFLIGHT -- ISSUES DETECTED\n"
+      "======================================================================\n"
+      "\n"
+      "${_fail_summary}"
+      "  Manual preflight:\n"
+      "    ${PREFLIGHT_SCRIPT}\n"
+      "  View only fixes:\n"
+      "    ${PREFLIGHT_SCRIPT} --fixes\n"
+      "  To skip this check (not recommended):\n"
+      "    cmake -DNOM_SKIP_PREFLIGHT=ON ..\n"
+      "======================================================================\n"
     )
   else()
-    message(FATAL_ERROR
-      "Preflight checks failed. Please fix the issues listed above and re-run CMake. "
-      "Run '${PREFLIGHT_SCRIPT}' outside CMake for a more detailed report."
-    )
+    message(STATUS "Preflight: some optional checks failed, but the corresponding build options are disabled; continuing.")
   endif()
+else()
+  message(STATUS "Preflight: all required checks passed.")
 endif()
-
-message(STATUS "Preflight: all required checks passed.")

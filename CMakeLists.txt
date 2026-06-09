@@ -78,9 +78,6 @@ project( nomlib
   #LANGUAGES "en"
 )
 
-# Dependency preflight (runs before platform detection and dependency search)
-include ( "${CMAKE_SOURCE_DIR}/cmake/preflight.cmake" )
-
 # Platform detection
 include ( "${CMAKE_SOURCE_DIR}/cmake/platform.cmake" )
 # Utility macro helpers
@@ -304,6 +301,14 @@ if ( PLATFORM_LINUX OR PLATFORM_POSIX )
     set(ENV{LIBROCKETDIR} "${NOMLIB_DEPS_DIR}/linux/libRocket")
   endif(NOT DEFINED ENV{LIBROCKETDIR})
 endif( PLATFORM_LINUX OR PLATFORM_POSIX )
+
+# ---------------------------------------------------------------------------
+# Dependency preflight: runs AFTER all options (NOM_BUILD_*_UNIT) and
+# third-party path variables (NOMLIB_DEPS_DIR, ENV{SDL2DIR}, ...) are ready.
+# Reports issues as WARNING, never FATAL_ERROR; the outer build scripts and
+# subsequent find_package() calls enforce correctness.
+# ---------------------------------------------------------------------------
+include ( "${CMAKE_SOURCE_DIR}/cmake/preflight.cmake" )
 
 # List of our source code to be compiled
 add_subdirectory( ${SRC_DIR} )

@@ -63,6 +63,54 @@ Legacy positional arguments are still supported:
 
 Run any script with `--help` to see the full option list.
 
+### Dependency Preflight
+
+Before running CMake configuration, all `configure` entry points automatically
+execute a dependency preflight check (`bin/preflight.sh`). It verifies the
+following, and prints actionable fixes when something is missing:
+
+* **GUI libraries**: SDL2, SDL2_image, SDL2_ttf, LibRocket
+* **Audio libraries**: OpenAL, libsndfile
+* **Test framework**: GTest
+* **Documentation tools**: Doxygen, Graphviz (optional warning only)
+* **Third-party directory**: Not empty
+* **Target architecture**: arm64 vs x86_64 matching (no cross-build mixups,
+  Rosetta 2 warnings, Homebrew prefix verification)
+
+You can also run the preflight independently at any time:
+
+```shell
+# Human-readable report with colour
+./bin/preflight.sh
+
+# Show only the fixes for failed checks
+./bin/preflight.sh --fixes
+
+# Machine-readable JSON (for CI or scripts)
+./bin/preflight.sh --json
+
+# Check for a specific target architecture
+./bin/preflight.sh --arch arm64
+./bin/preflight.sh --arch x86_64
+```
+
+To **skip** the preflight (e.g. in CI or when you know your environment is
+correct), set `NOM_SKIP_PREFLIGHT=1` or pass `--skip-preflight`:
+
+```shell
+# Via environment variable
+NOM_SKIP_PREFLIGHT=1 ./bin/configure.sh --debug
+
+# Via flag
+./bin/configure.sh --debug --skip-preflight
+
+# When calling CMake directly
+cmake -DNOM_SKIP_PREFLIGHT=ON ..
+```
+
+Exit codes from `preflight.sh`: `0` = all required checks passed, `1` = one or
+more checks failed, `2` = usage error.
+
 ### Mac OS X
 
 After you have the dependencies taken care of, you can either use the helper
@@ -162,8 +210,11 @@ agree.
 | `--tests <on\|off>` | Build unit tests | `on` |
 | `--examples <on\|off>` | Build example programs | `on` |
 | `--docs <on\|off>` | Build API documentation | `off` |
+| `--arch <arch>` | Target architecture: `arm64`, `x86_64`, or `auto` | auto (host arch) |
 | `--no-cache-clear` | Skip clearing `CMakeCache.txt` before configure | (clears by default) |
+| `--skip-preflight` | Skip the dependency preflight check | (runs by default) |
 | `-j <N>` | Parallel build jobs (or `NUM_THREADS` env var) | — |
+| `-v`, `--verbose` | Verbose output | — |
 | `-h`, `--help` | Show full usage | — |
 
 Legacy positional form is still accepted for backwards compatibility:
