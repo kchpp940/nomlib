@@ -20,6 +20,76 @@
 # http://stackoverflow.com/questions/13422202/adding-distinct-xcode-resources-for-multiple-executables-using-cmake
 # http://stackoverflow.com/questions/6077810/how-to-correctly-add-resources-to-a-project?rq=1
 
+# -----------------------------------------------------------------------------
+# nomlib examples: supports both in-tree build and out-of-tree (installed) use
+# -----------------------------------------------------------------------------
+#
+# When built as part of the nomlib source tree, examples link against the
+# locally-built nomlib-* targets. When built standalone (e.g. from an
+# installed copy), examples use find_package(nomlib) to locate the
+# installed libraries, headers, and resource directory.
+
+cmake_minimum_required(VERSION 3.14)
+
+# Detect whether we are building inside the nomlib source tree *before*
+# calling project(), which would re-root PROJECT_SOURCE_DIR.
+if( TARGET nomlib-core OR TARGET nomlib::nomlib-core )
+  set( NOMLIB_BUILDING_IN_TREE TRUE )
+  set( NOMLIB_PARENT_SOURCE_DIR "${PROJECT_SOURCE_DIR}" )
+else()
+  set( NOMLIB_BUILDING_IN_TREE FALSE )
+  set( NOMLIB_PARENT_SOURCE_DIR "" )
+endif()
+
+project(nomlib_examples CXX)
+
+if( NOT NOMLIB_BUILDING_IN_TREE )
+  # Standalone build -- locate installed nomlib package
+  find_package( nomlib REQUIRED COMPONENTS core math file system graphics serializers gui actions )
+
+  # Re-expose the same variables that the in-tree build provides
+  set( NOM_BUILD_AUDIO_UNIT FALSE )
+  if( TARGET nomlib::nomlib-audio )
+    set( NOM_BUILD_AUDIO_UNIT TRUE )
+  endif()
+
+  set( INC_ROOT_DIR "${NOMLIB_INCLUDE_DIR}" )
+  set( NOMLIB_RESOURCES_DIR "${NOMLIB_RESOURCES_DIR}" )
+  set( NOM_EXAMPLES_RESOURCES_DIR "${NOMLIB_RESOURCES_DIR}/examples" )
+  set( NOMLIB_SHARED_SUPPORT_DIR "${NOMLIB_RESOURCES_DIR}/SharedSupport" )
+
+  include_directories( "${NOMLIB_INCLUDE_DIR}" )
+
+  # Alias imported targets to the names used by in-tree code
+  if( NOT TARGET nomlib-core AND TARGET nomlib::nomlib-core )
+    add_library(nomlib-core ALIAS nomlib::nomlib-core)
+  endif()
+  if( NOT TARGET nomlib-math AND TARGET nomlib::nomlib-math )
+    add_library(nomlib-math ALIAS nomlib::nomlib-math)
+  endif()
+  if( NOT TARGET nomlib-file AND TARGET nomlib::nomlib-file )
+    add_library(nomlib-file ALIAS nomlib::nomlib-file)
+  endif()
+  if( NOT TARGET nomlib-system AND TARGET nomlib::nomlib-system )
+    add_library(nomlib-system ALIAS nomlib::nomlib-system)
+  endif()
+  if( NOT TARGET nomlib-graphics AND TARGET nomlib::nomlib-graphics )
+    add_library(nomlib-graphics ALIAS nomlib::nomlib-graphics)
+  endif()
+  if( NOT TARGET nomlib-gui AND TARGET nomlib::nomlib-gui )
+    add_library(nomlib-gui ALIAS nomlib::nomlib-gui)
+  endif()
+  if( NOT TARGET nomlib-actions AND TARGET nomlib::nomlib-actions )
+    add_library(nomlib-actions ALIAS nomlib::nomlib-actions)
+  endif()
+  if( NOT TARGET nomlib-audio AND TARGET nomlib::nomlib-audio )
+    add_library(nomlib-audio ALIAS nomlib::nomlib-audio)
+  endif()
+  if( NOT TARGET nomlib-serializers AND TARGET nomlib::nomlib-serializers )
+    add_library(nomlib-serializers ALIAS nomlib::nomlib-serializers)
+  endif()
+endif()
+
 set( NOM_BUILD_APP_EXAMPLE ON )
 set( NOM_BUILD_AUDIO_EXAMPLE ON )
 set( NOM_BUILD_DEVICE_INFO_EXAMPLE ON )
@@ -62,54 +132,58 @@ endif()
 # building on Windows, this will be the path that dependent DLLs are copied to.
 set( EXAMPLES_INSTALL_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" )
 
-# Project headers files inclusions; our header files namespace, 'nomlib'
-include_directories( "${INC_ROOT_DIR}" )
+if( NOMLIB_BUILDING_IN_TREE )
+  # Project headers files inclusions; our header files namespace, 'nomlib'
+  include_directories( "${INC_ROOT_DIR}" )
 
-# Third-party dependencies
+  # Third-party dependencies
 
-# Absolute path to project's third-party 'common' directory
-set( NOM_THIRD_PARTY_COMMON_DIR "${PROJECT_SOURCE_DIR}/third-party/common" )
+  # Absolute path to project's third-party 'common' directory
+  set( NOM_THIRD_PARTY_COMMON_DIR "${NOMLIB_PARENT_SOURCE_DIR}/third-party/common" )
 
-# nomlib-core external deps
-find_package( SDL2 REQUIRED )
-if( SDL2_FOUND )
-  include_directories( ${SDL2_INCLUDE_DIR} )
-endif( SDL2_FOUND )
+  # nomlib-core external deps
+  find_package( SDL2 REQUIRED )
+  if( SDL2_FOUND )
+    include_directories( ${SDL2_INCLUDE_DIR} )
+  endif( SDL2_FOUND )
 
-# nomlib-audio external deps
-if ( NOM_BUILD_AUDIO_UNIT )
-  # nomlib-audio external deps; OpenAL-Soft or Apple's OpenAL
-  find_package( OpenAL REQUIRED )
-  if( OPENAL_FOUND )
-    include_directories( ${OPENAL_INCLUDE_DIR} )
-    message ( STATUS "Found OpenAL headers: ${OPENAL_INCLUDE_DIR}." )
-  else ( NOT OPENAL_FOUND )
-    message ( FATAL_ERROR "Missing OpenAL headers at ${OPENAL_INCLUDE_DIR}." )
-  endif ( OPENAL_FOUND )
+  # nomlib-audio external deps
+  if ( NOM_BUILD_AUDIO_UNIT )
+    # nomlib-audio external deps; OpenAL-Soft or Apple's OpenAL
+    find_package( OpenAL REQUIRED )
+    if( OPENAL_FOUND )
+      include_directories( ${OPENAL_INCLUDE_DIR} )
+      message ( STATUS "Found OpenAL headers: ${OPENAL_INCLUDE_DIR}." )
+    else ( NOT OPENAL_FOUND )
+      message ( FATAL_ERROR "Missing OpenAL headers at ${OPENAL_INCLUDE_DIR}." )
+    endif ( OPENAL_FOUND )
+  endif()
+
+  # nomlib-gui external deps
+  if( NOM_BUILD_GUI_UNIT )
+    find_package( LibRocket REQUIRED )
+    if( LIBROCKET_FOUND )
+      # Add development header files
+      include_directories( ${LIBROCKET_INCLUDE_DIRS} )
+    endif( LIBROCKET_FOUND )
+  endif( NOM_BUILD_GUI_UNIT )
+
+  # third-party, headers-only dependency TCLAP
+  set( TCLAP_INCLUDE_DIR "${NOM_THIRD_PARTY_COMMON_DIR}/tclap" )
+
+  if( NOT EXISTS ${TCLAP_INCLUDE_DIR} )
+    message(  FATAL_ERROR
+              "Could not find header file ${TCLAP_INCLUDE_DIR} for TCLAP; "
+              "see nomlib's third-party/README.md for help obtaining this "
+              "required dependency."
+    )
+  else( EXISTS ${TCLAP_INCLUDE_DIR} )
+    message( STATUS "TCLAP headers found: ${TCLAP_INCLUDE_DIR}" )
+
+    # Header file inclusion; third-party -- TCLAP
+    include_directories("${NOM_THIRD_PARTY_COMMON_DIR}")
+  endif( NOT EXISTS ${TCLAP_INCLUDE_DIR} )
 endif()
-
-# nomlib-gui external deps
-find_package( LibRocket REQUIRED )
-if( LIBROCKET_FOUND )
-  # Add development header files
-  include_directories( ${LIBROCKET_INCLUDE_DIRS} )
-endif( LIBROCKET_FOUND )
-
-# third-party, headers-only dependency TCLAP
-set( TCLAP_INCLUDE_DIR "${NOM_THIRD_PARTY_COMMON_DIR}/tclap" )
-
-if( NOT EXISTS ${TCLAP_INCLUDE_DIR} )
-  message(  FATAL_ERROR
-            "Could not find header file ${TCLAP_INCLUDE_DIR} for TCLAP; "
-            "see nomlib's third-party/README.md for help obtaining this "
-            "required dependency."
-  )
-else( EXISTS ${TCLAP_INCLUDE_DIR} )
-  message( STATUS "TCLAP headers found: ${TCLAP_INCLUDE_DIR}" )
-
-  # Header file inclusion; third-party -- TCLAP
-  include_directories("${NOM_THIRD_PARTY_COMMON_DIR}")
-endif( NOT EXISTS ${TCLAP_INCLUDE_DIR} )
 
 if( PLATFORM_WINDOWS )
   # Build as console app -- shows cmd.exe window for logging -- only when

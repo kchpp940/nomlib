@@ -27,10 +27,52 @@ function(nom_add_library target lib_type source headers external_deps )
   set ( LIB_SOVERSION ${PROJECT_VERSION_MAJOR} )
 
   add_library( ${target} ${lib_type} ${source} )
+  add_library( nomlib::${target} ALIAS ${target} )
 
-  set_target_properties( ${target} PROPERTIES VERSION ${LIB_VERSION}
-                         SOVERSION ${LIB_SOVERSION} DEBUG_POSTFIX "-d" )
+  set_target_properties( ${target} PROPERTIES
+    VERSION ${LIB_VERSION}
+    SOVERSION ${LIB_SOVERSION}
+    DEBUG_POSTFIX "-d"
+    EXPORT_NAME ${target}
+  )
+
   target_link_libraries( ${target} ${external_deps} )
+
+  # Native CMake RPATH configuration -- replaces manual install_name_tool usage
+  if( BUILD_SHARED_LIBS )
+    set_target_properties( ${target} PROPERTIES
+      MACOSX_RPATH TRUE
+      SKIP_BUILD_RPATH FALSE
+      BUILD_WITH_INSTALL_RPATH FALSE
+      INSTALL_RPATH_USE_LINK_PATH TRUE
+    )
+
+    if( PLATFORM_OSX )
+      if( FRAMEWORK )
+        set_target_properties( ${target} PROPERTIES
+          INSTALL_RPATH "@loader_path/../Frameworks;@loader_path/../../.."
+          BUILD_RPATH "@loader_path/../Frameworks;@loader_path/../../.."
+        )
+      else()
+        set_target_properties( ${target} PROPERTIES
+          INSTALL_RPATH "@loader_path/../lib;${CMAKE_INSTALL_PREFIX}/lib"
+          BUILD_RPATH "${CMAKE_BINARY_DIR}/lib"
+        )
+      endif()
+    elseif( PLATFORM_LINUX )
+      set_target_properties( ${target} PROPERTIES
+        INSTALL_RPATH "\$ORIGIN/../lib;${CMAKE_INSTALL_PREFIX}/lib"
+        BUILD_RPATH "${CMAKE_BINARY_DIR}/lib"
+      )
+    endif()
+  endif()
+
+  # Expose include directories to consumers of this target
+  target_include_directories( ${target}
+    PUBLIC
+      $<BUILD_INTERFACE:${INC_ROOT_DIR}>
+      $<INSTALL_INTERFACE:include>
+  )
 
   if( PLATFORM_OSX AND FRAMEWORK )
 
@@ -47,16 +89,27 @@ function(nom_add_library target lib_type source headers external_deps )
                             "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
                             MACOSX_FRAMEWORK_IDENTIFIER
                             "net.i8degrees.${target}"
-                            # PUBLIC_HEADER
-                            # "${source}"
     )
   endif( PLATFORM_OSX AND FRAMEWORK )
 
-  # Copy target's library file to $CMAKE_INSTALL_PREFIX/lib
-  install(  TARGETS ${target}
-            LIBRARY DESTINATION lib
-            ARCHIVE DESTINATION lib
-            LIBRARY FRAMEWORK DESTINATION ${CMAKE_INSTALL_PREFIX} )
+  # Install target and export to nomlib-targets
+  if( PLATFORM_OSX AND FRAMEWORK )
+    install(  TARGETS ${target}
+              EXPORT nomlib-targets
+              LIBRARY DESTINATION lib COMPONENT Runtime
+              ARCHIVE DESTINATION lib COMPONENT Development
+              FRAMEWORK DESTINATION ${CMAKE_INSTALL_PREFIX} COMPONENT Runtime
+              PUBLIC_HEADER DESTINATION include COMPONENT Development
+    )
+  else()
+    install(  TARGETS ${target}
+              EXPORT nomlib-targets
+              LIBRARY DESTINATION lib COMPONENT Runtime
+              ARCHIVE DESTINATION lib COMPONENT Development
+              RUNTIME DESTINATION bin COMPONENT Runtime
+              INCLUDES DESTINATION include
+    )
+  endif()
 
 endfunction(nom_add_library)
 

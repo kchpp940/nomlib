@@ -1,71 +1,50 @@
-# Locate nomlib
+# nomlib-config.cmake -- backward compatibility wrapper
 #
-# This module defines:
+# This is the legacy find-module that ships with nomlib. If the modern
+# CMake config-file package (generated at install time) is available in a
+# standard location (e.g. <prefix>/lib/cmake/nomlib or inside an OS X
+# framework bundle), it will be preferred and loaded instead. Otherwise,
+# this module falls back to the original hand-written find logic.
 #
-# NOMLIB_FOUND, TRUE when all the specified components are found, FALSE when
-# one or more components are not found.
-#
-# NOMLIB_XXX_FOUND, TRUE when the specified component (debug or release) is
-# found, FALSE otherwise.
-#
-# NOMLIB_LIBRARIES, the list of libraries corresponding to the found
-# components.
-#
-# NOMLIB_INCLUDE_DIR, the path where nomlib's development header files are
-# located.
-#
-# NOMLIB_EXTERNAL_INCLUDE_DIRS, the paths where required external development
-# header files are located.
-#
-# NOMLIB_DEPENDENCIES, the paths where the required external libraries are
-# located.
-#
-# NOTE: On OS X, framework libraries are preferred (chosen) over dynamic
-# libraries.
-#
-# Usage
-#
-# find_package( nomlib [QUIET] COMPONENTS ... [REQUIRED] [OPTIONAL_COMPONENTS] ... )
-#
-# QUIET, disables output messages when the component cannot be found.
-#
-# REQUIRED, stops CMake processing with an error message when the component
-# cannot be found.
-#
-# If nomlib is not installed in a standard path -- one that is automatically
-# searched by CMake -- you can set the NOMLIB_ROOT CMake variable before
-# invoking find_package( nomlib ... ) with the root installation prefix.
-#
-# The NOMLIB_ROOT variable can also be set from the environment and invoked at
-# the time of CMake generation (cmake ..).
-#
-# Example
-#
-# find_package( nomlib COMPONENTS core file math audio system graphics REQUIRED
-#               OPTIONAL_COMPONENTS audio )
-#
-# include_directories( ${NOMLIB_INCLUDE_DIR} )
-# add_executable( app ... )
-# target_link_libraries( app ${NOMLIB_LIBRARIES} )
-#
-# Findnomlib.cmake TODO
-#
-# - [ ] Support find_package version syntax, i.e.:
-# ```find_package( nomlib 0.11.0 ... )```
-# - [ ] Support explicit use of debug && release libraries.
-# - [ ] Ensure that the proper libraries are selected, depending on
-# architecture (i.e.: 32-bit VS 64-bit).
-#
-# Copyright (c) 2014 Jeffrey Carpenter <i8degrees@gmail.com>
-#
+# Copyright (c) 2014-2024 Jeffrey Carpenter <i8degrees@gmail.com>
 # Distributed under the Simplified BSD License; see accompanying file
 # LICENSE.md.
-#
-# This software is distributed WITHOUT ANY WARRANTY; without even the
-# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-#
-# To distribute this file outside of CMake, substitute the full license text
-# for the above reference.
+
+# First, try to locate the modern CMake package config that is installed
+# alongside the libraries.
+set( _nomlib_modern_config_hints
+  ${NOMLIB_ROOT}
+  $ENV{NOMLIB_ROOT}
+  ~/Library/Frameworks/nomlib.framework/Resources/CMake
+  /Library/Frameworks/nomlib.framework/Resources/CMake
+)
+
+find_file( _nomlib_modern_config
+  NAMES nomlib-config.cmake
+  PATHS ${_nomlib_modern_config_hints}
+  PATH_SUFFIXES
+    lib/cmake/nomlib
+    share/nomlib/CMake
+    CMake
+  NO_DEFAULT_PATH
+)
+
+if( _nomlib_modern_config )
+  if( NOT nomlib_FIND_QUIETLY )
+    message( STATUS "Delegating to modern nomlib package config at: ${_nomlib_modern_config}" )
+  endif()
+  include( "${_nomlib_modern_config}" )
+  unset( _nomlib_modern_config )
+  unset( _nomlib_modern_config_hints )
+  return()
+endif()
+
+unset( _nomlib_modern_config )
+unset( _nomlib_modern_config_hints )
+
+# ---------------------------------------------------------------------------
+# Legacy find-module logic (preserved for backward compatibility)
+# ---------------------------------------------------------------------------
 
 set( NOMLIB_DEPS_ROOT "NOTFOUND" )
 

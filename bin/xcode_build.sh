@@ -3,15 +3,6 @@
 # NOTE: This script is intended to be ran from the project's current build
 # directory.
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ "${_NOM_BUILD_CORE_RUNNING}" != "1" ] && [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR}/_build_core.sh" ]; then
-  if [ "${NOM_STRICT_RESOURCE_CHECK}" = "1" ]; then
-    "${SCRIPT_DIR}/_build_core.sh" check-strict || exit 1
-  else
-    "${SCRIPT_DIR}/_build_core.sh" check || exit 1
-  fi
-fi
-
 XCODEBUILD_BIN=$(which xcodebuild)
 BUILD_TYPE_ARG=$1
 

@@ -5,7 +5,17 @@
 
 # Add runtime search path to our application bundle so that we can find its
 # dependencies at launch.
+#
+# DEPRECATED: This macro relies on manual install_name_tool invocations.
+#             Prefer native CMake RPATH target properties instead:
+#               set_target_properties(target PROPERTIES
+#                 MACOSX_RPATH TRUE
+#                 INSTALL_RPATH_USE_LINK_PATH TRUE
+#                 INSTALL_RPATH "...")
+#             nom_add_library() now handles this automatically.
 macro ( add_rpath target rpath binary_path )
+  message( AUTHOR_WARNING
+    "add_rpath() is deprecated. Use native CMake RPATH target properties instead." )
 
   foreach ( path ${rpath} )
 
@@ -24,7 +34,11 @@ macro ( add_rpath target rpath binary_path )
 endmacro ( add_rpath target rpath binary_path )
 
 # Modify runtime search path for a library or application
+#
+# DEPRECATED: Prefer native CMake RPATH target properties.
 macro ( change_rpath old_rpath new_rpath binary_path )
+  message( AUTHOR_WARNING
+    "change_rpath() is deprecated. Use native CMake RPATH target properties instead." )
 
   if ( CMAKE_VERBOSE_MAKEFILE )
     set ( COMMENT_TEXT "\nModifying runtime search path for ${binary_path}: \n\n\t${old_rpath}\n\nto ${new_rpath}\n\n" )
@@ -39,7 +53,11 @@ macro ( change_rpath old_rpath new_rpath binary_path )
 endmacro ( change_rpath rpath binary_path )
 
 # Change the install name path of a library
+#
+# DEPRECATED: Prefer native CMake RPATH and INSTALL_NAME_DIR target properties.
 macro ( install_name_rpath rpath binary_path )
+  message( AUTHOR_WARNING
+    "install_name_rpath() is deprecated. Use native CMake INSTALL_NAME_DIR target property instead." )
 
   if ( CMAKE_VERBOSE_MAKEFILE )
     set ( COMMENT_TEXT "\nModifying install name path for ${binary_path}: \n\n\t${rpath}\n\n" )

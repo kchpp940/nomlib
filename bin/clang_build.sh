@@ -7,15 +7,6 @@
 # appropriate locations for the development tooling, i.e.: make
 # PATH=/usr/bin:/usr/local/bin
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ "${_NOM_BUILD_CORE_RUNNING}" != "1" ] && [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR}/_build_core.sh" ]; then
-  if [ "${NOM_STRICT_RESOURCE_CHECK}" = "1" ]; then
-    "${SCRIPT_DIR}/_build_core.sh" check-strict || exit 1
-  else
-    "${SCRIPT_DIR}/_build_core.sh" check || exit 1
-  fi
-fi
-
 BUILD_TYPE_ARG=$1
 
 # Default

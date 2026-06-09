@@ -83,6 +83,8 @@ include ( "${CMAKE_SOURCE_DIR}/cmake/platform.cmake" )
 # Utility macro helpers
 include ( "${CMAKE_CURRENT_SOURCE_DIR}/cmake/functions.cmake" )
 include ( "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macros.cmake" )
+# Package configuration helpers
+include(CMakePackageConfigHelpers)
 
 if ( PLATFORM_WINDOWS )
   # Building nomlib on Windows is only supported as a static library for the
@@ -164,6 +166,21 @@ set( NOM_EXAMPLES_RESOURCES_DIR "${NOMLIB_RESOURCES_DIR}/examples" )
 
 # Unit testing resources path
 set( NOM_TESTS_RESOURCES_DIR "${NOMLIB_RESOURCES_DIR}/tests" )
+
+# Installation layout directories
+if( PLATFORM_OSX AND FRAMEWORK )
+  set( NOMLIB_INCLUDE_INSTALL_DIR "${PROJECT_NAME}.framework/Headers" )
+  set( NOMLIB_LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}" )
+  set( NOMLIB_SHARE_INSTALL_DIR "${PROJECT_NAME}.framework/Resources" )
+  set( NOMLIB_CMAKE_INSTALL_DIR "${PROJECT_NAME}.framework/Resources/CMake" )
+  set( NOMLIB_RESOURCES_INSTALL_DIR "${PROJECT_NAME}.framework/Resources" )
+else()
+  set( NOMLIB_INCLUDE_INSTALL_DIR "include" )
+  set( NOMLIB_LIB_INSTALL_DIR "lib" )
+  set( NOMLIB_SHARE_INSTALL_DIR "share/${PROJECT_NAME}" )
+  set( NOMLIB_CMAKE_INSTALL_DIR "lib/cmake/${PROJECT_NAME}" )
+  set( NOMLIB_RESOURCES_INSTALL_DIR "share/${PROJECT_NAME}" )
+endif()
 
 # Additional flags to pass add_executable -- used when library examples are
 # built
@@ -305,161 +322,176 @@ endif( PLATFORM_LINUX OR PLATFORM_POSIX )
 # List of our source code to be compiled
 add_subdirectory( ${SRC_DIR} )
 
-# Installation phase
+# =============================================================================
+# Installation phase: unified install/package configuration
+# =============================================================================
 
-# Bundle libraries we depend on in the appropriate modules
+# --- Bundle third-party dependencies into framework bundles (OSX only) ------
 if( PLATFORM_OSX AND FRAMEWORK )
 
   if( NOM_BUILD_CORE_UNIT )
-    install(  DIRECTORY ${SDL2_LIBRARY}
-              DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
-              PATTERN ".*" EXCLUDE
-    )
+    if( IS_DIRECTORY "${SDL2_LIBRARY}" )
+      install(  DIRECTORY ${SDL2_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
+                PATTERN ".*" EXCLUDE
+      )
+    else()
+      install(  FILES ${SDL2_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
+      )
+    endif()
   endif( NOM_BUILD_CORE_UNIT )
 
   if( NOM_BUILD_SYSTEM_UNIT )
-    install(  DIRECTORY ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY}
-              DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
-              PATTERN ".*" EXCLUDE
-    )
+    foreach( _lib ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY} )
+      if( IS_DIRECTORY "${_lib}" )
+        install(  DIRECTORY ${_lib}
+                  DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
+                  PATTERN ".*" EXCLUDE
+        )
+      else()
+        install(  FILES ${_lib}
+                  DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
+        )
+      endif()
+    endforeach()
   endif( NOM_BUILD_SYSTEM_UNIT )
 
   if( NOM_BUILD_AUDIO_UNIT )
-    install(  DIRECTORY ${LIBSNDFILE_LIBRARY}
-              DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
-              PATTERN ".*" EXCLUDE
-    )
+    if( IS_DIRECTORY "${LIBSNDFILE_LIBRARY}" )
+      install(  DIRECTORY ${LIBSNDFILE_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
+                PATTERN ".*" EXCLUDE
+      )
+    else()
+      install(  FILES ${LIBSNDFILE_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
+      )
+    endif()
   endif( NOM_BUILD_AUDIO_UNIT )
 
   if( NOM_BUILD_GUI_UNIT )
-    # dylibs
     install(  FILES ${LIBROCKET_CORE_LIBRARY} ${LIBROCKET_CONTROLS_LIBRARY}
               ${LIBROCKET_DEBUGGER_LIBRARY}
               DESTINATION "${PROJECT_NAME}-gui.framework/Libraries"
     )
   endif( NOM_BUILD_GUI_UNIT )
 
-  # Install nomlib's header files in a stub framework, nomlib.framework
-  #
-  # NOTE: The trailing slash is necessary, to prevent the last directory
-  # component -- 'nomlib' -- from being copied. This keeps the nomlib root
-  # namespace preserved, so we can include headers the same way across
-  # platforms, i.e.: <nomlib/config.hpp>.
+endif( PLATFORM_OSX AND FRAMEWORK )
+
+# --- Header files -----------------------------------------------------------
+if( PLATFORM_OSX AND FRAMEWORK )
   install(  DIRECTORY "${INC_DIR}/"
-            DESTINATION "${PROJECT_NAME}.framework/Headers"
+            DESTINATION "${NOMLIB_INCLUDE_INSTALL_DIR}"
+            COMPONENT Development
             PATTERN ".*" EXCLUDE
   )
-
-  # nomlib's icon
-  install(  FILES
-            "${NOMLIB_RESOURCES_DIR}/nomlib.icns"
-            DESTINATION "${PROJECT_NAME}.framework/Resources"
-            OPTIONAL
+else()
+  install(  DIRECTORY ${INC_DIR}
+            DESTINATION "${NOMLIB_INCLUDE_INSTALL_DIR}"
+            COMPONENT Development
+            PATTERN "." EXCLUDE
+            PATTERN "*.in" EXCLUDE
   )
+endif()
 
-  # Install nomlib's CMake find module; this should end up in a spot that is
-  # automatically searched by find_package.
-  install(  DIRECTORY
-            "${NOMLIB_RESOURCES_DIR}/CMake"
-            DESTINATION "${PROJECT_NAME}.framework/Resources"
-            PATTERN ".*" EXCLUDE
-  )
+# --- Resources (icon, shared support data) ----------------------------------
+install(  FILES
+          "${NOMLIB_RESOURCES_DIR}/nomlib.icns"
+          DESTINATION "${NOMLIB_RESOURCES_INSTALL_DIR}"
+          OPTIONAL
+          COMPONENT Runtime
+)
 
-  # Install software license & general project information
+install(  DIRECTORY "${NOMLIB_SHARED_SUPPORT_DIR}/InputDevices"
+          DESTINATION "${NOMLIB_RESOURCES_INSTALL_DIR}/SharedSupport"
+          COMPONENT Runtime
+          OPTIONAL
+          PATTERN ".*" EXCLUDE
+)
+
+# --- Documentation and project info -----------------------------------------
+if( PLATFORM_OSX AND FRAMEWORK )
   install(  FILES
             ${PROJECT_SOURCE_DIR}/README.md
             ${PROJECT_SOURCE_DIR}/LICENSE.md
-            DESTINATION "${PROJECT_NAME}.framework/Resources"
+            DESTINATION "${NOMLIB_SHARE_INSTALL_DIR}"
+            COMPONENT Runtime
   )
-
-  # Install the generated documentation files
-  # if( NOM_INSTALL_GENERATED_DOCS )
-  #   install(  DIRECTORY ${PROJECT_BINARY_DIR}/docs/html
-  #             DESTINATION "${PROJECT_NAME}.framework/Resources/Documentation"
-  #             PATTERN ".*" EXCLUDE
-  #   )
-  # endif( NOM_INSTALL_GENERATED_DOCS )
-
-  # Install hardware definitions for input devices (game controllers)
-  install(  DIRECTORY "${NOMLIB_SHARED_SUPPORT_DIR}/InputDevices"
-            DESTINATION "${PROJECT_NAME}.framework/Resources/SharedSupport"
-            OPTIONAL
-            PATTERN ".*" EXCLUDE )
-endif ( PLATFORM_OSX AND FRAMEWORK )
-
-# POSIX install layout scheme is the default installation scheme.
-# Additionally, the following applies to Darwin platform when MacOS library
-# framework targets are disabled (FRAMEWORK=0)
-if( NOT FRAMEWORK )
-
-  # Install nomlib's header files to system-wide path for other apps to use
-  install ( DIRECTORY ${INC_DIR}
-            DESTINATION "include"
-            PATTERN "." EXCLUDE     # dotfiles, i.e. .DS_Store, .gitignore
-            PATTERN "*.in" EXCLUDE  # cmake generated files, i.e.: config.hpp.in
-          )
-
-  # Install nomlib's icon
-  install(  FILES
-            "${NOMLIB_RESOURCES_DIR}/nomlib.icns"
-            DESTINATION "share/${PROJECT_NAME}"
-            OPTIONAL
-  )
-
-  # Install nomlib's cmake module; this should be installed somewhere that is
-  # automatically searched by find_package.
-  #
-  # See also (installation prefixes for a package):
-  # http://www.cmake.org/cmake/help/v3.0/command/find_package.html?highlight=find_package.
-  if( PLATFORM_WINDOWS )
-    # i.e.: C:\Program Files (x86)\nomlib\CMake
-    install(  DIRECTORY
-              "${NOMLIB_RESOURCES_DIR}/CMake/"
-              DESTINATION
-              "CMake"
-              PATTERN ".*" EXCLUDE
-            )
-
-    # Install hardware definitions for input devices (game controllers)
-    install(  DIRECTORY "${NOMLIB_SHARED_SUPPORT_DIR}/InputDevices"
-              DESTINATION "SharedSupport"
-              OPTIONAL
-              PATTERN ".*" EXCLUDE )
-
-
-  else( NOT PLATFORM_WINDOWS )
-    # i.e.: /usr/local/share/nomlib/CMake
-    install(  DIRECTORY
-              "${NOMLIB_RESOURCES_DIR}/CMake"
-              DESTINATION
-              "share/${PROJECT_NAME}/CMake"
-              PATTERN ".*" EXCLUDE
-            )
-    # Install cmake find modules at system-wide install prefix for locating
-    # nomlib
-    install(  DIRECTORY
-              "${NOMLIB_RESOURCES_DIR}/CMake/"
-              DESTINATION
-              "lib/cmake/${PROJECT_NAME}"
-              PATTERN ".*" EXCLUDE
-            )
-  endif( PLATFORM_WINDOWS )
-
-  # Install software license & general project information
+else()
   install(  FILES
             ${PROJECT_SOURCE_DIR}/README.md
             ${PROJECT_SOURCE_DIR}/LICENSE.md
             DESTINATION "share/doc/${PROJECT_NAME}"
+            COMPONENT Runtime
           )
+endif()
 
-  # Install the generated documentation files
-  if( NOM_INSTALL_GENERATED_DOCS )
+if( NOM_INSTALL_GENERATED_DOCS )
+  if( PLATFORM_OSX AND FRAMEWORK )
     install(  DIRECTORY ${PROJECT_BINARY_DIR}/docs/html
-              DESTINATION "share/doc/${PROJECT_NAME}"
+              DESTINATION "${NOMLIB_SHARE_INSTALL_DIR}/Documentation"
+              COMPONENT Documentation
               PATTERN ".*" EXCLUDE
     )
-  endif( NOM_INSTALL_GENERATED_DOCS )
-endif ( NOT FRAMEWORK )
+  else()
+    install(  DIRECTORY ${PROJECT_BINARY_DIR}/docs/html
+              DESTINATION "share/doc/${PROJECT_NAME}"
+              COMPONENT Documentation
+              PATTERN ".*" EXCLUDE
+    )
+  endif()
+endif()
+
+# --- CMake package configuration (modern config-file package) ---------------
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/nomlib-config-version.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+  "${CMAKE_TEMPLATE_PATH}/nomlib-config.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/nomlib-config.cmake"
+  INSTALL_DESTINATION "${NOMLIB_CMAKE_INSTALL_DIR}"
+  PATH_VARS
+    NOMLIB_INCLUDE_INSTALL_DIR
+    NOMLIB_LIB_INSTALL_DIR
+    NOMLIB_SHARE_INSTALL_DIR
+    NOMLIB_RESOURCES_INSTALL_DIR
+)
+
+install(  FILES
+          "${CMAKE_CURRENT_BINARY_DIR}/nomlib-config.cmake"
+          "${CMAKE_CURRENT_BINARY_DIR}/nomlib-config-version.cmake"
+          DESTINATION "${NOMLIB_CMAKE_INSTALL_DIR}"
+          COMPONENT Development
+)
+
+# Also install legacy find-module for backward compatibility
+install(  DIRECTORY
+          "${NOMLIB_RESOURCES_DIR}/CMake"
+          DESTINATION "${NOMLIB_SHARE_INSTALL_DIR}"
+          COMPONENT Development
+          PATTERN ".*" EXCLUDE
+)
+
+if( PLATFORM_WINDOWS AND NOT FRAMEWORK )
+  install(  DIRECTORY
+            "${NOMLIB_RESOURCES_DIR}/CMake/"
+            DESTINATION "CMake"
+            COMPONENT Development
+            PATTERN ".*" EXCLUDE
+          )
+endif()
+
+# --- Export targets ----------------------------------------------------------
+install(  EXPORT nomlib-targets
+          FILE nomlib-targets.cmake
+          NAMESPACE nomlib::
+          DESTINATION "${NOMLIB_CMAKE_INSTALL_DIR}"
+          COMPONENT Development
+)
 
 # nomlib examples configuration
 if( EXAMPLES )
@@ -516,24 +548,6 @@ configure_file  (
 add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
-
-find_package(Python3 COMPONENTS Interpreter)
-if(Python3_Interpreter_FOUND)
-  add_custom_target( check_resources
-    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Checking resources for consistency (non-strict mode)..."
-    VERBATIM
-  )
-  add_custom_target( check_resources_strict
-    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py --strict
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    COMMENT "Running STRICT resource validation (fail on duplicates/type mismatch/hardcoded paths/path concat)"
-    VERBATIM
-  )
-else()
-  message(WARNING "Python3 not found - check_resources target will not be available")
-endif()
 
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )
