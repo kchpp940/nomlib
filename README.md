@@ -198,6 +198,21 @@ cmake -D CMAKE_INSTALL_PREFIX=~/Library/Frameworks ..
 
 Removal is provided by executing **make uninstall** within your current build directory.
 
+### Verifying the unified dev entrypoints
+
+The project ships with a regression test that confirms `bin/` and `.vscode/bin/`
+configure scripts produce identical CMakeCache output, and that cache clearing,
+legacy positional args, generator names with spaces, and build flags all behave
+consistently.
+
+```shell
+bash bin/check_dev_entrypoints.sh
+```
+
+On success it prints `SUMMARY: 20 passed, 0 failed` and exits `0`.
+The test creates its own temporary directory and never touches the source tree
+or any existing build directory.
+
 **IMPORTANT:** If you are building multiple target types with the generated MSVCPP or Xcode project files, each of these targets **must** be kept in separate build directories!
 
 ## Mac OS X Dependencies
