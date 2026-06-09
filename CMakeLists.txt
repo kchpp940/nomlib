@@ -302,14 +302,6 @@ if ( PLATFORM_LINUX OR PLATFORM_POSIX )
   endif(NOT DEFINED ENV{LIBROCKETDIR})
 endif( PLATFORM_LINUX OR PLATFORM_POSIX )
 
-# ---------------------------------------------------------------------------
-# Dependency preflight: runs AFTER all options (NOM_BUILD_*_UNIT) and
-# third-party path variables (NOMLIB_DEPS_DIR, ENV{SDL2DIR}, ...) are ready.
-# Reports issues as WARNING, never FATAL_ERROR; the outer build scripts and
-# subsequent find_package() calls enforce correctness.
-# ---------------------------------------------------------------------------
-include ( "${CMAKE_SOURCE_DIR}/cmake/preflight.cmake" )
-
 # List of our source code to be compiled
 add_subdirectory( ${SRC_DIR} )
 
@@ -319,44 +311,24 @@ add_subdirectory( ${SRC_DIR} )
 if( PLATFORM_OSX AND FRAMEWORK )
 
   if( NOM_BUILD_CORE_UNIT )
-    if(IS_DIRECTORY "${SDL2_LIBRARY}")
-      install(  DIRECTORY ${SDL2_LIBRARY}
-                DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
-                PATTERN ".*" EXCLUDE
-      )
-    else()
-      install(  FILES ${SDL2_LIBRARY}
-                DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
-      )
-    endif()
+    install(  DIRECTORY ${SDL2_LIBRARY}
+              DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
+              PATTERN ".*" EXCLUDE
+    )
   endif( NOM_BUILD_CORE_UNIT )
 
   if( NOM_BUILD_SYSTEM_UNIT )
-    foreach(_lib ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY})
-      if(IS_DIRECTORY "${_lib}")
-        install(  DIRECTORY ${_lib}
-                  DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
-                  PATTERN ".*" EXCLUDE
-        )
-      else()
-        install(  FILES ${_lib}
-                  DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
-        )
-      endif()
-    endforeach()
+    install(  DIRECTORY ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY}
+              DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
+              PATTERN ".*" EXCLUDE
+    )
   endif( NOM_BUILD_SYSTEM_UNIT )
 
   if( NOM_BUILD_AUDIO_UNIT )
-    if(IS_DIRECTORY "${LIBSNDFILE_LIBRARY}")
-      install(  DIRECTORY ${LIBSNDFILE_LIBRARY}
-                DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
-                PATTERN ".*" EXCLUDE
-      )
-    else()
-      install(  FILES ${LIBSNDFILE_LIBRARY}
-                DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
-      )
-    endif()
+    install(  DIRECTORY ${LIBSNDFILE_LIBRARY}
+              DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
+              PATTERN ".*" EXCLUDE
+    )
   endif( NOM_BUILD_AUDIO_UNIT )
 
   if( NOM_BUILD_GUI_UNIT )
@@ -544,6 +516,24 @@ configure_file  (
 add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_custom_target( check_resources
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMENT "Checking resources for consistency..."
+    VERBATIM
+  )
+  add_custom_target( check_resources_strict
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/bin/check_resources.py
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    COMMENT "Strict resource validation check (fail on warnings not implemented yet)"
+    VERBATIM
+  )
+else()
+  message(WARNING "Python3 not found - check_resources target will not be available")
+endif()
 
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )

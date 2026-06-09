@@ -100,16 +100,14 @@ if(NOM_BUILD_AUDIO_UNIT)
 endif(NOM_BUILD_AUDIO_UNIT)
 
 # nomlib-gui external deps
-if(NOM_BUILD_GUI_UNIT)
-  find_package( LibRocket REQUIRED )
-  if( LIBROCKET_FOUND )
-    # Add development header files
-    include_directories( ${LIBROCKET_INCLUDE_DIRS} )
-    message ( STATUS "Found libRocket headers: ${LIBROCKET_INCLUDE_DIRS}." )
-  else ( NOT LIBROCKET_FOUND )
-    message ( FATAL_ERROR "Missing libRocket headers at ${LIBROCKET_INCLUDE_DIRS}." )
-  endif ( LIBROCKET_FOUND )
-endif(NOM_BUILD_GUI_UNIT)
+find_package( LibRocket REQUIRED )
+if( LIBROCKET_FOUND )
+  # Add development header files
+  include_directories( ${LIBROCKET_INCLUDE_DIRS} )
+  message ( STATUS "Found libRocket headers: ${LIBROCKET_INCLUDE_DIRS}." )
+else ( NOT LIBROCKET_FOUND )
+  message ( FATAL_ERROR "Missing libRocket headers at ${LIBROCKET_INCLUDE_DIRS}." )
+endif ( LIBROCKET_FOUND )
 
 # third-party, headers-only dependency TCLAP
 set( TCLAP_INCLUDE_DIR "${NOM_THIRD_PARTY_COMMON_DIR}/tclap" )

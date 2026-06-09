@@ -7,6 +7,22 @@
 # appropriate locations for the development tooling, i.e.: make
 # PATH=/usr/bin:/usr/local/bin
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+PYTHON_BIN=$(which python3)
+
+if [ -x "${PYTHON_BIN}" ] && [ -f "${PROJECT_ROOT}/bin/check_resources.py" ]; then
+  echo "Running pre-build resource checks..."
+  "${PYTHON_BIN}" "${PROJECT_ROOT}/bin/check_resources.py"
+  if [ $? -ne 0 ]; then
+    echo "Resource checks FAILED - aborting build."
+    exit 1
+  fi
+  echo "Resource checks passed."
+  echo
+fi
+
 BUILD_TYPE_ARG=$1
 
 # Default
