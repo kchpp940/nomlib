@@ -232,7 +232,22 @@ log_verbose() {
 
 # ---- Preflight wrapper ----
 
+cache_preflight_json() {
+  local build_dir="$1"
+  if [[ -z "$build_dir" || ! -d "$build_dir" ]]; then
+    return 0
+  fi
+  local cache_file="${build_dir}/preflight_result.json"
+  local pf_args=(--json)
+  if [[ -n "$TARGET_ARCH" ]]; then
+    pf_args+=(--arch "$TARGET_ARCH")
+  fi
+  "${PREFLIGHT_SCRIPT}" "${pf_args[@]}" > "${cache_file}" 2>/dev/null || true
+  log_verbose "Preflight JSON cached at ${cache_file}"
+}
+
 run_preflight_check() {
+  local build_dir="$1"
   if [[ "$SKIP_PREFLIGHT" == "1" ]]; then
     log_info "Skipping dependency preflight (NOM_SKIP_PREFLIGHT=1)."
     return 0
@@ -241,6 +256,9 @@ run_preflight_check() {
     log_info "Preflight script not found or not executable; skipping."
     return 0
   fi
+
+  # Always cache JSON so CMake, other bin scripts and README tooling can reuse
+  cache_preflight_json "$build_dir"
 
   log_info ""
   log_info "=== Running dependency preflight ==="
@@ -260,6 +278,9 @@ run_preflight_check() {
   local exit_code=$?
   log_info ""
   log_info "Preflight found issues (exit code ${exit_code})."
+  if [[ -n "$build_dir" && -f "${build_dir}/preflight_result.json" ]]; then
+    log_info "  Cached JSON:        ${build_dir}/preflight_result.json"
+  fi
   log_info "  View detailed fixes:  ${PREFLIGHT_SCRIPT} --fixes"
   log_info "  Full report:          ${PREFLIGHT_SCRIPT}"
   log_info ""
@@ -297,8 +318,8 @@ cmd_configure() {
     rm -rf CMakeFiles
   fi
 
-  # Run preflight BEFORE invoking CMake
-  run_preflight_check
+  # Run preflight BEFORE invoking CMake (pass BUILD_DIR for JSON caching)
+  run_preflight_check "${BUILD_DIR}"
 
   local build_flags=""
   case "$BUILD_TYPE" in
@@ -337,9 +358,9 @@ cmd_configure() {
   fi
   log_info ""
 
-  cmake "${gen_arg[@]}" \
+  cmake ${gen_arg[@]+"${gen_arg[@]}"} \
     ${build_flags} \
-    "${arch_args[@]}" \
+    ${arch_args[@]+"${arch_args[@]}"} \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=10.7 \
     -DCMAKE_INSTALL_PREFIX="${BUILD_INSTALL_DIR}" \
     "${PROJECT_ROOT}"
@@ -355,7 +376,7 @@ cmd_build() {
   if [[ -n "$NUM_THREADS" ]]; then
     jobs_arg=(-j "$NUM_THREADS")
   fi
-  make "${jobs_arg[@]}"
+  make ${jobs_arg[@]+"${jobs_arg[@]}"}
 }
 
 cmd_install() {

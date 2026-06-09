@@ -111,6 +111,17 @@ cmake -DNOM_SKIP_PREFLIGHT=ON ..
 Exit codes from `preflight.sh`: `0` = all required checks passed, `1` = one or
 more checks failed, `2` = usage error.
 
+**Shared JSON cache.** Every configure run (via `bin/configure.sh`,
+`.vscode/bin/configure.sh`, or `bin/_build_core.sh configure`) writes the full
+preflight JSON result to `<build_dir>/preflight_result.json`. CMake also reads
+and writes this same file. The cache can be consumed by README generators, CI
+scripts, or any other tool:
+
+```shell
+# Inspect the cached preflight result
+python3 -m json.tool build/preflight_result.json | head -40
+```
+
 ### Mac OS X
 
 After you have the dependencies taken care of, you can either use the helper
