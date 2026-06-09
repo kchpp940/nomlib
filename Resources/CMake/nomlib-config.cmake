@@ -17,16 +17,21 @@
 # Copyright (c) 2014-2024 Jeffrey Carpenter <i8degrees@gmail.com>
 # Distributed under the Simplified BSD License; see accompanying file LICENSE.md.
 
-# Look for the modern config next to this file (framework/share layout) and
-# in the canonical lib/cmake/<name> location.
+# Look for the modern config in the canonical lib/cmake/<name> location,
+# the framework layout, and the user-provided NOMLIB_ROOT. We deliberately do
+# NOT search the current directory: legacy wrapper itself is installed at
+# share/nomlib/CMake/nomlib-config.cmake, and searching there would find
+# ourselves and cause infinite recursion.
 get_filename_component(_nomlib_legacy_dir "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
 
 set(_nomlib_modern_search_paths
-  "${_nomlib_legacy_dir}"
   "${_nomlib_legacy_dir}/../../lib/cmake/nomlib"
   "${_nomlib_legacy_dir}/../../../lib/cmake/nomlib"
+  "${_nomlib_legacy_dir}/../../../nomlib.framework/Resources/CMake"
   "${NOMLIB_ROOT}/lib/cmake/nomlib"
   "$ENV{NOMLIB_ROOT}/lib/cmake/nomlib"
+  "${NOMLIB_ROOT}/nomlib.framework/Resources/CMake"
+  "$ENV{NOMLIB_ROOT}/nomlib.framework/Resources/CMake"
   ~/Library/Frameworks/nomlib.framework/Resources/CMake
   /Library/Frameworks/nomlib.framework/Resources/CMake
 )

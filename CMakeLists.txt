@@ -381,10 +381,13 @@ endif( PLATFORM_OSX AND FRAMEWORK )
 
 # --- Header files -----------------------------------------------------------
 if( PLATFORM_OSX AND FRAMEWORK )
-  install(  DIRECTORY "${INC_DIR}/"
+  # Install under nomlib.framework/Headers/nomlib/... so consumers use
+  # #include <nomlib/core.hpp> consistently with POSIX layout.
+  install(  DIRECTORY ${INC_DIR}
             DESTINATION "${NOMLIB_INCLUDE_INSTALL_DIR}"
             COMPONENT Development
-            PATTERN ".*" EXCLUDE
+            PATTERN "." EXCLUDE
+            PATTERN "*.in" EXCLUDE
   )
 else()
   install(  DIRECTORY ${INC_DIR}
@@ -468,12 +471,32 @@ install(  FILES
           COMPONENT Development
 )
 
-# Also install legacy find-module for backward compatibility
+# Also install legacy find-module for backward compatibility.
+# In FRAMEWORK layout the modern config already lives at
+# nomlib.framework/Resources/CMake (NOMLIB_CMAKE_INSTALL_DIR), so we must not
+# install the legacy wrapper to the same place (it would overwrite the modern
+# config). Instead install it to the same share/nomlib/CMake location used by
+# the POSIX layout.
+if( PLATFORM_OSX AND FRAMEWORK )
+  set( NOMLIB_LEGACY_CMAKE_INSTALL_DIR "share/${PROJECT_NAME}/CMake" )
+else()
+  set( NOMLIB_LEGACY_CMAKE_INSTALL_DIR "${NOMLIB_SHARE_INSTALL_DIR}/CMake" )
+endif()
+
 install(  DIRECTORY
           "${NOMLIB_RESOURCES_DIR}/CMake"
-          DESTINATION "${NOMLIB_SHARE_INSTALL_DIR}"
+          DESTINATION "${NOMLIB_LEGACY_CMAKE_INSTALL_DIR}/.."
           COMPONENT Development
           PATTERN ".*" EXCLUDE
+)
+# Module-mode lookup (CMAKE_MODULE_PATH) searches for Find<Name>.cmake while
+# the installed file is named nomlib-config.cmake (Config-mode style). Install
+# a forwarding Findnomlib.cmake next to it so either lookup style works.
+install(  FILES
+          "${NOMLIB_RESOURCES_DIR}/CMake/nomlib-config.cmake"
+          DESTINATION "${NOMLIB_LEGACY_CMAKE_INSTALL_DIR}"
+          RENAME "Findnomlib.cmake"
+          COMPONENT Development
 )
 
 if( PLATFORM_WINDOWS AND NOT FRAMEWORK )
@@ -548,6 +571,28 @@ configure_file  (
 add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
+
+# ---------------------------------------------------------------------------
+# Install/package verification targets
+#
+# Run the POSIX-layout end-to-end verification (configure, build, install,
+# consume from external CMake project, run the binary, exercise uninstall).
+add_custom_target( nomlib-verify
+  COMMAND
+    "${PROJECT_SOURCE_DIR}/cmake/scripts/verify_install.sh"
+  COMMENT "Running nomlib install verification (POSIX layout)..."
+  USES_TERMINAL
+)
+
+# Run the FRAMEWORK-layout end-to-end verification (OS X only).
+if( PLATFORM_OSX )
+  add_custom_target( nomlib-verify-framework
+    COMMAND
+      "${PROJECT_SOURCE_DIR}/cmake/scripts/verify_install.sh" --framework
+    COMMENT "Running nomlib install verification (FRAMEWORK layout)..."
+    USES_TERMINAL
+  )
+endif()
 
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )

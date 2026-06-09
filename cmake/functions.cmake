@@ -72,12 +72,26 @@ function(nom_add_library target lib_type source headers external_deps public_inc
   endif()
 
   # Expose include directories to consumers of this target
-  target_include_directories( ${target}
-    PUBLIC
-      $<BUILD_INTERFACE:${INC_ROOT_DIR}>
-      $<INSTALL_INTERFACE:include>
-      ${public_include_dirs}
-  )
+  if( PLATFORM_OSX AND FRAMEWORK )
+    # In FRAMEWORK layout, all headers are installed under the umbrella
+    # nomlib.framework/Headers/nomlib/... so consumers use:
+    #   #include <nomlib/core.hpp>
+    # We must put nomlib.framework/Headers on the include search path via
+    # the install interface.
+    target_include_directories( ${target}
+      PUBLIC
+        $<BUILD_INTERFACE:${INC_ROOT_DIR}>
+        $<INSTALL_INTERFACE:nomlib.framework/Headers>
+        ${public_include_dirs}
+    )
+  else()
+    target_include_directories( ${target}
+      PUBLIC
+        $<BUILD_INTERFACE:${INC_ROOT_DIR}>
+        $<INSTALL_INTERFACE:include>
+        ${public_include_dirs}
+    )
+  endif()
 
   if( PLATFORM_OSX AND FRAMEWORK )
 
