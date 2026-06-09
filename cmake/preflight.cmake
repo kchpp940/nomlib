@@ -37,6 +37,7 @@ if(NOM_SKIP_PREFLIGHT)
 endif()
 
 set(PREFLIGHT_SCRIPT "${CMAKE_SOURCE_DIR}/bin/preflight.sh")
+set(PREFLIGHT_CACHE_FILE "${CMAKE_BINARY_DIR}/preflight_result.json")
 
 if(NOT EXISTS "${PREFLIGHT_SCRIPT}")
   message(STATUS "Preflight: script not found at ${PREFLIGHT_SCRIPT}; skipping.")
@@ -45,28 +46,55 @@ if(NOT EXISTS "${PREFLIGHT_SCRIPT}")
   return()
 endif()
 
-message(STATUS "Running dependency preflight...")
+set(PREFLIGHT_JSON "")
+set(PREFLIGHT_JSON_SOURCE "generated")
+set(PREFLIGHT_EXIT_CODE 1)
 
-set(PREFLIGHT_ARCH_ARG "")
-if(CMAKE_OSX_ARCHITECTURES)
-  list(LENGTH CMAKE_OSX_ARCHITECTURES _arch_count)
-  if(_arch_count EQUAL 1)
-    list(GET CMAKE_OSX_ARCHITECTURES 0 _single_arch)
-    set(PREFLIGHT_ARCH_ARG "--arch" "${_single_arch}")
+# ---- Single source of truth: prefer the JSON cached by bin/_build_core.sh ----
+if(EXISTS "${PREFLIGHT_CACHE_FILE}")
+  file(READ "${PREFLIGHT_CACHE_FILE}" PREFLIGHT_JSON)
+  string(STRIP "${PREFLIGHT_JSON}" PREFLIGHT_JSON)
+  if(PREFLIGHT_JSON)
+    set(PREFLIGHT_JSON_SOURCE "cache")
+    # Derive PASS/FAIL from the JSON summary rather than re-running the script
+    string(JSON _pf_fail_count ERROR_VARIABLE _pf_json_err GET "${PREFLIGHT_JSON}" "summary" "failed")
+    if(_pf_json_err)
+      set(PREFLIGHT_JSON "")
+      message(STATUS "Preflight: cached JSON at ${PREFLIGHT_CACHE_FILE} is invalid; re-running script.")
+    else()
+      if(_pf_fail_count EQUAL 0)
+        set(PREFLIGHT_EXIT_CODE 0)
+      endif()
+      message(STATUS "Preflight: using cached JSON from ${PREFLIGHT_CACHE_FILE} (${_pf_fail_count} failed checks)")
+    endif()
   endif()
 endif()
 
-execute_process(
-  COMMAND "${PREFLIGHT_SCRIPT}" --json ${PREFLIGHT_ARCH_ARG}
-  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-  OUTPUT_VARIABLE PREFLIGHT_JSON
-  ERROR_VARIABLE PREFLIGHT_STDERR
-  RESULT_VARIABLE PREFLIGHT_EXIT_CODE
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# ---- No cache or invalid cache: run the script ourselves ----
+if(NOT PREFLIGHT_JSON)
+  message(STATUS "Running dependency preflight...")
 
-if(PREFLIGHT_STDERR)
-  message(STATUS "Preflight stderr: ${PREFLIGHT_STDERR}")
+  set(PREFLIGHT_ARCH_ARG "")
+  if(CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES _arch_count)
+    if(_arch_count EQUAL 1)
+      list(GET CMAKE_OSX_ARCHITECTURES 0 _single_arch)
+      set(PREFLIGHT_ARCH_ARG "--arch" "${_single_arch}")
+    endif()
+  endif()
+
+  execute_process(
+    COMMAND "${PREFLIGHT_SCRIPT}" --json ${PREFLIGHT_ARCH_ARG}
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE PREFLIGHT_JSON
+    ERROR_VARIABLE PREFLIGHT_STDERR
+    RESULT_VARIABLE PREFLIGHT_EXIT_CODE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+
+  if(PREFLIGHT_STDERR)
+    message(STATUS "Preflight stderr: ${PREFLIGHT_STDERR}")
+  endif()
 endif()
 
 set(PREFLIGHT_PASSED FALSE)
@@ -74,11 +102,11 @@ if(PREFLIGHT_EXIT_CODE EQUAL 0)
   set(PREFLIGHT_PASSED TRUE)
 endif()
 
-# ---- Cache JSON result for bin scripts and README ----
+# ---- Always (re)write cache so direct cmake runs also populate it ----
 set(PREFLIGHT_JSON_RAW "${PREFLIGHT_JSON}" CACHE INTERNAL "Raw preflight JSON output")
-if(NOT CMAKE_BINARY_DIR STREQUAL "")
-  file(WRITE "${CMAKE_BINARY_DIR}/preflight_result.json" "${PREFLIGHT_JSON}\n")
-  message(STATUS "Preflight: result JSON cached at ${CMAKE_BINARY_DIR}/preflight_result.json")
+if(NOT CMAKE_BINARY_DIR STREQUAL "" AND PREFLIGHT_JSON)
+  file(WRITE "${PREFLIGHT_CACHE_FILE}" "${PREFLIGHT_JSON}\n")
+  message(STATUS "Preflight: JSON written to ${PREFLIGHT_CACHE_FILE} (source: ${PREFLIGHT_JSON_SOURCE})")
 endif()
 
 if(NOT PREFLIGHT_JSON)
