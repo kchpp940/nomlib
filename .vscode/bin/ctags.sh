@@ -1,6 +1,14 @@
-#!/bin/bash
+#!/bin/sh
+#
+#   Generate project tag file (symbol reference mappings)
+#
+# NOTE: This script should be ran from the project's root directory, i.e.:
+#       ~/Projects/nomlib.git/
+#
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-source "${PROJECT_ROOT}/bin/_build_core.sh"
-nomlib_dispatch ctags "$@"
+SOURCE_DIR=src
+HEADER_DIR=include/nomlib/
+
+CTAGS_BIN=$(which ctags)
+
+${CTAGS_BIN} -R ${SOURCE_DIR} ${HEADER_DIR}

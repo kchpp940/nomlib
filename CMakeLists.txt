@@ -78,6 +78,9 @@ project( nomlib
   #LANGUAGES "en"
 )
 
+# Dependency preflight (runs before platform detection and dependency search)
+include ( "${CMAKE_SOURCE_DIR}/cmake/preflight.cmake" )
+
 # Platform detection
 include ( "${CMAKE_SOURCE_DIR}/cmake/platform.cmake" )
 # Utility macro helpers
@@ -516,15 +519,6 @@ configure_file  (
 add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
-
-# Unified dev entrypoint regression test.
-# This target is always-out-of-tree: the bash script creates its own temp dir and never
-# touches neither the project source tree nor this build directory.
-add_custom_target( check-dev-entrypoints
-    COMMAND bash "${CMAKE_SOURCE_DIR}/bin/check_dev_entrypoints.sh"
-    COMMENT "Running unified dev entrypoint regression tests"
-    VERBATIM
-)
 
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )
