@@ -199,16 +199,17 @@ nomlib_cmd_configure() {
   local flags
   flags="$(nomlib_build_flags)"
 
-  local generator_arg=""
+  local cmake_args=()
   if [[ -n "$NOM_GENERATOR" ]]; then
-    generator_arg="-G${NOM_GENERATOR}"
+    cmake_args+=("-G${NOM_GENERATOR}")
   fi
 
   echo "Generating ${NOM_BUILD_TYPE} project files..."
   echo "BUILD_INSTALL_DIR: ${NOM_INSTALL_DIR}"
   echo "BUILD_FLAGS=${flags}"
 
-  cmake $generator_arg $flags \
+  cmake "${cmake_args[@]}" $flags \
+    -DCMAKE_BUILD_TYPE="${NOM_BUILD_TYPE}" \
     -DCMAKE_INSTALL_PREFIX="${NOM_INSTALL_DIR}" \
     "${NOMLIB_PROJECT_ROOT}"
 }
