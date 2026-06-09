@@ -275,7 +275,7 @@ void FreeSurface ( SDL_Surface* video_buffer )
   }
 }
 
-void TTF_FreeFont ( _TTF_Font* font )
+void TTF_FreeFont ( TTF_Font* font )
 {
   if ( font != nullptr )
   {

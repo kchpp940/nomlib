@@ -46,7 +46,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //#define NOM_DEBUG_SDL2_TRUE_TYPE_FONT_GLYPHS_PNG
 
 // Forward declarations (Third-party)
-typedef struct _TTF_Font TTF_Font;
+struct TTF_Font;
 
 namespace nom {
 
