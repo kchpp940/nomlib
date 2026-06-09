@@ -88,7 +88,7 @@ else
   fi
 
   SCRIPT_DIR_FOR_CORE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  if [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR_FOR_CORE}/_build_core.sh" ]; then
+  if [ "${_NOM_BUILD_CORE_RUNNING}" != "1" ] && [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR_FOR_CORE}/_build_core.sh" ]; then
     if [ "${NOM_STRICT_RESOURCE_CHECK}" = "1" ]; then
       "${SCRIPT_DIR_FOR_CORE}/_build_core.sh" check-strict || exit 1
     else

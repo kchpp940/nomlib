@@ -8,7 +8,7 @@
 # PATH=/usr/bin:/usr/local/bin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-if [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR}/_build_core.sh" ]; then
+if [ "${_NOM_BUILD_CORE_RUNNING}" != "1" ] && [ "${NOM_SKIP_RESOURCE_CHECK}" != "1" ] && [ -x "${SCRIPT_DIR}/_build_core.sh" ]; then
   if [ "${NOM_STRICT_RESOURCE_CHECK}" = "1" ]; then
     "${SCRIPT_DIR}/_build_core.sh" check-strict || exit 1
   else
