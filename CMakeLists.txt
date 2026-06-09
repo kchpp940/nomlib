@@ -319,24 +319,44 @@ add_subdirectory( ${SRC_DIR} )
 if( PLATFORM_OSX AND FRAMEWORK )
 
   if( NOM_BUILD_CORE_UNIT )
-    install(  DIRECTORY ${SDL2_LIBRARY}
-              DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
-              PATTERN ".*" EXCLUDE
-    )
+    if(IS_DIRECTORY "${SDL2_LIBRARY}")
+      install(  DIRECTORY ${SDL2_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
+                PATTERN ".*" EXCLUDE
+      )
+    else()
+      install(  FILES ${SDL2_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-core.framework/Frameworks"
+      )
+    endif()
   endif( NOM_BUILD_CORE_UNIT )
 
   if( NOM_BUILD_SYSTEM_UNIT )
-    install(  DIRECTORY ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY}
-              DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
-              PATTERN ".*" EXCLUDE
-    )
+    foreach(_lib ${SDL2_IMAGE_LIBRARY} ${SDL2_TTF_LIBRARY})
+      if(IS_DIRECTORY "${_lib}")
+        install(  DIRECTORY ${_lib}
+                  DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
+                  PATTERN ".*" EXCLUDE
+        )
+      else()
+        install(  FILES ${_lib}
+                  DESTINATION "${PROJECT_NAME}-system.framework/Frameworks"
+        )
+      endif()
+    endforeach()
   endif( NOM_BUILD_SYSTEM_UNIT )
 
   if( NOM_BUILD_AUDIO_UNIT )
-    install(  DIRECTORY ${LIBSNDFILE_LIBRARY}
-              DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
-              PATTERN ".*" EXCLUDE
-    )
+    if(IS_DIRECTORY "${LIBSNDFILE_LIBRARY}")
+      install(  DIRECTORY ${LIBSNDFILE_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
+                PATTERN ".*" EXCLUDE
+      )
+    else()
+      install(  FILES ${LIBSNDFILE_LIBRARY}
+                DESTINATION "${PROJECT_NAME}-audio.framework/Frameworks"
+      )
+    endif()
   endif( NOM_BUILD_AUDIO_UNIT )
 
   if( NOM_BUILD_GUI_UNIT )
