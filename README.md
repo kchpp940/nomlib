@@ -205,13 +205,27 @@ configure scripts produce identical CMakeCache output, and that cache clearing,
 legacy positional args, generator names with spaces, and build flags all behave
 consistently.
 
+There are two ways to run it:
+
+**1. Direct script (no build directory required):**
+
 ```shell
 bash bin/check_dev_entrypoints.sh
 ```
 
+**2. CMake build target (from any configured build directory):**
+
+```shell
+cmake --build . --target check-dev-entrypoints
+# or: make check-dev-entrypoints
+```
+
 On success it prints `SUMMARY: 20 passed, 0 failed` and exits `0`.
-The test creates its own temporary directory and never touches the source tree
-or any existing build directory.
+
+The test **never touches your build directory or source tree** — it creates its
+own isolated temporary directory via `mktemp -d` and cleans it up on exit via
+`trap EXIT`. The CMake target simply wraps the script, so both entrypoints are
+functionally identical.
 
 **IMPORTANT:** If you are building multiple target types with the generated MSVCPP or Xcode project files, each of these targets **must** be kept in separate build directories!
 

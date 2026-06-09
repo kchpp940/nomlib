@@ -5,8 +5,12 @@
 			"label": "nomlib: configure (Debug)",
 			"type": "shell",
 			"command": "${workspaceFolder}/bin/configure.sh",
-			"args": ["--debug"],
-			"options": {"cwd": "${workspaceFolder}/build"},
+			"args": [
+				"--debug"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
 			"problemMatcher": [],
 			"detail": "Configure Debug build using unified helper"
 		},
@@ -14,8 +18,12 @@
 			"label": "nomlib: configure (Release)",
 			"type": "shell",
 			"command": "${workspaceFolder}/bin/configure.sh",
-			"args": ["--release"],
-			"options": {"cwd": "${workspaceFolder}/build"},
+			"args": [
+				"--release"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
 			"problemMatcher": [],
 			"detail": "Configure Release build using unified helper"
 		},
@@ -23,16 +31,25 @@
 			"label": "nomlib: build",
 			"type": "shell",
 			"command": "${workspaceFolder}/bin/clang_build.sh",
-			"options": {"cwd": "${workspaceFolder}/build"},
-			"problemMatcher": ["$gcc"],
-			"group": {"kind": "build", "isDefault": true},
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"detail": "Build project using unified helper"
 		},
 		{
 			"label": "nomlib: clean",
 			"type": "shell",
 			"command": "${workspaceFolder}/bin/clang_clean.sh",
-			"options": {"cwd": "${workspaceFolder}/build"},
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
 			"problemMatcher": [],
 			"detail": "Clean build using unified helper"
 		},
@@ -40,7 +57,9 @@
 			"label": "nomlib: install",
 			"type": "shell",
 			"command": "${workspaceFolder}/bin/clang_install.sh",
-			"options": {"cwd": "${workspaceFolder}/build"},
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
 			"problemMatcher": [],
 			"detail": "Install project using unified helper"
 		},
@@ -48,9 +67,40 @@
 			"label": "nomlib: distclean",
 			"type": "shell",
 			"command": "${workspaceFolder}/bin/clang_distclean.sh",
-			"options": {"cwd": "${workspaceFolder}/build"},
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
 			"problemMatcher": [],
 			"detail": "Full clean (uninstall + clean + cache clear) using unified helper"
+		},
+		{
+			"label": "nomlib: check-dev-entrypoints (script)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"${workspaceFolder}/bin/check_dev_entrypoints.sh"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"problemMatcher": [],
+			"detail": "Run unified dev entrypoint regression tests via direct script (no build dir needed)"
+		},
+		{
+			"label": "nomlib: check-dev-entrypoints (cmake target)",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--build",
+				".",
+				"--target",
+				"check-dev-entrypoints"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}/build"
+			},
+			"problemMatcher": [],
+			"detail": "Run unified dev entrypoint regression tests via cmake build target (build dir must already be configured)"
 		}
 	]
 }

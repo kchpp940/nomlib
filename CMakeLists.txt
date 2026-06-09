@@ -517,6 +517,15 @@ add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
 
+# Unified dev entrypoint regression test.
+# This target is always-out-of-tree: the bash script creates its own temp dir and never
+# touches neither the project source tree nor this build directory.
+add_custom_target( check-dev-entrypoints
+    COMMAND bash "${CMAKE_SOURCE_DIR}/bin/check_dev_entrypoints.sh"
+    COMMENT "Running unified dev entrypoint regression tests"
+    VERBATIM
+)
+
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )
   # CPack configuration
