@@ -31,17 +31,30 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <SDL.h>
 
+#if defined(NOM_PLATFORM_OSX) && !(defined(NOM_PLATFORM_ARCH_X86) || defined(NOM_PLATFORM_ARCH_X86_64))
+  #include <mach/mach_time.h>
+#endif
+
 namespace nom {
 
 // Source: http://www.brue.org/2013/01/using-rdtsc-in-gcc-and-clang/
 volatile uint64 rdtsc()
 {
+#if defined(NOM_PLATFORM_ARCH_X86) || defined(NOM_PLATFORM_ARCH_X86_64)
   uint32 a = 0.0f;
   uint32 d = 0.0f;
   asm volatile
       (".byte 0x0f, 0x31 #rdtsc\n" // edx:eax
        :"=a"(a), "=d"(d)::);
   return( ( (uint64) d) << 32) | (uint64) a;
+#elif defined(NOM_PLATFORM_OSX)
+  // Fallback for non-x86 Apple platforms (arm64 / Apple Silicon): use the
+  // system monotonic clock as a rough equivalent. The RDTSC feature is not
+  // available on these architectures.
+  return static_cast<uint64>(mach_absolute_time());
+#else
+  return 0;
+#endif
 }
 
 PlatformSpec platform_info()

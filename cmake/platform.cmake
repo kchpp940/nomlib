@@ -108,15 +108,38 @@ message ( STATUS "Generating build files for: ${CMAKE_GENERATOR}" )
 # PPC is not officially supported because I have no means whatsoever of
 # testing such a package.
 #
+# Respect CMAKE_OSX_ARCHITECTURES if already provided by the user (e.g.
+# passed on the command line or set by a parent project). Otherwise fall
+# back to the legacy defaults.
+#
 # TODO; we might be able to put these platform checks shown below in the
 # CMAKE_SYSTEM_NAME checks above.
 if ( UNIVERSAL )
-  set ( CMAKE_OSX_ARCHITECTURES i386; x86_64 )
+  if ( NOT CMAKE_OSX_ARCHITECTURES )
+    set ( CMAKE_OSX_ARCHITECTURES i386; x86_64 )
+  endif()
   set ( PLATFORM_ARCH "x86; x64" ) # Reserved for future use
 
 else ( NOT UNIVERSAL )
-  set ( CMAKE_OSX_ARCHITECTURES x86_64 )
-  set ( PLATFORM_ARCH "x64" ) # Reserved for future use
+  if ( NOT CMAKE_OSX_ARCHITECTURES )
+    # Fall back to the host architecture so Apple Silicon builds work out
+    # of the box without requiring an explicit -DCMAKE_OSX_ARCHITECTURES.
+    execute_process(
+      COMMAND uname -m
+      OUTPUT_VARIABLE _nom_host_arch
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if ( _nom_host_arch STREQUAL "arm64" )
+      set ( CMAKE_OSX_ARCHITECTURES arm64 )
+      set ( PLATFORM_ARCH "arm64" )
+    else()
+      set ( CMAKE_OSX_ARCHITECTURES x86_64 )
+      set ( PLATFORM_ARCH "x64" )
+    endif()
+    unset ( _nom_host_arch )
+  else()
+    set ( PLATFORM_ARCH "${CMAKE_OSX_ARCHITECTURES}" )
+  endif()
 
 endif ( UNIVERSAL )
 

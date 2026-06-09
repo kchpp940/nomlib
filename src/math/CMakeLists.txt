@@ -36,7 +36,8 @@ set( NOM_MATH_DEPS nomlib-core )
 # Add and link the library
 nom_add_library(  ${NOM_MATH_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_MATH_SOURCE}" ""
-                  "${NOM_MATH_DEPS}" )
+                  "${NOM_MATH_DEPS}"
+                  "" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

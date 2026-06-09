@@ -115,7 +115,8 @@ endif( LIBROCKET_FOUND )
 # Add and link the library
 nom_add_library(  ${NOM_GUI_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_GUI_SOURCE}" ""
-                  "${NOM_GUI_DEPS}" )
+                  "${NOM_GUI_DEPS}"
+                  "${SDL2_INCLUDE_DIR};${SDL2_IMAGE_INCLUDE_DIR};${OPENGL_INCLUDE_DIR};${LIBROCKET_INCLUDE_DIRS}" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

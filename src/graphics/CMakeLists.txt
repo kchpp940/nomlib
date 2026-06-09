@@ -140,7 +140,8 @@ if( NOM_BUILD_GRAPHICS_UNIT )
   # Add and link the library
   nom_add_library(  ${NOM_GRAPHICS_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                     "${NOM_GRAPHICS_SOURCE}" ""
-                    "${NOM_GRAPHICS_DEPS}" )
+                    "${NOM_GRAPHICS_DEPS}"
+                    "${SDL2_INCLUDE_DIR};${SDL2_IMAGE_INCLUDE_DIR};${SDL2_TTF_INCLUDE_DIR}" )
 
   # Re-declare globally, so other build units that depend on us can refer to
   # this variable

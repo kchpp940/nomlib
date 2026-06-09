@@ -54,7 +54,8 @@ endif( PLATFORM_OSX )
 # Add and link the library
 nom_add_library(  ${NOM_FILE_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_FILE_SOURCE}" ""
-                  "${NOM_FILE_DEPS}" )
+                  "${NOM_FILE_DEPS}"
+                  "" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

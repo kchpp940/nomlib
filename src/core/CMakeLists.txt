@@ -71,7 +71,8 @@ endif( PLATFORM_WINDOWS )
 # Add and link the library
 nom_add_library(  ${NOM_CORE_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_CORE_SOURCE}" ""
-                  "${NOM_CORE_DEPS}" )
+                  "${NOM_CORE_DEPS}"
+                  "${SDL2_INCLUDE_DIR}" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

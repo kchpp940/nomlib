@@ -96,7 +96,8 @@ endif(NOM_BUILD_AUDIO_UNIT)
 # Add and link the library
 nom_add_library(  ${NOM_AUDIO_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_AUDIO_SOURCE}" ""
-                  "${NOM_AUDIO_DEPS}" )
+                  "${NOM_AUDIO_DEPS}"
+                  "${OPENAL_INCLUDE_DIR};${LIBSNDFILE_INCLUDE_DIR}" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

@@ -72,7 +72,8 @@ if(NOM_BUILD_ACTIONS_UNIT)
   # Add and link the library
   nom_add_library(  ${NOM_ACTIONS_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                     "${NOM_ACTIONS_SOURCE}" ""
-                    "${NOM_ACTIONS_DEPS}" )
+                    "${NOM_ACTIONS_DEPS}"
+                    "" )
 
   # Re-declare globally, so other build units that depend on us can refer to
   # this variable

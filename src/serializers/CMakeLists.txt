@@ -98,7 +98,8 @@ set( NOM_SERIALIZERS_DEPS nomlib-core nomlib-file nomlib-ptree )
 # Add and link the library
 nom_add_library(  ${NOM_SERIALIZERS_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_SERIALIZERS_SOURCE}" ""
-                  "${NOM_SERIALIZERS_DEPS}" )
+                  "${NOM_SERIALIZERS_DEPS}"
+                  "${NOM_THIRD_PARTY_COMMON_DIR}" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

@@ -39,7 +39,8 @@ set( NOM_PTREE_DEPS nomlib-core )
 # Add and link the library
 nom_add_library(  ${NOM_PTREE_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_PTREE_SOURCE}" ""
-                  "${NOM_PTREE_DEPS}" )
+                  "${NOM_PTREE_DEPS}"
+                  "" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

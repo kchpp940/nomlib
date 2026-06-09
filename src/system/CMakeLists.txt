@@ -96,7 +96,8 @@ set(  NOM_SYSTEM_DEPS nomlib-core nomlib-file nomlib-math
 # Add and link the library
 nom_add_library(  ${NOM_SYSTEM_LIBRARY} ${LIBRARY_OUTPUT_TYPE}
                   "${NOM_SYSTEM_SOURCE}" ""
-                  "${NOM_SYSTEM_DEPS}" )
+                  "${NOM_SYSTEM_DEPS}"
+                  "${SDL2_INCLUDE_DIR};${SDL2_IMAGE_INCLUDE_DIR};${SDL2_TTF_INCLUDE_DIR}" )
 
 # Re-declare globally, so other build units that depend on us can refer to this
 # variable

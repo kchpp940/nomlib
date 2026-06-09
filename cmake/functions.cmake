@@ -11,10 +11,14 @@
 # external_deps parameters should be separated by semicolons when multiple
 # dependencies are specified and enclosed within double quotes.
 #
+# public_include_dirs is an optional list of include directories that should
+# be exposed as PUBLIC (transitive) include dependencies to consumers of this
+# library, e.g. SDL2_INCLUDE_DIR.
+#
 # TODO: Future expansion of this macro should strongly consider refactoring with
 # the use of the CMakeParseArguments module.
 # http://www.cmake.org/cmake/help/v3.0/module/CMakeParseArguments.html
-function(nom_add_library target lib_type source headers external_deps )
+function(nom_add_library target lib_type source headers external_deps public_include_dirs)
   # The library version defines the full build version of said library and
   # is used in the actual filename on disk.
   set ( LIB_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" )
@@ -72,6 +76,7 @@ function(nom_add_library target lib_type source headers external_deps )
     PUBLIC
       $<BUILD_INTERFACE:${INC_ROOT_DIR}>
       $<INSTALL_INTERFACE:include>
+      ${public_include_dirs}
   )
 
   if( PLATFORM_OSX AND FRAMEWORK )

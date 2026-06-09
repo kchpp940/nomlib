@@ -58,8 +58,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /// it has only been tested with MSVCPP 2013 RC1.
 #if defined( __i386__ ) || defined( _M_IX86 )
   #define NOM_PLATFORM_ARCH_X86
+  #define NOM_PLATFORM_ARCH_32
 #elif defined( __x86_64__ ) || defined( _M_AMD64 )
   #define NOM_PLATFORM_ARCH_X86_64
+  #define NOM_PLATFORM_ARCH_64
+#elif defined( __aarch64__ ) || defined( __arm64__ ) || defined( _M_ARM64 )
+  #define NOM_PLATFORM_ARCH_ARM64
+  #define NOM_PLATFORM_ARCH_64
 #endif
 
 /// \brief Compiler detection
