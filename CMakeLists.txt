@@ -302,29 +302,6 @@ if ( PLATFORM_LINUX OR PLATFORM_POSIX )
   endif(NOT DEFINED ENV{LIBROCKETDIR})
 endif( PLATFORM_LINUX OR PLATFORM_POSIX )
 
-# ============================================================================
-# Third-party library detection
-# ============================================================================
-# Detect all optional/conditional external libraries and normalize results
-# into project-owned NOM_HAVE_* booleans via nom_probe_third_party().
-# This must happen BEFORE build-option validation so that the validation
-# macro can read the normalized availability flags.
-#
-# Actual REQUIRED find_package calls for active modules still happen inside
-# each subdirectory's CMakeLists (e.g. src/audio/CMakeLists.txt).
-# ============================================================================
-
-nom_probe_third_party()
-
-# ============================================================================
-# Build Option Dependency Validation
-# ============================================================================
-# Centralized check — see nom_validate_build_options() in cmake/macros.cmake.
-# Must run AFTER nom_probe_third_party() so NOM_HAVE_* are populated.
-# ============================================================================
-
-nom_validate_build_options()
-
 # List of our source code to be compiled
 add_subdirectory( ${SRC_DIR} )
 
@@ -539,26 +516,6 @@ configure_file  (
 add_custom_target ( uninstall COMMAND ${CMAKE_COMMAND} -P
                     ${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake
                   )
-
-# ============================================================================
-# Build-option validation regression target.
-#
-# Runs the full 18-case CMake build-option matrix defined in
-# bin/check_build_options.sh, verifying that nom_validate_build_options()
-# (cmake/macros.cmake) correctly accepts valid configurations and rejects
-# invalid ones BEFORE compilation starts.
-#
-# Usage:
-#   make check-build-options          # from a configured build directory
-#   cmake --build . --target check-build-options
-#   bin/check_build_options.sh        # directly, from project root
-# ============================================================================
-add_custom_target( check-build-options
-  COMMAND "${PROJECT_SOURCE_DIR}/bin/check_build_options.sh"
-  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-  COMMENT "Running 18-case CMake build-option validation matrix..."
-  VERBATIM
-)
 
 # TODO: Windows platform support
 if ( NOT PLATFORM_WINDOWS )

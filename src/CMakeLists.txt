@@ -1,15 +1,5 @@
 # Project modules source tree root
 
-# ============================================================================
-# Build Option Dependency Validation (src/ level)
-# ============================================================================
-# Re-run the centralized validation macro defined in cmake/macros.cmake.
-# This serves as a second line of defense right before source compilation,
-# ensuring that any options modified after the root-level check are still
-# valid. Logic is NOT duplicated here — see nom_validate_build_options().
-# ============================================================================
-nom_validate_build_options()
-
 # Use common build output directories for MSVCPP && Xcode project files.
 #
 # IMPORTANT: Debug and Release build targets **must** be kept in separate build

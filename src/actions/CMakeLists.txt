@@ -1,20 +1,4 @@
 # nomlib-actions library
-#
-# NOTE on module dependencies:
-#   nomlib-actions is composed of three source groups:
-#     1. Core actions   — always built; require nomlib-core, nomlib-math,
-#                         nomlib-system.
-#     2. Graphics actions — require nomlib-graphics; guarded below by
-#        if(NOM_BUILD_GRAPHICS_UNIT) as a defense-in-depth measure.
-#     3. Audio actions    — require nomlib-audio; guarded below by
-#        if(NOM_BUILD_AUDIO_UNIT) as a defense-in-depth measure.
-#
-#   Per project policy, NOM_BUILD_ACTIONS_UNIT=ON implies that BOTH
-#   NOM_BUILD_GRAPHICS_UNIT and NOM_BUILD_AUDIO_UNIT must also be ON.
-#   This invariant is enforced at configure time by the
-#   nom_validate_build_options() macro (see cmake/macros.cmake).
-#   The if-guards below are redundant when validation passes, but they
-#   prevent silent breakage if someone circumvents the validation layer.
 
 if(NOM_BUILD_ACTIONS_UNIT)
   # Library name
